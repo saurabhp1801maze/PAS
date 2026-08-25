@@ -438,12 +438,51 @@ table.data-table tr.has-row-click:hover { background: var(--surface-alt); }
 .chip.active { border-color: var(--primary); background: var(--primary); color: #fff; }
 .filter-block { display: flex; gap: 16px; margin-bottom: 13px; flex-wrap: wrap; }
 
-/* ================= SEARCH ================= */
+/* ================= SEARCH =================
+   NOTE: .search-row is reserved for the topbar global-search result rows.
+   Register / documents toolbars use .register-toolbar so the two never clash. */
 .search-row { display: flex; gap: 10px; margin-bottom: 12px; }
 .search-input-wrap { position: relative; flex: 1; max-width: 300px; }
 .search-input-wrap svg { position: absolute; left: 11px; top: 11px; color: var(--text-faint); }
 .search-input-wrap input { padding-left: 32px; }
-.select-fixed { width: 165px; }
+.select-fixed { width: 165px; flex: 0 0 165px; max-width: 165px; }
+
+.register-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin-bottom: 14px; padding: 10px 12px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.register-search {
+  position: relative; flex: 1 1 auto; min-width: 220px;
+}
+.register-search svg {
+  position: absolute; left: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--text-faint); pointer-events: none;
+}
+.register-search-input {
+  width: 100%; box-sizing: border-box; font-family: var(--sans); font-size: 13px;
+  padding: 9px 12px 9px 34px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-alt); color: var(--text); outline: none;
+}
+.register-search-input:focus {
+  border-color: var(--primary); background: var(--surface);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.register-filters {
+  display: flex; align-items: center; gap: 8px; flex: 0 0 auto; flex-wrap: wrap;
+}
+.register-select {
+  width: auto; min-width: 128px; max-width: 168px; box-sizing: border-box;
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600;
+  padding: 8px 28px 8px 10px; border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface-alt); color: var(--text-soft); outline: none; cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239AA0B4' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+}
+.register-select:focus { border-color: var(--primary); color: var(--text); background-color: var(--surface); }
+.register-export { flex: 0 0 auto; white-space: nowrap; margin-left: auto; }
 
 /* ================= TABS ================= */
 .tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }

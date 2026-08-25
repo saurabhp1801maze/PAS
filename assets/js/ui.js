@@ -1,0 +1,639 @@
+/* DOM-building component library. Ported from the "atoms" section of the original App.jsx —
+   Pill, Badge, DataTable, Panel, KV, ActionBar, KpiRow, PageHeader, Field, Checkbox, Callout,
+   CodeBlock, Tooltip, ScoreDial, RecordHead, DecisionLayout, BackLink, HBar, Donut,
+   LogRequestForm, RequestOrigin, InitiatorPill, MethodBadge/StatusCodeBadge,
+   ApiLifecycle/LifecycleStage — each turned into a small function that returns real DOM nodes
+   (built via a tiny hyperscript-style `h()` helper) instead of JSX/vdom. */
+(function (global) {
+  "use strict";
+  var PAS = global.PAS = global.PAS || {};
+
+  var TONE_HEX = { green: "#16A34A", red: "#DC2626", amber: "#D97706", blue: "#2563EB", violet: "#8B3EE8", indigo: "#5B5BF0", gray: "#6B7080" };
+
+  /* ================= element builder ================= */
+  function h(tag, props, children) {
+    var el = document.createElement(tag);
+    props = props || {};
+    Object.keys(props).forEach(function (k) {
+      var v = props[k];
+      if (v === undefined || v === null || v === false) return;
+      if (k === "style" && typeof v === "object") { Object.assign(el.style, v); return; }
+      if (k === "dataset" && typeof v === "object") { Object.assign(el.dataset, v); return; }
+      if (k.indexOf("on") === 0 && typeof v === "function") { el.addEventListener(k.slice(2).toLowerCase(), v); return; }
+      if (k === "value") { el.value = v; return; }
+      if (k === "checked" || k === "disabled" || k === "selected") { el[k] = !!v; return; }
+      if (k === "html") { el.innerHTML = v; return; }
+      if (v === true) { el.setAttribute(k, ""); return; }
+      el.setAttribute(k, v);
+    });
+    appendKids(el, children);
+    return el;
+  }
+  function appendKids(el, children) {
+    if (children == null) return;
+    var arr = Array.isArray(children) ? children : [children];
+    arr.forEach(function (c) {
+      if (c == null || c === false) return;
+      if (Array.isArray(c)) { appendKids(el, c); return; }
+      el.appendChild(c instanceof Node ? c : document.createTextNode(String(c)));
+    });
+  }
+
+  /* ================= tooltip (single shared floating box) ================= */
+  var tipBoxEl = null;
+  function ensureTipBox() {
+    if (!tipBoxEl) { tipBoxEl = document.createElement("div"); tipBoxEl.className = "tip-box"; document.body.appendChild(tipBoxEl); }
+    return tipBoxEl;
+  }
+  function showTip(anchorEl, opts) {
+    var box = ensureTipBox();
+    box.innerHTML = "";
+    if (opts.tip) box.appendChild(h("span", { class: "tip-line" }, opts.tip));
+    if (opts.what) box.appendChild(h("span", { class: "tip-line tip-what" }, [h("b", {}, "What "), document.createTextNode(opts.what)]));
+    if (opts.why) box.appendChild(h("span", { class: "tip-line tip-why" }, [h("b", {}, "Why "), document.createTextNode(opts.why)]));
+    if (opts.rule) box.appendChild(h("span", { class: "tip-line tip-rule" }, [h("b", {}, "Rule "), document.createTextNode(opts.rule)]));
+    var w = opts.width || 280;
+    box.style.width = w + "px";
+    var r = anchorEl.getBoundingClientRect();
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var below = r.bottom + 200 < vh;
+    var x = Math.max(10, Math.min(r.left + r.width / 2 - w / 2, vw - w - 10));
+    box.style.left = x + "px";
+    if (below) { box.style.top = (r.bottom + 7) + "px"; box.style.bottom = "auto"; }
+    else { box.style.bottom = (vh - r.top + 7) + "px"; box.style.top = "auto"; }
+    box.classList.add("show");
+  }
+  function hideTip() { if (tipBoxEl) tipBoxEl.classList.remove("show"); }
+  function tooltip(opts, child) {
+    var hasTip = opts && (opts.tip || opts.what || opts.why || opts.rule);
+    var wrap = h("span", { class: "tip-wrap" }, child);
+    if (hasTip) {
+      wrap.addEventListener("mouseenter", function () { showTip(wrap, opts); });
+      wrap.addEventListener("mouseleave", hideTip);
+    }
+    return wrap;
+  }
+  function infoDot(size) { return PAS.icon("info", { size: size || 11, color: "var(--text-faint)" }); }
+  function tipLabel(opts) {
+    var span = h("span", { class: opts.className || "" }, opts.text);
+    return tooltip(opts, [span, infoDot()]);
+  }
+
+  /* ================= basic atoms ================= */
+  function pill(tone, text, iconName) {
+    var kids = [];
+    if (iconName) kids.push(PAS.icon(iconName, { size: 10 }));
+    kids.push(document.createTextNode(text));
+    return h("span", { class: "pill", "data-tone": tone || "gray" }, kids);
+  }
+  function badge(status) { return pill(PAS.STATUS_TONE[status] || "gray", status); }
+  function txnStatusBadge(status) { return pill(PAS.TXN_TONE[status] || "gray", status || "Completed"); }
+  function modulePill(type) { return pill(PAS.MODULE_TONE[type], type, PAS.MODULE_ICON[type]); }
+  function initiatorPill(meta) {
+    var init = PAS.INITIATORS[(meta && meta.initiatedBy)] || PAS.INITIATORS.Insured;
+    return pill(init.tone, init.label, init.icon);
+  }
+  function cellOpen(label) { return h("span", { class: "cell-open" }, [document.createTextNode(label || "Open"), PAS.icon("arrow-right", { size: 11 })]); }
+  function cellId(v) { return h("span", { class: "cell-id" }, v); }
+  function cellName(v) { return h("span", { class: "cell-name" }, v); }
+  function methodBadge(method) { return h("span", { class: "method-badge" + (method === "GET" ? " get" : "") }, method); }
+  function statusCodeBadge(code) {
+    var cls = code >= 400 ? "err" : code === 202 ? "accepted" : "";
+    return h("span", { class: "status-code-badge" + (cls ? " " + cls : "") }, String(code));
+  }
+  function codeBlock(data, small) { return h("pre", { class: "code-block" + (small ? " small" : "") }, JSON.stringify(data, null, 2)); }
+
+  /* ================= data table ================= */
+  function dataTable(opts) {
+    var wrap = h("div", { class: "table-wrap" });
+    var scroll = h("div", { class: "table-scroll" });
+    var table = h("table", { class: "data-table" });
+    var thead = h("thead");
+    var headRow = h("tr");
+    opts.columns.forEach(function (c) {
+      var th = h("th");
+      if (typeof c === "string") th.textContent = c;
+      else th.appendChild(tooltip({ what: c.what, why: c.why, rule: c.rule, tip: c.tip }, [document.createTextNode(c.label), infoDot(10)]));
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+    var tbody = h("tbody");
+    opts.rows.forEach(function (r, i) {
+      var tr = h("tr");
+      if (opts.onRowClick) { tr.classList.add("has-row-click"); tr.addEventListener("click", function () { opts.onRowClick(i); }); }
+      r.forEach(function (cell) {
+        var td = h("td", { class: opts.wrapCells ? "wrap" : null });
+        if (cell instanceof Node) td.appendChild(cell); else td.textContent = cell == null ? "" : String(cell);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+    if (opts.rows.length === 0) {
+      tbody.appendChild(h("tr", {}, h("td", { colspan: opts.columns.length, class: "table-empty" }, opts.emptyText || "Nothing here.")));
+    }
+    table.appendChild(tbody);
+    scroll.appendChild(table);
+    wrap.appendChild(scroll);
+    return wrap;
+  }
+  function deskList(opts) {
+    var wrap = h("div", {});
+    wrap.appendChild(pageHeader(opts));
+    wrap.appendChild(kpiRow(opts.kpis));
+    var columns = opts.columns.concat([""]);
+    var rows = opts.rows.map(function (r) { return r.concat([cellOpen("Open")]); });
+    wrap.appendChild(dataTable({ columns: columns, rows: rows, emptyText: opts.empty, onRowClick: opts.onOpen }));
+    return wrap;
+  }
+
+  /* ================= KPI row ================= */
+  /* wrap: true switches from an exact N-column grid (fine for the usual 4-item desk strip) to a
+     responsive auto-fit grid that wraps onto a second row once cards no longer fit — needed once
+     a KPI strip grows past what one row can hold at a readable width. */
+  function kpiRow(items, wrap) {
+    var row = h("div", { class: "kpi-row" + (wrap ? " wrap" : ""), style: wrap ? {} : { gridTemplateColumns: "repeat(" + items.length + ",minmax(0,1fr))" } });
+    items.forEach(function (s) {
+      var card = h("div", { class: "kpi-card" });
+      card.appendChild(s.tip || s.why ? tooltip({ tip: s.tip, why: s.why }, [h("span", { class: "label-11 kpi-label" }, s.label), infoDot(10)]) : h("div", { class: "label-11 kpi-label" }, s.label));
+      var valueRow = h("div", { class: "kpi-value-row" });
+      valueRow.appendChild(h("span", { class: "kpi-value" + (s.tone ? " toned" : ""), "data-tone": s.tone || null }, String(s.value)));
+      if (s.delta) valueRow.appendChild(h("span", { class: "kpi-delta " + (s.delta.indexOf("+") === 0 ? "up" : "down") }, s.delta));
+      card.appendChild(valueRow);
+      row.appendChild(card);
+    });
+    return row;
+  }
+  /* A labeled group of KPIs — groups a flat KPI strip under a named category (e.g. "Book &
+     premium", "Risk & renewal") instead of one undifferentiated row. */
+  function kpiSection(opts, items) {
+    var wrap = h("div", { class: "kpi-section" });
+    var head = h("div", { class: "kpi-section-head" });
+    head.appendChild(h("span", { class: "kpi-section-label" }, opts.label));
+    if (opts.sub) head.appendChild(h("span", { class: "kpi-section-sub" }, opts.sub));
+    wrap.appendChild(head);
+    wrap.appendChild(kpiRow(items));
+    return wrap;
+  }
+
+  /* ================= action bar / buttons ================= */
+  function actionBar(actions) {
+    var bar = h("div", { class: "action-bar" });
+    var busy = null;
+    var current = actions;
+    function render() {
+      bar.innerHTML = "";
+      current.forEach(function (a) {
+        var btn = h("button", { class: "btn" + (a.tone ? " tone-" + a.tone : "") + (busy && busy !== a.label ? " busy" : ""), disabled: a.disabled || !!busy });
+        if (busy === a.label) {
+          var sp = PAS.icon("loader-2", { size: 13 }); sp.classList.add("spin");
+          btn.appendChild(sp); btn.appendChild(document.createTextNode(" Working…"));
+        } else {
+          if (a.icon) btn.appendChild(PAS.icon(a.icon, { size: 13 }));
+          btn.appendChild(document.createTextNode((a.icon ? " " : "") + a.label));
+        }
+        btn.addEventListener("click", function () {
+          if (a.disabled || busy) return;
+          busy = a.label; render();
+          Promise.resolve(a.onRun()).then(function () { busy = null; render(); }).catch(function (err) { busy = null; render(); console.error(err); });
+        });
+        bar.appendChild(a.disabled && a.disabledReason ? tooltip({ rule: a.disabledReason, width: 290 }, btn) : btn);
+      });
+    }
+    render();
+    bar.updateActions = function (newActions) { current = newActions; render(); };
+    return bar;
+  }
+  function backLink(label, onClick) {
+    var btn = h("button", { class: "back-link" }, [PAS.icon("arrow-left", { size: 14 }), document.createTextNode(" " + label)]);
+    btn.addEventListener("click", onClick);
+    return btn;
+  }
+
+  /* ================= KV / panel ================= */
+  function kv(opts) {
+    var row = h("div", { class: "kv-row" });
+    row.appendChild(opts.tip || opts.what || opts.why || opts.rule
+      ? tooltip({ tip: opts.tip, what: opts.what, why: opts.why, rule: opts.rule }, [h("span", { class: "kv-key" }, opts.k), infoDot(10)])
+      : h("span", { class: "kv-key" }, opts.k));
+    var valEl = h("span", { class: "kv-val" + (opts.mono ? " mono" : "") });
+    if (opts.v instanceof Node) valEl.appendChild(opts.v); else valEl.textContent = opts.v;
+    row.appendChild(valEl);
+    return row;
+  }
+  function panel(opts, body) {
+    var p = h("div", { class: "panel" + (opts.pad === 0 ? " no-pad" : "") });
+    var head = h("div", { class: "panel-head" });
+    head.appendChild(tipLabel({ text: opts.title, what: opts.what, why: opts.why, className: "panel-title" }));
+    if (opts.right) head.appendChild(opts.right);
+    p.appendChild(head);
+    var bodyEl = h("div", { class: "panel-body" });
+    appendKids(bodyEl, body);
+    p.appendChild(bodyEl);
+    return p;
+  }
+
+  /* ================= page header ================= */
+  function pageHeader(opts) {
+    var wrap = h("div", { class: "page-header" });
+    if (opts.icon) {
+      var iconBox = h("div", { class: "page-header-icon", "data-tone": opts.tone || "indigo" });
+      iconBox.appendChild(PAS.icon(opts.icon, { size: 18 }));
+      wrap.appendChild(iconBox);
+    }
+    var mid = h("div", { style: { minWidth: "0", flex: "1" } });
+    var titleWrap = h("div", { class: "page-header-title" });
+    titleWrap.appendChild(opts.what
+      ? tooltip({ what: opts.what, why: opts.why, width: 330 }, [document.createTextNode(opts.title), infoDot(13)])
+      : document.createTextNode(opts.title));
+    mid.appendChild(titleWrap);
+    if (opts.sub) mid.appendChild(h("div", { class: "page-header-sub" }, opts.sub));
+    wrap.appendChild(mid);
+    if (opts.right) wrap.appendChild(opts.right);
+    return wrap;
+  }
+
+  /* ================= forms ================= */
+  function field(opts, inputEl) {
+    var wrap = h("div", { class: "field" });
+    wrap.appendChild(h("label", { class: "label-11 field-label" }, opts.label));
+    wrap.appendChild(inputEl);
+    if (opts.hint) wrap.appendChild(h("div", { class: "field-hint" }, opts.hint));
+    return wrap;
+  }
+  function checkboxRow(opts) {
+    var label = h("label", { class: "checkbox-row" });
+    var input = h("input", { type: "checkbox", checked: opts.checked });
+    input.addEventListener("change", function (e) { opts.onChange(e.target.checked); });
+    label.appendChild(input);
+    label.appendChild(document.createTextNode(opts.label));
+    return label;
+  }
+  function callout(tone, content) {
+    var toneKey = tone === "info" ? "blue" : tone === "warn" ? "amber" : tone === "good" ? "green" : tone === "bad" ? "red" : "violet";
+    var div = h("div", { class: "callout", "data-tone": toneKey });
+    appendKids(div, content);
+    return div;
+  }
+
+  /* ================= dashboard visuals ================= */
+  function hbar(opts) {
+    var pct = opts.max ? Math.max(1.5, (opts.value / opts.max) * 100) : 0;
+    var wrap = h("div", { class: "hbar" });
+    var headRow = h("div", { class: "hbar-head" });
+    headRow.appendChild(h("span", { class: "hbar-label" }, opts.label));
+    headRow.appendChild(h("span", { class: "hbar-note" }, opts.note));
+    wrap.appendChild(headRow);
+    var track = h("div", { class: "hbar-track", "data-tone": opts.tone || "indigo" });
+    track.appendChild(h("div", { class: "hbar-fill", style: { width: pct + "%" } }));
+    wrap.appendChild(track);
+    return wrap;
+  }
+  function donut(opts) {
+    var acc = 0;
+    var stops = opts.segments.filter(function (s) { return s.value > 0; }).map(function (s) {
+      var from = (acc / opts.total) * 360; acc += s.value; var to = (acc / opts.total) * 360;
+      return TONE_HEX[s.tone] + " " + from + "deg " + to + "deg";
+    }).join(", ");
+    var wrap = h("div", { class: "donut-wrap" });
+    var d = h("div", { class: "donut", style: { background: "conic-gradient(" + stops + ")" } });
+    var center = h("div", { class: "donut-center" });
+    center.appendChild(h("span", { class: "donut-center-value" }, String(opts.centerValue)));
+    center.appendChild(h("span", { class: "donut-center-label" }, opts.centerLabel));
+    d.appendChild(center);
+    wrap.appendChild(d);
+    var legend = h("div", { class: "donut-legend" });
+    opts.segments.forEach(function (s) {
+      var row = h("div", { class: "donut-legend-row" });
+      row.appendChild(h("span", { class: "donut-swatch", style: { background: TONE_HEX[s.tone] } }));
+      row.appendChild(h("span", { class: "donut-legend-label" }, s.label));
+      row.appendChild(h("span", { class: "donut-legend-value" }, String(s.value)));
+      legend.appendChild(row);
+    });
+    wrap.appendChild(legend);
+    return wrap;
+  }
+  /* A single-row composition chart — segments sized by share of opts.total — always paired with
+     a legend list below carrying a swatch, a text label and the count, so identity never rests on
+     color alone (some of this app's tone pairs, e.g. violet/blue, are not reliably distinguishable
+     by color). opts: { segments: [{label, value, tone, onClick}], total, empty }. */
+  function stackBar(opts) {
+    var total = opts.total || opts.segments.reduce(function (t, s) { return t + s.value; }, 0);
+    var wrap = h("div", {});
+    var present = opts.segments.filter(function (s) { return s.value > 0; });
+    if (present.length === 0) {
+      wrap.appendChild(h("div", { class: "faint-note" }, opts.empty || "Nothing to show."));
+      return wrap;
+    }
+    var bar = h("div", { class: "stack-bar" });
+    present.forEach(function (s) {
+      var pct = total ? Math.max(2, (s.value / total) * 100) : 0;
+      bar.appendChild(h("div", { class: "stack-bar-seg", style: { width: pct + "%", background: TONE_HEX[s.tone] } }));
+    });
+    wrap.appendChild(bar);
+    var legend = h("div", { class: "stack-bar-legend" });
+    present.forEach(function (s) {
+      var row = h("div", { class: "stack-bar-row" });
+      row.appendChild(h("span", { class: "stack-bar-swatch", style: { background: TONE_HEX[s.tone] } }));
+      row.appendChild(h("span", { class: "stack-bar-row-label" }, s.label));
+      row.appendChild(h("span", { class: "stack-bar-row-pct" }, Math.round((s.value / total) * 100) + "%"));
+      row.appendChild(h("span", { class: "stack-bar-row-value" }, String(s.value)));
+      if (s.onClick) row.addEventListener("click", s.onClick);
+      legend.appendChild(row);
+    });
+    wrap.appendChild(legend);
+    return wrap;
+  }
+  function workCard(opts) {
+    var card = h("div", { class: "work-card", "data-tone": opts.tone });
+    card.addEventListener("click", opts.onClick);
+    var top = h("div", { class: "work-card-top" });
+    top.appendChild(PAS.icon(opts.icon, { size: 14 }));
+    top.appendChild(h("span", { class: "work-card-n" }, String(opts.n)));
+    card.appendChild(top);
+    card.appendChild(h("div", { class: "work-card-label" }, opts.label));
+    card.appendChild(h("div", { class: "work-card-sub" }, opts.sub));
+    card.appendChild(h("div", { class: "work-card-open" }, [document.createTextNode("Open desk "), PAS.icon("arrow-right", { size: 11 })]));
+    return card;
+  }
+
+  /* ================= decision-screen scaffolding ================= */
+  function recordHead(p, right) {
+    var wrap = h("div", { class: "record-head" });
+    var left = h("div", {});
+    left.appendChild(h("div", { class: "record-head-id" }, p.id + " · term " + p.termNumber));
+    left.appendChild(h("div", { class: "record-head-name" }, p.holder));
+    left.appendChild(h("div", { class: "record-head-meta" }, p.product + " · via " + p.producer + " · " + PAS.money(p.premium)));
+    wrap.appendChild(left);
+    var rightWrap = h("div", { class: "record-head-right" });
+    if (right) appendKids(rightWrap, right);
+    rightWrap.appendChild(badge(p.status));
+    wrap.appendChild(rightWrap);
+    return wrap;
+  }
+  function decisionLayout(leftNode, rightNode, actions) {
+    var wrap = h("div", { class: "decision-layout" });
+    var grid = h("div", { class: "decision-grid" });
+    var leftCol = h("div", { class: "decision-col left" }); appendKids(leftCol, leftNode);
+    var rightCol = h("div", { class: "decision-col" }); appendKids(rightCol, rightNode);
+    grid.appendChild(leftCol); grid.appendChild(rightCol);
+    wrap.appendChild(grid);
+    var bar = actionBar(actions);
+    wrap.appendChild(bar);
+    wrap.actionBar = bar;
+    return wrap;
+  }
+  function scoreDial(score) {
+    var bad = score < PAS.LOW_SCORE_REFER;
+    var wrap = h("div", { class: "score-dial" });
+    var circle = h("div", { class: "score-dial-circle" + (bad ? " bad" : "") });
+    circle.appendChild(h("span", { class: "score-dial-num" + (bad ? " bad" : "") }, String(score)));
+    circle.appendChild(h("span", { class: "score-dial-tag" }, "SCORE"));
+    wrap.appendChild(circle);
+    var body = h("div", { class: "score-dial-body" });
+    body.appendChild(h("div", { class: "label-11" }, "Risk score · auto-refer below " + PAS.LOW_SCORE_REFER));
+    body.appendChild(h("div", { class: "score-dial-body-sub" }, "Composite from the rating engine. Re-run at every renewal, never carried forward."));
+    wrap.appendChild(body);
+    return wrap;
+  }
+  function requestOrigin(meta) {
+    var init = PAS.INITIATORS[(meta && meta.initiatedBy)] || PAS.INITIATORS.Insured;
+    var wrap = h("div", { class: "request-origin", "data-tone": init.tone });
+    var head = h("div", { class: "request-origin-head" });
+    head.appendChild(PAS.icon(init.icon, { size: 14, color: "var(--tone-fg)" }));
+    head.appendChild(h("span", { class: "request-origin-who" }, "Requested by " + init.label));
+    head.appendChild(h("span", { class: "request-origin-channel" }, "via " + ((meta && meta.channel) || "—")));
+    head.appendChild(h("span", { style: { flex: "1" } }));
+    head.appendChild(h("span", { class: "request-origin-date" }, (meta && meta.submittedOn) || "—"));
+    wrap.appendChild(head);
+    if (meta && meta.requestNote) wrap.appendChild(h("div", { class: "request-origin-note" }, "“" + meta.requestNote + "”"));
+    return wrap;
+  }
+
+  /* Small inline form used by every "Log a request" action.
+     opts: {policies, typeLabel, extraFields(extra)->Node|null, onSubmit(payload)} */
+  function logRequestForm(opts) {
+    var container = h("div", {});
+    function renderClosed() {
+      container.innerHTML = "";
+      var btn = h("button", { class: "log-request-toggle" }, [PAS.icon("phone-call", { size: 13 }), document.createTextNode(" Log a " + opts.typeLabel + " request received by phone or email")]);
+      btn.addEventListener("click", renderOpen);
+      container.appendChild(btn);
+    }
+    function renderOpen() {
+      container.innerHTML = "";
+      var extra = {};
+      var form = h("div", { class: "log-request-form" });
+      form.appendChild(tipLabel({ text: "Log a " + opts.typeLabel + " request", what: "For requests that arrived outside self-service — a call, an email, a broker fax.", why: "It still lands in the Pending queue below; ops logging it never skips the decision step.", className: "label-11 block mb-10" }));
+
+      var grid1 = h("div", { class: "log-request-grid" });
+      var policySelect = h("select", { class: "field-input" });
+      policySelect.appendChild(h("option", { value: "" }, "Select…"));
+      opts.policies.forEach(function (p) { policySelect.appendChild(h("option", { value: p.id }, p.id + " — " + p.holder)); });
+      grid1.appendChild(field({ label: "Policy" }, policySelect));
+
+      var initiatedSelect = h("select", { class: "field-input" });
+      (opts.initiatorKeys || Object.keys(PAS.INITIATORS)).forEach(function (k) { initiatedSelect.appendChild(h("option", { value: k }, k)); });
+      initiatedSelect.value = "Insured";
+      grid1.appendChild(field({ label: "Initiated by", hint: "Who is actually asking for this." }, initiatedSelect));
+      form.appendChild(grid1);
+
+      var grid2 = h("div", { class: "log-request-grid" });
+      var channelSelect = h("select", { class: "field-input" });
+      function fillChannels(who) {
+        channelSelect.innerHTML = "";
+        PAS.INITIATORS[who].channels.forEach(function (c) { channelSelect.appendChild(h("option", { value: c }, c)); });
+      }
+      fillChannels("Insured");
+      initiatedSelect.addEventListener("change", function () { fillChannels(initiatedSelect.value); });
+      grid2.appendChild(field({ label: "Channel" }, channelSelect));
+      if (opts.extraFields) {
+        var extraNode = opts.extraFields(extra);
+        if (extraNode) appendKids(grid2, extraNode);
+      }
+      form.appendChild(grid2);
+
+      var noteArea = h("textarea", { class: "field-input", placeholder: "e.g. Customer called, wants to cancel — sold the car last week." });
+      form.appendChild(field({ label: "Note", hint: "What they actually said — quoted on the decision screen." }, noteArea));
+
+      var actionsRow = h("div", { class: "log-request-actions" });
+      var submitBtn = h("button", { class: "btn tone-primary" }, [PAS.icon("send", { size: 12 }), document.createTextNode(" Submit request")]);
+      function updateDisabled() {
+        var ok = policySelect.value && noteArea.value.trim();
+        submitBtn.disabled = !ok;
+        submitBtn.style.opacity = ok ? "1" : "0.5";
+        submitBtn.style.cursor = ok ? "pointer" : "not-allowed";
+      }
+      policySelect.addEventListener("input", updateDisabled);
+      noteArea.addEventListener("input", updateDisabled);
+      updateDisabled();
+      submitBtn.addEventListener("click", function () {
+        if (!policySelect.value || !noteArea.value.trim()) return;
+        opts.onSubmit({ policyId: policySelect.value, initiatedBy: initiatedSelect.value, channel: channelSelect.value, note: noteArea.value, extra: extra });
+        renderClosed();
+      });
+      var cancelBtn = h("button", { class: "btn" }, "Cancel");
+      cancelBtn.addEventListener("click", renderClosed);
+      actionsRow.appendChild(submitBtn); actionsRow.appendChild(cancelBtn);
+      form.appendChild(actionsRow);
+      container.appendChild(form);
+    }
+    renderClosed();
+    return container;
+  }
+
+  /* ================= notifications (bell panel + toasts) ================= */
+  function renderToast(note) {
+    var container = document.getElementById("toast-container");
+    if (!container) return;
+    var t = h("div", { class: "toast", "data-tone": note.tone || "gray" });
+    var headRow = h("div", { class: "toast-head" });
+    var iconBox = h("div", { class: "toast-icon" });
+    iconBox.appendChild(PAS.icon(note.kind === "event" ? "zap" : note.dir === "out" ? "arrow-up-right" : "arrow-down-left", { size: 11 }));
+    headRow.appendChild(iconBox);
+    headRow.appendChild(h("span", { class: "toast-title" + (note.kind === "event" ? " mono" : "") }, note.title));
+    t.appendChild(headRow);
+    t.appendChild(h("div", { class: "toast-detail" }, note.detail));
+    container.appendChild(t);
+    setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4600);
+  }
+  function notifRow(note) {
+    var row = h("div", { class: "notif-row" });
+    var iconBox = h("div", { class: "notif-row-icon", "data-tone": note.tone || "gray" });
+    iconBox.appendChild(PAS.icon(note.kind === "event" ? "zap" : note.dir === "out" ? "arrow-up-right" : "arrow-down-left", { size: 11 }));
+    row.appendChild(iconBox);
+    var mid = h("div", { style: { minWidth: "0", flex: "1" } });
+    mid.appendChild(h("div", { class: "notif-row-title" + (note.kind === "event" ? " mono" : "") }, note.title));
+    mid.appendChild(h("div", { class: "notif-row-detail" }, note.detail));
+    row.appendChild(mid);
+    row.appendChild(h("span", { class: "notif-row-time" }, new Date(note.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })));
+    return row;
+  }
+
+  /* ================= API & event lifecycle panel ================= */
+  function lifecycleStage(opts) {
+    var wrap = h("div", { class: "lifecycle-stage" });
+    var rail = h("div", { class: "lifecycle-stage-rail" });
+    var dot = h("div", { class: "lifecycle-stage-dot", "data-tone": opts.tone });
+    dot.appendChild(PAS.icon(opts.icon, { size: 13 }));
+    rail.appendChild(dot);
+    if (!opts.last) rail.appendChild(h("div", { class: "lifecycle-stage-line" }));
+    wrap.appendChild(rail);
+    var body = h("div", { class: "lifecycle-stage-body" + (opts.last ? " last" : "") });
+    var headRow = h("div", { class: "lifecycle-stage-headrow" });
+    headRow.appendChild(h("span", { class: "lifecycle-stage-n" }, opts.n));
+    headRow.appendChild(h("span", { class: "lifecycle-stage-title" + (opts.mono ? " mono" : "") }, opts.title));
+    body.appendChild(headRow);
+    if (opts.sub) body.appendChild(h("div", { class: "lifecycle-stage-sub" + (opts.subMono ? " mono" : "") }, opts.sub));
+    if (opts.children) { var cw = h("div", { class: "lifecycle-stage-children" }); appendKids(cw, opts.children); body.appendChild(cw); }
+    wrap.appendChild(body);
+    return wrap;
+  }
+  function apiLifecycle(pageKey) {
+    var container = h("div", { class: "api-lifecycle" });
+    var open = true, showJson = false;
+    function render() {
+      container.innerHTML = "";
+      var flows = PAS.api.getFlows(), log = PAS.api.getLog(), events = PAS.api.getEvents();
+      var latest = flows[0];
+      var pageApis = PAS.PAGE_APIS[pageKey] || [];
+
+      var head = h("div", { class: "api-lifecycle-head" + (!open ? " collapsed" : "") });
+      var iconBox = h("div", { class: "api-lifecycle-icon" }); iconBox.appendChild(PAS.icon("activity", { size: 15 }));
+      head.appendChild(iconBox);
+      var mid = h("div", { style: { flex: "1" } });
+      mid.appendChild(h("div", { class: "api-lifecycle-title" }, "API & event lifecycle"));
+      mid.appendChild(h("div", { class: "api-lifecycle-sub" }, "What this screen does behind the glass — request, response, domain event, consumers"));
+      head.appendChild(mid);
+      head.appendChild(pill("gray", log.length + " calls"));
+      head.appendChild(pill("violet", events.length + " events"));
+      head.appendChild(PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--text-faint)" }));
+      head.addEventListener("click", function () { open = !open; render(); });
+      container.appendChild(head);
+
+      if (!open) return;
+      var grid = h("div", { class: "api-lifecycle-grid" });
+      var leftPanel = h("div", { class: "card", style: { padding: "16px" } });
+      var lpHead = h("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "14px" } });
+      lpHead.appendChild(tipLabel({ text: "Most recent action, end to end", what: "The complete round trip produced by the last thing you did.", why: "One click in the UI becomes an API call, a database transaction, a domain event and a set of downstream consumers. This is that chain.", className: "" }));
+      if (latest) {
+        var toggleBtn = h("button", { class: "btn small" }, (showJson ? "Hide" : "Show") + " payloads");
+        toggleBtn.addEventListener("click", function () { showJson = !showJson; render(); });
+        lpHead.appendChild(toggleBtn);
+      }
+      leftPanel.appendChild(lpHead);
+
+      if (!latest) {
+        leftPanel.appendChild(h("div", { class: "api-lifecycle-empty" }, "Nothing yet. Approve a submission, issue a bound policy or cancel one — then come back here and the full chain will be laid out step by step."));
+      } else {
+        leftPanel.appendChild(lifecycleStage({ n: "01", icon: "arrow-up-right", tone: "indigo", title: "User action", sub: latest.action }));
+        leftPanel.appendChild(lifecycleStage({ n: "02", icon: "arrow-up-right", tone: "blue", title: "Request leaves the browser", sub: latest.call.method + " " + latest.call.endpoint, subMono: true, children: showJson && latest.call.requestBody ? codeBlock(latest.call.requestBody, true) : null }));
+        leftPanel.appendChild(lifecycleStage({ n: "03", icon: "shield-check", tone: "violet", title: "Domain rules run", sub: "Application layer validates the transition, the domain enforces its invariants, and the change is written with an outbox row in one transaction." }));
+        leftPanel.appendChild(lifecycleStage({ n: "04", icon: "arrow-down-left", tone: latest.call.statusCode >= 400 ? "red" : "green", title: "Response · " + latest.call.statusCode, sub: "Returned in " + latest.call.latency + "ms", children: showJson ? codeBlock(latest.call.responseBody, true) : null }));
+        if (latest.event) {
+          var consumerPills = h("div", { style: { display: "flex", gap: "5px", flexWrap: "wrap" } });
+          latest.event.consumers.forEach(function (c) { consumerPills.appendChild(pill("blue", c)); });
+          var kidsArr = [consumerPills];
+          if (showJson) kidsArr.push(h("div", { style: { marginTop: "8px" } }, codeBlock({ eventId: latest.event.eventId, eventType: latest.event.eventType, eventVersion: 1, occurredAt: latest.event.occurredAt, tenantId: latest.event.tenantId, aggregateId: latest.event.aggregateId, producer: latest.event.producer }, true)));
+          leftPanel.appendChild(lifecycleStage({ n: "05", icon: "zap", tone: "violet", title: latest.event.eventType, mono: true, sub: "Published from the outbox to Service Bus with a versioned envelope.", last: !showJson, children: kidsArr }));
+        } else {
+          leftPanel.appendChild(lifecycleStage({ n: "05", icon: "radio", tone: "gray", title: "No domain event", sub: "Read-only operations do not publish. Only state changes reach the bus.", last: true }));
+        }
+      }
+      grid.appendChild(leftPanel);
+
+      var rightCol = h("div", { style: { display: "flex", flexDirection: "column", gap: "14px", minWidth: "0" } });
+      var endpointsPanel = panel({ title: "Endpoints on this screen", what: "Every operation this page can call.", why: "Nothing here is decorative — each one fires from a control on the screen." }, []);
+      var epBody = endpointsPanel.querySelector(".panel-body");
+      pageApis.forEach(function (row) {
+        var epRow = h("div", { class: "endpoint-row" });
+        var top = h("div", { class: "endpoint-row-top" });
+        top.appendChild(methodBadge(row[0]));
+        top.appendChild(h("span", { class: "endpoint-path" }, row[1]));
+        epRow.appendChild(top);
+        epRow.appendChild(h("div", { class: "endpoint-desc" }, row[2]));
+        epBody.appendChild(epRow);
+      });
+      if (pageApis.length === 0) epBody.appendChild(h("div", { class: "faint-note" }, "Reference screen — no live calls."));
+      rightCol.appendChild(endpointsPanel);
+
+      var logPanel = panel({ title: "Call log", what: "Every request made this session, newest first.", pad: 0 }, []);
+      var logBody = logPanel.querySelector(".panel-body");
+      var logScroll = h("div", { class: "call-log-scroll" });
+      if (log.length === 0) logScroll.appendChild(h("div", { style: { padding: "0 15px 14px" }, class: "faint-note" }, "No calls yet."));
+      log.forEach(function (l) {
+        var row = h("div", { class: "call-log-row" });
+        row.appendChild(methodBadge(l.method));
+        row.appendChild(h("span", { class: "call-log-endpoint" }, l.endpoint));
+        row.appendChild(statusCodeBadge(l.statusCode));
+        row.appendChild(h("span", { class: "call-log-latency" }, l.latency + "ms"));
+        logScroll.appendChild(row);
+      });
+      logBody.appendChild(logScroll);
+      rightCol.appendChild(logPanel);
+      grid.appendChild(rightCol);
+      container.appendChild(grid);
+    }
+    render();
+    return { el: container, refresh: render };
+  }
+  /* Wraps a page's content: content, then the lifecycle section beneath it. */
+  function screen(pageKey, contentNode) {
+    var wrap = h("div", {});
+    appendKids(wrap, contentNode);
+    wrap.appendChild(apiLifecycle(pageKey).el);
+    return wrap;
+  }
+
+  PAS.ui = {
+    h: h, append: appendKids, tooltip: tooltip, tipLabel: tipLabel, infoDot: infoDot,
+    pill: pill, badge: badge, txnStatusBadge: txnStatusBadge, modulePill: modulePill, initiatorPill: initiatorPill,
+    cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
+    codeBlock: codeBlock, dataTable: dataTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
+    backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow,
+    callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
+    decisionLayout: decisionLayout, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
+    renderToast: renderToast, notifRow: notifRow, lifecycleStage: lifecycleStage,
+    apiLifecycle: apiLifecycle, screen: screen, TONE_HEX: TONE_HEX,
+  };
+})(window);

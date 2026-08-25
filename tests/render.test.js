@@ -32,8 +32,17 @@ function makeNode(tag) {
     if (k === "class") String(v).split(/\s+/).forEach(function (c) { if (c) n.classList._s[c] = 1; });
   };
   n.getAttribute = function (k) { return k in n.attributes ? n.attributes[k] : null; };
-  n.addEventListener = function () {};
-  n.removeEventListener = function () {};
+  n._listeners = {};
+  n.addEventListener = function (type, fn) { (n._listeners[type] = n._listeners[type] || []).push(fn); };
+  n.removeEventListener = function (type, fn) {
+    if (n._listeners[type]) n._listeners[type] = n._listeners[type].filter(function (f) { return f !== fn; });
+  };
+  n.dispatchEvent = function (evt) {
+    evt = evt || {};
+    (n._listeners[evt.type] || []).slice().forEach(function (fn) { fn.call(n, evt); });
+    return true;
+  };
+  n.click = function () { n.dispatchEvent({ type: "click", target: n }); };
   n.contains = function () { return false; };
   n.getBoundingClientRect = function () { return { top: 0, left: 0, right: 0, bottom: 0, width: 100, height: 20 }; };
   n.focus = function () {};
@@ -68,6 +77,13 @@ function makeNode(tag) {
     set: function (v) { n.classList._s = {}; n.setAttribute("class", v); },
   });
   return n;
+}
+
+function setValue(el, v) { el.value = v; el.dispatchEvent({ type: el.tagName === "SELECT" ? "change" : "input" }); }
+function clickText(nodes, text) {
+  var hit = nodes.filter(function (n) { return n.textContent === text; })[0];
+  if (!hit) throw new Error("clickText: no node with text " + JSON.stringify(text));
+  hit.click();
 }
 
 function buildEnv(pageKey, query, role) {
@@ -133,6 +149,7 @@ var PAGES = [
   ["loyalty", "loyalty"],
   ["transfer", "transfer-desk"],
   ["transfer-decision", "transfer-desk", "?policy=POL-2026-00777"],
+  ["terms", "terms"],
 ];
 
 var CORE = ["assets/js/icons.js", "assets/js/store.js", "assets/js/api.js", "assets/js/ui.js"];
@@ -631,6 +648,134 @@ console.log("\n  policy transfer: holder changes, continuity is genuinely preser
   var afterDecline = PAS10.getPolicy("POL-2026-00777");
   if (afterDecline.holder !== "Global Freight Movers") { fails++; console.log("  FAIL  declining a transfer changed the holder anyway — it should stay \"Global Freight Movers\""); }
   else console.log("  PASS  declining the transfer leaves the original holder untouched");
+})();
+
+/* Configurable T&Cs: an edit must actually persist and be distinguishable from the default, and
+   a reset must actually restore the default — not just toggle a UI label. */
+console.log("\n  configurable terms & conditions: edits genuinely persist, reset genuinely restores");
+(function () {
+  var stub = {
+    sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })(),
+  };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS11 = stub.PAS;
+
+  var totalClauses = Object.keys(PAS11.TERMS_TEMPLATE).reduce(function (s, p) { return s + PAS11.TERMS_TEMPLATE[p].length; }, 0);
+  if (totalClauses < 6) { fails++; console.log("  FAIL  only " + totalClauses + " total clauses defined across all products"); }
+  else console.log("  PASS  " + totalClauses + " real clauses defined across " + Object.keys(PAS11.TERMS_TEMPLATE).length + " product lines");
+
+  var before11 = PAS11.getTerms("Home Owners").find(function (c) { return c.id === "wear-tear"; });
+  if (before11.edited) { fails++; console.log("  FAIL  a clause reports edited=true before any edit was made"); }
+
+  PAS11.updateTermClause("Home Owners", "wear-tear", "This is a genuinely different clause text.");
+  var afterEdit = PAS11.getTerms("Home Owners").find(function (c) { return c.id === "wear-tear"; });
+  if (!afterEdit.edited || afterEdit.text !== "This is a genuinely different clause text.") { fails++; console.log("  FAIL  updateTermClause did not persist the new text — got \"" + afterEdit.text + "\", edited=" + afterEdit.edited); }
+  else console.log("  PASS  editing a clause persists the new text and marks it edited=true");
+
+  /* Other clauses on the same product, and the same clause on other products, must be untouched
+     — an edit keyed wrong could silently overwrite something else. */
+  var sibling = PAS11.getTerms("Home Owners").find(function (c) { return c.id === "underinsurance"; });
+  var sameIdOtherProduct = PAS11.getTerms("Comprehensive Auto").find(function (c) { return c.id === "claim-notice"; });
+  if (sibling.edited || sameIdOtherProduct.edited) { fails++; console.log("  FAIL  editing one clause affected an unrelated clause — the storage key isn't properly scoped by product+clause"); }
+  else console.log("  PASS  the edit is scoped to exactly that one clause on that one product — no cross-contamination");
+
+  PAS11.resetTermClause("Home Owners", "wear-tear");
+  var afterReset = PAS11.getTerms("Home Owners").find(function (c) { return c.id === "wear-tear"; });
+  if (afterReset.edited || afterReset.text !== afterReset.defaultText) { fails++; console.log("  FAIL  resetTermClause did not restore the default text"); }
+  else console.log("  PASS  resetting a clause genuinely restores the original default text");
+
+  /* Nav: Terms & Conditions is an edit capability — the three read-only/external roles must not
+     see it in their sidebar, even though they can browse other Records pages. */
+  ["MGA", "Carrier", "Customer"].forEach(function (role) {
+    var hidden = PAS11.NAV_HIDDEN_FOR_ROLE[role] || [];
+    if (hidden.indexOf("terms") === -1) { fails++; console.log("  FAIL  " + role + " can still see Terms & Conditions in nav — it's an edit capability, should be hidden for read-only/external roles"); }
+  });
+  console.log("  PASS  Terms & Conditions is hidden from MGA, Carrier and Customer nav — an edit capability, not a read-only records view");
+})();
+
+/* Platform-wide interactive filters: these must genuinely narrow the rendered rows, not just
+   exist as inert controls. Real counts below are computed from the actual seed data (see the
+   scratch check run against store.js directly), not guessed. */
+console.log("\n  registry: product + state filters genuinely narrow the table");
+(function () {
+  var out = renderDom("registry");
+  var rowCount = function () { return out.querySelector("tbody").querySelectorAll("tr").length; };
+  if (rowCount() !== 27) { fails++; console.log("  FAIL  registry baseline expected 27 rows, got " + rowCount()); }
+  else console.log("  PASS  baseline shows all 27 records");
+
+  var selects = out.querySelectorAll("select");
+  if (selects.length !== 3) { fails++; console.log("  FAIL  expected 3 filter selects (status/product/state), found " + selects.length); return; }
+  var productSelect = selects[1], stateSelect = selects[2];
+
+  setValue(productSelect, "Comprehensive Auto");
+  if (rowCount() !== 10) { fails++; console.log("  FAIL  product filter 'Comprehensive Auto' expected 10 rows, got " + rowCount()); }
+  else console.log("  PASS  product filter narrows to the 10 real Comprehensive Auto records");
+
+  setValue(stateSelect, "Maharashtra");
+  if (rowCount() !== 1) { fails++; console.log("  FAIL  product+state combo expected 1 row, got " + rowCount()); }
+  else console.log("  PASS  combined product+state filter narrows to the 1 real matching record");
+
+  var note = out.textContent;
+  if (note.indexOf("Showing 1 of 27 records") === -1) { fails++; console.log("  FAIL  missing 'Showing 1 of 27 records' note once filters are active"); }
+  else console.log("  PASS  'Showing X of Y' note reflects the real filtered/total counts");
+})();
+
+console.log("\n  documents: search + type filter genuinely narrow the table, and compose together");
+(function () {
+  var out = renderDom("documents");
+  var rowCount = function () { return out.querySelector("tbody").querySelectorAll("tr").length; };
+  if (rowCount() !== 18) { fails++; console.log("  FAIL  documents baseline expected 18 rows, got " + rowCount()); }
+  else console.log("  PASS  baseline shows all 18 documents");
+
+  var searchInput = out.querySelector("input");
+  setValue(searchInput, "Meera");
+  if (rowCount() !== 2) { fails++; console.log("  FAIL  search 'Meera' expected 2 rows (Schedule+Certificate), got " + rowCount()); }
+  else console.log("  PASS  search narrows to Meera Shankar's real 2 documents");
+
+  var chips = out.querySelectorAll("button").filter(function (b) { return b.classList.contains("chip"); });
+  var scheduleChip = chips.filter(function (c) { return c.textContent === "Schedule"; })[0];
+  if (!scheduleChip) { fails++; console.log("  FAIL  no 'Schedule' type chip found"); return; }
+  scheduleChip.click();
+  if (rowCount() !== 1) { fails++; console.log("  FAIL  search 'Meera' + type 'Schedule' expected 1 row, got " + rowCount()); }
+  else console.log("  PASS  type chip composes with the active search — narrows to Meera's 1 Schedule doc");
+
+  var allChip = chips.filter(function (c) { return c.textContent === "All"; })[0];
+  allChip.click();
+  if (rowCount() !== 2) { fails++; console.log("  FAIL  clearing type filter (search still 'Meera') expected 2 rows, got " + rowCount()); }
+  else console.log("  PASS  clearing the type chip falls back to the search-only result set");
+})();
+
+console.log("\n  loyalty: tier chips genuinely narrow the ranked customer list");
+(function () {
+  var out = renderDom("loyalty");
+  var rowCount = function () {
+    var bodies = out.querySelectorAll("tbody");
+    return bodies[bodies.length - 1].querySelectorAll("tr").length;
+  };
+  if (rowCount() !== 13) { fails++; console.log("  FAIL  loyalty baseline expected 13 active customers, got " + rowCount()); }
+  else console.log("  PASS  baseline shows all 13 active, scored customers");
+
+  var chips = out.querySelectorAll("button").filter(function (b) { return b.classList.contains("chip"); });
+  var goldChip = chips.filter(function (c) { return c.textContent === "Gold"; })[0];
+  if (!goldChip) { fails++; console.log("  FAIL  no 'Gold' tier chip found"); return; }
+  goldChip.click();
+  if (rowCount() !== 3) { fails++; console.log("  FAIL  'Gold' tier filter expected 3 rows, got " + rowCount()); }
+  else console.log("  PASS  'Gold' tier filter narrows to the 3 real Gold-tier customers");
+  if (out.textContent.indexOf("Showing 3 of 13 customers") === -1) { fails++; console.log("  FAIL  missing 'Showing 3 of 13 customers' note"); }
+  else console.log("  PASS  'Showing X of Y' note reflects the real tier-filtered count");
+
+  var silverChip = chips.filter(function (c) { return c.textContent === "Silver"; })[0];
+  silverChip.click();
+  if (rowCount() !== 7) { fails++; console.log("  FAIL  'Silver' tier filter expected 7 rows, got " + rowCount()); }
+  else console.log("  PASS  switching tiers re-filters correctly — 7 real Silver-tier customers");
+
+  var allChip = chips.filter(function (c) { return c.textContent === "All"; })[0];
+  allChip.click();
+  if (rowCount() !== 13) { fails++; console.log("  FAIL  clearing tier filter expected all 13 rows back, got " + rowCount()); }
+  else console.log("  PASS  clearing the tier filter restores the full ranked list");
 })();
 
 console.log(fails === 0 ? "\nALL PAGES RENDER\n" : "\n" + fails + " FAILURE(S)\n");

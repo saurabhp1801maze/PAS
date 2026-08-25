@@ -329,6 +329,83 @@
   PAS.PRODUCT_CARRIER = PRODUCT_CARRIER;
   PAS.CARRIERS = ["Meridian Assurance Co.", "Apex General Insurance", "Horizon Life & Health"];
 
+  /* ---------- configurable terms & conditions, per product ----------
+     Illustrative standard clauses per product line — real insurance clause *categories*, generic
+     placeholder text (not any real insurer's actual policy wording). What makes this genuinely
+     "configurable" rather than static copy is that every clause is editable and the edit persists
+     — PAS.updateTermClause / PAS.resetTermClause below, backed by their own sessionStorage key so
+     an edit survives navigation the same way a policy decision does. */
+  var TERMS_TEMPLATE = {
+    "Home Owners": [
+      { id: "wear-tear", title: "Wear and tear exclusion", text: "Gradual deterioration, wear and tear, and damage from lack of maintenance are excluded from cover." },
+      { id: "underinsurance", title: "Underinsurance (average) clause", text: "If the sum insured is less than the full replacement value at the time of loss, the claim is reduced in the same proportion the sum insured falls short." },
+      { id: "vacancy", title: "Vacancy clause", text: "Cover is suspended for any period the property is left unoccupied beyond 30 consecutive days, unless declared and accepted in advance." },
+      { id: "claim-notice", title: "Claim notice period", text: "Loss or damage must be notified within 15 days of discovery." },
+    ],
+    "Comprehensive Auto": [
+      { id: "ncb", title: "No-Claim Bonus", text: "A no-claim bonus applies on own-damage premium at renewal for each consecutive claim-free year, per the applicable NCB slab, and is forfeited entirely on any claim in the expiring term." },
+      { id: "territorial", title: "Territorial limits", text: "Cover applies only within the geographical territory of India." },
+      { id: "driver-clause", title: "Named driver / valid licence clause", text: "The vehicle must be driven by the insured or a named driver holding a valid, effective driving licence at the time of loss." },
+      { id: "claim-notice", title: "Claim notice period", text: "Any accident, theft or loss must be reported within 48 hours." },
+    ],
+    "Commercial Property": [
+      { id: "bi-waiting", title: "Business interruption waiting period", text: "Business interruption cover, where attached, responds only after the first 3 days of the indemnity period." },
+      { id: "average", title: "Average (underinsurance) clause", text: "Same proportional-reduction basis as Home Owners, applied to declared sums insured for building, stock and machinery separately." },
+      { id: "firefighting", title: "Fire-fighting expenses", text: "Reasonable costs incurred in fire-fighting and demolition to prevent the spread of loss are covered in addition to the sum insured, up to 1% of it." },
+      { id: "reinstatement-basis", title: "Sum insured basis", text: "Building and machinery are insured on a reinstatement (replacement) basis; stock is insured on an indemnity (market value) basis." },
+    ],
+    "Marine Cargo": [
+      { id: "icc-basis", title: "Institute Cargo Clauses basis", text: "Cover is written on Institute Cargo Clauses (A), (B) or (C) as declared on the schedule, warehouse to warehouse." },
+      { id: "war-srcc", title: "War & SRCC exclusion", text: "Loss caused by war, strikes, riots or civil commotion is excluded unless the corresponding Institute War/SRCC Clauses are separately bought back." },
+      { id: "claim-notice", title: "Claim notice at destination", text: "Any loss apparent on delivery must be noted with the carrier immediately and notified to the insurer within 7 days." },
+      { id: "duty-to-sue", title: "Duty to sue and labour", text: "The insured must take all reasonable steps to minimise loss and preserve rights of recovery against carriers or other third parties." },
+    ],
+    "Group Health": [
+      { id: "waiting-period", title: "Pre-existing condition waiting period", text: "Pre-existing conditions are covered only after a continuous waiting period of 36 months from first enrolment." },
+      { id: "room-rent", title: "Room rent sub-limit", text: "Room rent is capped at 1% of the sum insured per day; a higher category room reduces all associated claim amounts proportionally." },
+      { id: "copay", title: "Co-payment clause", text: "A co-payment of 10% applies to each admissible claim, borne by the insured member." },
+      { id: "portability", title: "Portability rights", text: "The insured may port continuity of waiting periods to another insurer at renewal, subject to the IRDAI portability notice window." },
+    ],
+    "Term Life": [
+      { id: "suicide", title: "Suicide exclusion clause", text: "No death benefit is payable if death by suicide occurs within 12 months of the policy's commencement or revival; 80% of premiums paid are refunded instead." },
+      { id: "free-look", title: "Free-look period", text: "The policy may be returned within 30 days of receipt for a refund of premium less proportionate risk premium, medical costs and stamp duty." },
+      { id: "grace-period", title: "Grace period", text: "A grace period of 30 days (15 days for monthly mode) is allowed for premium payment without loss of continuity." },
+      { id: "nomination", title: "Nomination", text: "The policyholder may nominate or change a nominee at any time during the policy term by written request." },
+    ],
+  };
+  PAS.TERMS_TEMPLATE = TERMS_TEMPLATE;
+
+  var TERMS_KEY = "pas.terms.v1";
+  function loadTermEdits() {
+    var raw;
+    try { raw = sessionStorage.getItem(TERMS_KEY); } catch (e) { raw = null; }
+    if (raw) { try { return JSON.parse(raw); } catch (e) { /* fall through */ } }
+    return {};
+  }
+  function saveTermEdits(edits) {
+    try { sessionStorage.setItem(TERMS_KEY, JSON.stringify(edits)); } catch (e) { /* ignore */ }
+  }
+  /* The clauses a product actually has right now — template defaults with any session edit
+     applied on top, plus whether each one has been edited (so the UI can show that state). */
+  PAS.getTerms = function (product) {
+    var edits = loadTermEdits();
+    return (TERMS_TEMPLATE[product] || []).map(function (c) {
+      var key = product + "::" + c.id;
+      var edited = Object.prototype.hasOwnProperty.call(edits, key);
+      return { id: c.id, title: c.title, text: edited ? edits[key] : c.text, defaultText: c.text, edited: edited };
+    });
+  };
+  PAS.updateTermClause = function (product, clauseId, newText) {
+    var edits = loadTermEdits();
+    edits[product + "::" + clauseId] = newText;
+    saveTermEdits(edits);
+  };
+  PAS.resetTermClause = function (product, clauseId) {
+    var edits = loadTermEdits();
+    delete edits[product + "::" + clauseId];
+    saveTermEdits(edits);
+  };
+
   /* Every claim across a set of policies, flattened with its parent policy attached — the shape
      every claims-aware panel iterates over. */
   function allClaims(policies) {
@@ -720,6 +797,7 @@
     detail: [["GET", "/api/v1/policies/{policyId}", "Aggregate + ETag"], ["GET", "/api/v1/policies/{policyId}/transactions", "Ledger in seq order"], ["POST", "/api/v1/policies/{policyId}/documents", "Renders and stores a new version"]],
     documents: [["GET", "/api/v1/documents", "Document metadata across the book"]],
     loyalty: [["GET", "/api/v1/loyalty", "Every active policy's computed tier and score"], ["GET", "/api/v1/loyalty/criteria", "The current weight table — what earns points and how much"]],
+    terms: [["GET", "/api/v1/products/{product}/terms", "The current clause set for a product, edits included"], ["PUT", "/api/v1/products/{product}/terms/{clauseId}", "Saves an edited clause"]],
     "domain-model": [],
     "data-model": [],
     "api-reference": [],
@@ -779,7 +857,7 @@
       ["servicing-desk", "Servicing", "headphones", "servicing.html"],
       ["transfer-desk", "Transfer", "send", "transfer.html"],
     ] },
-    { label: "Records", items: [["registry", "Policy register", "list-checks", "registry.html"], ["workbench", "Transaction workbench", "git-branch", "workbench.html"], ["documents", "Documents", "file-check-2", "documents.html"], ["loyalty", "Loyalty", "award", "loyalty.html"]] },
+    { label: "Records", items: [["registry", "Policy register", "list-checks", "registry.html"], ["workbench", "Transaction workbench", "git-branch", "workbench.html"], ["documents", "Documents", "file-check-2", "documents.html"], ["loyalty", "Loyalty", "award", "loyalty.html"], ["terms", "Terms & Conditions", "edit-3", "terms.html"]] },
     { label: "Reference", items: [
       ["domain-model", "Domain model", "git-branch", "domain-model.html"],
       ["data-model", "Data model", "database", "data-model.html"],
@@ -815,6 +893,7 @@
     workbench: { nav: "workbench", title: "Records / Transaction workbench" },
     documents: { nav: "documents", title: "Records / Documents" },
     loyalty: { nav: "loyalty", title: "Records / Loyalty" },
+    terms: { nav: "terms", title: "Records / Terms & Conditions" },
     "domain-model": { nav: "domain-model", title: "Reference / Domain model" },
     "data-model": { nav: "data-model", title: "Reference / Data model" },
     "api-reference": { nav: "api-reference", title: "Reference / API reference" },
@@ -880,10 +959,10 @@
      reduced to just Dashboard (which is where their whole portal view lives). */
   var OPS_ONLY_DESKS = ["uw-desk", "issue-desk", "endorsement-desk", "cancellation-desk", "reinstatement-desk", "renewal-desk", "servicing-desk", "transfer-desk", "approvals"];
   PAS.NAV_HIDDEN_FOR_ROLE = {
-    MGA: OPS_ONLY_DESKS,
-    Carrier: OPS_ONLY_DESKS,
-    "Broker/Producer": ["uw-desk", "issue-desk", "approvals"],
-    Customer: OPS_ONLY_DESKS.concat(["registry", "workbench", "documents", "loyalty", "domain-model", "data-model", "api-reference", "architecture"]),
+    MGA: OPS_ONLY_DESKS.concat(["terms"]),
+    Carrier: OPS_ONLY_DESKS.concat(["terms"]),
+    "Broker/Producer": ["uw-desk", "issue-desk", "approvals", "terms"],
+    Customer: OPS_ONLY_DESKS.concat(["registry", "workbench", "documents", "loyalty", "terms", "domain-model", "data-model", "api-reference", "architecture"]),
   };
 
   var ROLE_KEY = "pas.role.v1";

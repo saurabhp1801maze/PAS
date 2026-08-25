@@ -5,7 +5,9 @@
 
   function render() {
     var policies = PAS.getPolicies();
-    var q = "", sf = "All";
+    var q = "", sf = "All", pf = "All", stf = "All";
+    var products = ["All"].concat(Array.from(new Set(policies.map(function (p) { return p.product; }))).sort());
+    var states = ["All"].concat(Array.from(new Set(policies.map(function (p) { return p.state; }))).sort());
 
     var page = ui.h("div", {});
     page.appendChild(ui.pageHeader({
@@ -28,6 +30,12 @@
     var statusSelect = ui.h("select", { class: "field-input select-fixed" });
     ["All", "Referred", "Bound", "Active", "Cancelled", "Expired", "Non-renewed"].forEach(function (s) { statusSelect.appendChild(ui.h("option", { value: s }, s)); });
     searchRow.appendChild(statusSelect);
+    var productSelect = ui.h("select", { class: "field-input select-fixed" });
+    products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All products" : p)); });
+    searchRow.appendChild(productSelect);
+    var stateSelect = ui.h("select", { class: "field-input select-fixed" });
+    states.forEach(function (s) { stateSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All states" : s)); });
+    searchRow.appendChild(stateSelect);
     page.appendChild(searchRow);
 
     var tableContainer = ui.h("div", {});
@@ -35,9 +43,13 @@
 
     function buildTable() {
       var rows = policies.filter(function (p) {
-        return (sf === "All" || p.status === sf) && (p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
+        return (sf === "All" || p.status === sf) && (pf === "All" || p.product === pf) && (stf === "All" || p.state === stf)
+          && (p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
       });
       tableContainer.innerHTML = "";
+      if (sf !== "All" || pf !== "All" || stf !== "All" || q) {
+        tableContainer.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Showing " + rows.length + " of " + policies.length + " records."));
+      }
       tableContainer.appendChild(ui.dataTable({
         columns: ["Record", "Insured", "Product", { label: "Status", what: "Position in the lifecycle state machine.", why: "Status decides which actions are legal on this record." }, { label: "Premium", what: "Annual written premium." }, { label: "Term", what: "Effective and expiry dates of the current term." }, { label: "Docs", what: "Generated document versions held." }, ""],
         rows: rows.map(function (p) { return [ui.cellId(p.id), ui.cellName(p.holder), p.product, ui.badge(p.status), PAS.money(p.premium), p.effectiveDate + " → " + p.expirationDate, ui.pill((p.documents && p.documents.length) ? "gray" : "amber", String((p.documents && p.documents.length) || 0)), ui.cellOpen("Open")]; }),
@@ -47,6 +59,8 @@
     }
     searchInput.addEventListener("input", function () { q = searchInput.value; buildTable(); });
     statusSelect.addEventListener("change", function () { sf = statusSelect.value; buildTable(); });
+    productSelect.addEventListener("change", function () { pf = productSelect.value; buildTable(); });
+    stateSelect.addEventListener("change", function () { stf = stateSelect.value; buildTable(); });
     buildTable();
 
     var root = document.getElementById("page-content");

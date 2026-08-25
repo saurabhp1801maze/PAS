@@ -55,24 +55,43 @@
     }));
     page.appendChild(tierPanel);
 
+    var tierF = "All";
     var listPanel = ui.panel({
       title: "Customers, ranked",
       what: "Every active policy, highest score first. Click a row to open the policy.",
+      right: (function () {
+        var chipRow = ui.h("div", { class: "chip-row" });
+        ["All"].concat(PAS.LOYALTY_TIERS.map(function (t) { return t.name; })).forEach(function (t) {
+          var chip = ui.h("button", { class: "chip" + (tierF === t ? " active" : "") }, t);
+          chip.addEventListener("click", function () { tierF = t; buildList(); });
+          chipRow.appendChild(chip);
+        });
+        return chipRow;
+      })(),
       pad: 0,
     }, []);
-    listPanel.querySelector(".panel-body").appendChild(ui.dataTable({
-      columns: ["Policy", "Insured", "Product", { label: "Tier", what: "Derived from the score — never set by hand." },
-        { label: "Score", what: "Sum of every criterion this customer meets." },
-        { label: "Why", what: "The line-by-line derivation." }],
-      rows: scored.map(function (x) {
-        var whyCell = ui.h("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px" } });
-        if (x.s.lines.length === 0) whyCell.appendChild(ui.h("span", { class: "faint-note" }, "No criteria met yet"));
-        x.s.lines.forEach(function (l) { whyCell.appendChild(ui.pill("gray", l.label + " +" + l.value)); });
-        return [ui.cellId(x.p.id), ui.cellName(x.p.holder), x.p.product, ui.pill(x.s.tone, x.s.tier), x.s.score, whyCell];
-      }),
-      wrapCells: true,
-      onRowClick: function (i) { location.href = "policy-detail.html?policy=" + encodeURIComponent(scored[i].p.id); },
-    }));
+    var listBody = listPanel.querySelector(".panel-body");
+    function buildList() {
+      listPanel.querySelectorAll(".chip").forEach(function (c) { c.classList.toggle("active", c.textContent === tierF); });
+      var filtered = tierF === "All" ? scored : scored.filter(function (x) { return x.s.tier === tierF; });
+      listBody.innerHTML = "";
+      if (tierF !== "All") listBody.appendChild(ui.h("div", { class: "faint-note mb-9", style: { padding: "13px 15px 0" } }, "Showing " + filtered.length + " of " + scored.length + " customers."));
+      listBody.appendChild(ui.dataTable({
+        columns: ["Policy", "Insured", "Product", { label: "Tier", what: "Derived from the score — never set by hand." },
+          { label: "Score", what: "Sum of every criterion this customer meets." },
+          { label: "Why", what: "The line-by-line derivation." }],
+        rows: filtered.map(function (x) {
+          var whyCell = ui.h("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px" } });
+          if (x.s.lines.length === 0) whyCell.appendChild(ui.h("span", { class: "faint-note" }, "No criteria met yet"));
+          x.s.lines.forEach(function (l) { whyCell.appendChild(ui.pill("gray", l.label + " +" + l.value)); });
+          return [ui.cellId(x.p.id), ui.cellName(x.p.holder), x.p.product, ui.pill(x.s.tone, x.s.tier), x.s.score, whyCell];
+        }),
+        wrapCells: true,
+        emptyText: "No customers in this tier.",
+        onRowClick: function (i) { location.href = "policy-detail.html?policy=" + encodeURIComponent(filtered[i].p.id); },
+      }));
+    }
+    buildList();
     page.appendChild(listPanel);
 
     var root = document.getElementById("page-content");

@@ -301,8 +301,8 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   else if (legends.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 legend (bar chart only — the single-series graph shouldn't have one), found " + legends.length); }
   else console.log("  PASS  right panel is a real SVG line/area graph — 1 line, 1 area wash, 6 marked points, no legend box");
 
-  /* Renewal pipeline is capped at 10, most-urgent-first, with a "showing N of M" note only when
-     the list is actually longer than the cap. */
+  /* Renewal pipeline is capped at 5, most-urgent-first, with a "showing N of M" note and a
+     "View more" link to renewal.html only when the list is actually longer than the cap. */
   var panels = dom.querySelectorAll(".panel");
   var renewalPanel, boundPanel;
   panels.forEach(function (p) {
@@ -312,9 +312,10 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   });
   var activeCount = policies.filter(function (p) { return p.status === "Active"; }).length;
   var renewalRows = renewalPanel.querySelectorAll(".hbar").length;
-  if (renewalRows > 10) { fails++; console.log("  FAIL  Renewal pipeline shows " + renewalRows + " rows, expected at most 10"); }
-  else if (activeCount > 10 && renewalRows !== 10) { fails++; console.log("  FAIL  Renewal pipeline has " + activeCount + " active policies but shows only " + renewalRows + ", expected the full cap of 10"); }
-  else console.log("  PASS  Renewal pipeline capped at " + renewalRows + " rows (book has " + activeCount + " active policies)");
+  if (renewalRows > 5) { fails++; console.log("  FAIL  Renewal pipeline shows " + renewalRows + " rows, expected at most 5"); }
+  else if (activeCount > 5 && renewalRows !== 5) { fails++; console.log("  FAIL  Renewal pipeline has " + activeCount + " active policies but shows only " + renewalRows + ", expected the full cap of 5"); }
+  else if (activeCount > 5 && renewalPanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Renewal pipeline exceeds the cap but is missing its "View more" link'); }
+  else console.log("  PASS  Renewal pipeline capped at " + renewalRows + " rows (book has " + activeCount + " active policies), with a View more link to renewal.html");
 
   /* "Bound policies" replaced "Blocked from issuing": a strictly-blocked list tops out at however
      many policies actually have an unmet subjectivity, which in this book is at most a handful —

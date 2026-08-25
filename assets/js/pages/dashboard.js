@@ -477,7 +477,7 @@
     /* Capped so a growing book can't push the panel's height past its neighbors — each list is
        already sorted by what makes it most actionable, so the cap drops the least urgent items,
        never the most. */
-    var RENEWAL_ROWS = 10, BOUND_ROWS = 5;
+    var RENEWAL_ROWS = 5, BOUND_ROWS = 5;
     var renewalPanel = ui.panel({ title: "Renewal pipeline", what: "In-force policies by closeness to expiry, top " + RENEWAL_ROWS + " most urgent.", why: "Notices must be served " + PAS.RENEWAL_LEAD_DAYS + " days ahead.", right: openLink("renewal.html", "Open") }, []);
     var renewalBody = renewalPanel.querySelector(".panel-body");
     threeCol.appendChild(renewalPanel);
@@ -532,7 +532,10 @@
         var rc = PAS.renewalCompliance(p);
         renewalBody.appendChild(ui.hbar({ label: p.holder, value: Math.max(0, 365 - rc.daysToExpiry), max: 365, note: rc.daysToExpiry + "d left", tone: rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red" }));
       });
-      if (renewalSorted.length > RENEWAL_ROWS) renewalBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing the " + RENEWAL_ROWS + " closest to expiry, of " + renewalSorted.length + " in force."));
+      if (renewalSorted.length > RENEWAL_ROWS) {
+        renewalBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing the " + RENEWAL_ROWS + " closest to expiry, of " + renewalSorted.length + " in force."));
+        renewalBody.appendChild(openLink("renewal.html", "View more"));
+      }
 
       /* Every bound policy, not just the blocked ones. Blocked policies sort first, soonest-
          expiring binder first within that group — that's the real deadline the panel is warning

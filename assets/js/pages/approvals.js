@@ -117,10 +117,14 @@
           var idSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--text-soft)" } }, t.p.id);
           var detailSpan = ui.h("span", { style: { fontSize: "12px", color: "var(--text-soft)", whiteSpace: "normal", display: "inline-block", maxWidth: "300px" } }, t.h.detail);
           var sla = slaOf(t);
-          var reviewBtn = ui.h("button", { class: "btn small tone-primary" }, "Review →");
-          reviewBtn.addEventListener("click", function () { openReview(t); });
+          var reviewBtn = ui.h("button", { class: "btn small tone-primary", type: "button" }, "Review →");
+          reviewBtn.addEventListener("click", function (e) {
+            if (e && e.stopPropagation) e.stopPropagation();
+            openReview(t);
+          });
           return [seqSpan, idSpan, t.p.holder, ui.modulePill(t.h.type), ui.initiatorPill(t.h.meta), ui.pill(sla.breached ? "red" : "amber", sla.remainingHours + "h"), detailSpan, t.h.date, reviewBtn];
         }),
+        onRowClick: function (i) { openReview(rows[i]); },
         emptyText: "Nothing awaiting approval.",
       }));
     }

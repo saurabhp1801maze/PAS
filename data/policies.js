@@ -52679,5 +52679,1860 @@ window.PAS_SEED_POLICIES = [
     "premium": 215000,
     "producer": "Diane Kowalski",
     "state": "New Jersey"
+  },
+  {
+    "id": "POL-2026-03001",
+    "holder": "Ironclad Trucking Co.",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-11-10",
+    "expirationDate": "2026-11-10",
+    "premium": 62000,
+    "termNumber": 1,
+    "producer": "Meridian Risk Partners",
+    "state": "Texas",
+    "submittedOn": "2025-11-01",
+    "sumInsured": "$744,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-GCJOF",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-11-10",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-W3JFF",
+        "seq": 1,
+        "date": "2025-11-01",
+        "recordedAt": "2025-11-01T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-1WSHF",
+        "seq": 2,
+        "date": "2025-11-01",
+        "recordedAt": "2025-11-01T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-6P1JF",
+        "seq": 3,
+        "date": "2025-11-10",
+        "recordedAt": "2025-11-10T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-BJAMF",
+        "seq": 4,
+        "date": "2026-08-10",
+        "recordedAt": "2026-08-10T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Cancellation requested — held for review",
+        "detail": "Insured requests cancellation of the commercial trucking fleet policy. HELD — awaiting review.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "reason": "Insured Request",
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-10",
+          "requestNote": "Fleet downsizing — selling 4 trucks and exiting the Texas lane."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03002",
+    "holder": "Route 66 Freight LLC",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-11-11",
+    "expirationDate": "2026-11-11",
+    "premium": 80500,
+    "termNumber": 1,
+    "producer": "Diane Kowalski",
+    "state": "Ohio",
+    "submittedOn": "2025-11-02",
+    "sumInsured": "$966,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-5DRZF",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-11-11",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-L5RQF",
+        "seq": 1,
+        "date": "2025-11-02",
+        "recordedAt": "2025-11-02T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-QY0SF",
+        "seq": 2,
+        "date": "2025-11-02",
+        "recordedAt": "2025-11-02T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-VR9UF",
+        "seq": 3,
+        "date": "2025-11-11",
+        "recordedAt": "2025-11-11T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-0KIXF",
+        "seq": 4,
+        "date": "2026-08-11",
+        "recordedAt": "2026-08-11T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Cancellation requested — held for review",
+        "detail": "Insured requests cancellation of the commercial trucking fleet policy. HELD — awaiting review.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "reason": "Sold Vehicle/Business",
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-11",
+          "requestNote": "Company ceased operations, all trucks sold."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03003",
+    "holder": "Blue Ridge Hauling Inc.",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-11-12",
+    "expirationDate": "2026-11-12",
+    "premium": 99000,
+    "termNumber": 1,
+    "producer": "Trevor Osei",
+    "state": "Georgia",
+    "submittedOn": "2025-11-03",
+    "sumInsured": "$1,188,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-UFZAG",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-11-12",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-A7Z1F",
+        "seq": 1,
+        "date": "2025-11-03",
+        "recordedAt": "2025-11-03T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-F083F",
+        "seq": 2,
+        "date": "2025-11-03",
+        "recordedAt": "2025-11-03T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-KTH6F",
+        "seq": 3,
+        "date": "2025-11-12",
+        "recordedAt": "2025-11-12T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-PMQ8F",
+        "seq": 4,
+        "date": "2026-08-12",
+        "recordedAt": "2026-08-12T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Cancellation requested — held for review",
+        "detail": "Insured requests cancellation of the commercial trucking fleet policy. HELD — awaiting review.",
+        "user": "Phone",
+        "status": "Pending",
+        "meta": {
+          "reason": "Insured Request",
+          "initiatedBy": "Insured",
+          "channel": "Phone",
+          "submittedOn": "2026-08-12",
+          "requestNote": "Switching the whole fleet to a competitor's program at renewal."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03004",
+    "holder": "Summit Trucking Partners",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-11-13",
+    "expirationDate": "2026-11-13",
+    "premium": 117500,
+    "termNumber": 1,
+    "producer": "Apex Insurance Brokers",
+    "state": "Tennessee",
+    "submittedOn": "2025-11-04",
+    "sumInsured": "$1,410,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-JH7LG",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-11-13",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-Z87CG",
+        "seq": 1,
+        "date": "2025-11-04",
+        "recordedAt": "2025-11-04T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-41GFG",
+        "seq": 2,
+        "date": "2025-11-04",
+        "recordedAt": "2025-11-04T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-9UPHG",
+        "seq": 3,
+        "date": "2025-11-13",
+        "recordedAt": "2025-11-13T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-EOYJG",
+        "seq": 4,
+        "date": "2026-08-13",
+        "recordedAt": "2026-08-13T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Cancellation requested — held for review",
+        "detail": "Insured requests cancellation of the commercial trucking fleet policy. HELD — awaiting review.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "reason": "Insured Request",
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-13",
+          "requestNote": "Merging fleet under a parent company's existing policy."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03005",
+    "holder": "Overland Freight Systems",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-11-14",
+    "expirationDate": "2026-11-14",
+    "premium": 136000,
+    "termNumber": 1,
+    "producer": "Direct",
+    "state": "Indiana",
+    "submittedOn": "2025-11-05",
+    "sumInsured": "$1,632,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-8IFXG",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-11-14",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-OAGOG",
+        "seq": 1,
+        "date": "2025-11-05",
+        "recordedAt": "2025-11-05T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-T3OQG",
+        "seq": 2,
+        "date": "2025-11-05",
+        "recordedAt": "2025-11-05T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-YWXSG",
+        "seq": 3,
+        "date": "2025-11-14",
+        "recordedAt": "2025-11-14T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-3P6UG",
+        "seq": 4,
+        "date": "2026-08-14",
+        "recordedAt": "2026-08-14T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Cancellation requested — held for review",
+        "detail": "Insured requests cancellation of the commercial trucking fleet policy. HELD — awaiting review.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "reason": "Sold Vehicle/Business",
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-14",
+          "requestNote": "Selling the last 2 rigs and shutting down the trucking division."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03006",
+    "holder": "Heartland Freight Carriers",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-08-21",
+    "expirationDate": "2026-08-21",
+    "premium": 71000,
+    "termNumber": 1,
+    "producer": "Diane Kowalski",
+    "state": "Georgia",
+    "submittedOn": "2025-08-21",
+    "sumInsured": "$852,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-XKN8G",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-08-21",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-DCOZG",
+        "seq": 1,
+        "date": "2025-08-21",
+        "recordedAt": "2025-08-21T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-I5W1G",
+        "seq": 2,
+        "date": "2025-08-21",
+        "recordedAt": "2025-08-21T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-NY53G",
+        "seq": 3,
+        "date": "2025-08-21",
+        "recordedAt": "2025-08-21T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-SRE6G",
+        "seq": 4,
+        "date": "2026-08-05",
+        "recordedAt": "2026-08-05T09:30:00.000Z",
+        "type": "Renewal",
+        "title": "Renewal requested — awaiting decision",
+        "detail": "Insured confirmed intent to renew the commercial trucking fleet policy. Re-underwriting and pricing pending.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-05",
+          "requestNote": "Please renew the fleet policy, adding no new units this term."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03007",
+    "holder": "Lone Star Trucking LLC",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-08-22",
+    "expirationDate": "2026-08-22",
+    "premium": 86200,
+    "termNumber": 1,
+    "producer": "Trevor Osei",
+    "state": "Tennessee",
+    "submittedOn": "2025-08-22",
+    "sumInsured": "$1,034,400 ACV",
+    "documents": [
+      {
+        "id": "DOC-MMVJH",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-08-22",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-2DWAH",
+        "seq": 1,
+        "date": "2025-08-22",
+        "recordedAt": "2025-08-22T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-764CH",
+        "seq": 2,
+        "date": "2025-08-22",
+        "recordedAt": "2025-08-22T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-C0DFH",
+        "seq": 3,
+        "date": "2025-08-22",
+        "recordedAt": "2025-08-22T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-HTMHH",
+        "seq": 4,
+        "date": "2026-08-06",
+        "recordedAt": "2026-08-06T09:30:00.000Z",
+        "type": "Renewal",
+        "title": "Renewal requested — awaiting decision",
+        "detail": "Insured confirmed intent to renew the commercial trucking fleet policy. Re-underwriting and pricing pending.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-06",
+          "requestNote": "Confirming renewal — fleet size unchanged from last term."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03008",
+    "holder": "Pinnacle Logistics Inc.",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-08-23",
+    "expirationDate": "2026-08-23",
+    "premium": 101400,
+    "termNumber": 1,
+    "producer": "Apex Insurance Brokers",
+    "state": "Indiana",
+    "submittedOn": "2025-08-23",
+    "sumInsured": "$1,216,800 ACV",
+    "documents": [
+      {
+        "id": "DOC-BO3UH",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-08-23",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-RF4LH",
+        "seq": 1,
+        "date": "2025-08-23",
+        "recordedAt": "2025-08-23T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-W8COH",
+        "seq": 2,
+        "date": "2025-08-23",
+        "recordedAt": "2025-08-23T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-11LQH",
+        "seq": 3,
+        "date": "2025-08-23",
+        "recordedAt": "2025-08-23T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-6UUSH",
+        "seq": 4,
+        "date": "2026-08-07",
+        "recordedAt": "2026-08-07T09:30:00.000Z",
+        "type": "Renewal",
+        "title": "Renewal requested — awaiting decision",
+        "detail": "Insured confirmed intent to renew the commercial trucking fleet policy. Re-underwriting and pricing pending.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-07",
+          "requestNote": "Renewing the trucking fleet policy, same coverage as last year."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03009",
+    "holder": "Cascade Trucking Co.",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-08-24",
+    "expirationDate": "2026-08-24",
+    "premium": 116600,
+    "termNumber": 1,
+    "producer": "Direct",
+    "state": "Illinois",
+    "submittedOn": "2025-08-24",
+    "sumInsured": "$1,399,200 ACV",
+    "documents": [
+      {
+        "id": "DOC-0PB6H",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-08-24",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-GHCXH",
+        "seq": 1,
+        "date": "2025-08-24",
+        "recordedAt": "2025-08-24T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-LALZH",
+        "seq": 2,
+        "date": "2025-08-24",
+        "recordedAt": "2025-08-24T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-Q3T1H",
+        "seq": 3,
+        "date": "2025-08-24",
+        "recordedAt": "2025-08-24T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-VW23H",
+        "seq": 4,
+        "date": "2026-08-08",
+        "recordedAt": "2026-08-08T09:30:00.000Z",
+        "type": "Renewal",
+        "title": "Renewal requested — awaiting decision",
+        "detail": "Insured confirmed intent to renew the commercial trucking fleet policy. Re-underwriting and pricing pending.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-08",
+          "requestNote": "Please proceed with renewal for the full rig fleet."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03010",
+    "holder": "Redwood Freight Lines",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-08-25",
+    "expirationDate": "2026-08-25",
+    "premium": 131800,
+    "termNumber": 1,
+    "producer": "Meridian Risk Partners",
+    "state": "Missouri",
+    "submittedOn": "2025-08-25",
+    "sumInsured": "$1,581,600 ACV",
+    "documents": [
+      {
+        "id": "DOC-PRJHI",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-08-25",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-5IK8H",
+        "seq": 1,
+        "date": "2025-08-25",
+        "recordedAt": "2025-08-25T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-ACTAI",
+        "seq": 2,
+        "date": "2025-08-25",
+        "recordedAt": "2025-08-25T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-F51CI",
+        "seq": 3,
+        "date": "2025-08-25",
+        "recordedAt": "2025-08-25T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-KYAFI",
+        "seq": 4,
+        "date": "2026-08-09",
+        "recordedAt": "2026-08-09T09:30:00.000Z",
+        "type": "Renewal",
+        "title": "Renewal requested — awaiting decision",
+        "detail": "Insured confirmed intent to renew the commercial trucking fleet policy. Re-underwriting and pricing pending.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-09",
+          "requestNote": "Confirmed intent to renew via our broker."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03011",
+    "holder": "Apex Trucking Solutions",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-12-05",
+    "expirationDate": "2026-12-05",
+    "premium": 58000,
+    "termNumber": 1,
+    "producer": "Trevor Osei",
+    "state": "Indiana",
+    "submittedOn": "2025-12-05",
+    "sumInsured": "$696,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-ETRSI",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-12-05",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-UKSJI",
+        "seq": 1,
+        "date": "2025-12-05",
+        "recordedAt": "2025-12-05T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-ZD1LI",
+        "seq": 2,
+        "date": "2025-12-05",
+        "recordedAt": "2025-12-05T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-469NI",
+        "seq": 3,
+        "date": "2025-12-05",
+        "recordedAt": "2025-12-05T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-9ZIQI",
+        "seq": 4,
+        "date": "2026-08-12",
+        "recordedAt": "2026-08-12T09:30:00.000Z",
+        "type": "Endorsement",
+        "title": "Endorsement requested: Vehicle change",
+        "detail": "Add 2 new company trucks to the fleet. HELD — material change, not yet applied.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "changeType": "Vehicle change",
+          "materiality": "Material",
+          "premiumImpact": 3200,
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-12",
+          "requestNote": "Add 2 new company trucks to the fleet."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03012",
+    "holder": "Granite State Freight Co.",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-12-06",
+    "expirationDate": "2026-12-06",
+    "premium": 79000,
+    "termNumber": 1,
+    "producer": "Apex Insurance Brokers",
+    "state": "Illinois",
+    "submittedOn": "2025-12-06",
+    "sumInsured": "$948,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-3UZ3I",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-12-06",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-JM0UI",
+        "seq": 1,
+        "date": "2025-12-06",
+        "recordedAt": "2025-12-06T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-OF9WI",
+        "seq": 2,
+        "date": "2025-12-06",
+        "recordedAt": "2025-12-06T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-T8HZI",
+        "seq": 3,
+        "date": "2025-12-06",
+        "recordedAt": "2025-12-06T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-Y1Q1I",
+        "seq": 4,
+        "date": "2026-08-13",
+        "recordedAt": "2026-08-13T09:30:00.000Z",
+        "type": "Endorsement",
+        "title": "Endorsement requested: Add/remove driver",
+        "detail": "Add 3 new drivers to the fleet policy. HELD — material change, not yet applied.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "changeType": "Add/remove driver",
+          "materiality": "Material",
+          "premiumImpact": 1450,
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-13",
+          "requestNote": "Add 3 new drivers to the fleet policy."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03013",
+    "holder": "Colonial Trucking Partners",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-12-07",
+    "expirationDate": "2026-12-07",
+    "premium": 100000,
+    "termNumber": 1,
+    "producer": "Direct",
+    "state": "Missouri",
+    "submittedOn": "2025-12-07",
+    "sumInsured": "$1,200,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-SW7EJ",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-12-07",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-8N85I",
+        "seq": 1,
+        "date": "2025-12-07",
+        "recordedAt": "2025-12-07T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-DHH8I",
+        "seq": 2,
+        "date": "2025-12-07",
+        "recordedAt": "2025-12-07T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-IAQAJ",
+        "seq": 3,
+        "date": "2025-12-07",
+        "recordedAt": "2025-12-07T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-N3YCJ",
+        "seq": 4,
+        "date": "2026-08-14",
+        "recordedAt": "2026-08-14T09:30:00.000Z",
+        "type": "Endorsement",
+        "title": "Endorsement requested: Coverage change",
+        "detail": "Raise cargo coverage limit for the fleet. HELD — material change, not yet applied.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "changeType": "Coverage change",
+          "materiality": "Material",
+          "premiumImpact": 2600,
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-14",
+          "requestNote": "Raise cargo coverage limit for the fleet."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03014",
+    "holder": "Prairie Wind Logistics",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-12-08",
+    "expirationDate": "2026-12-08",
+    "premium": 121000,
+    "termNumber": 1,
+    "producer": "Meridian Risk Partners",
+    "state": "North Carolina",
+    "submittedOn": "2025-12-08",
+    "sumInsured": "$1,452,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-HYFQJ",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-12-08",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-XPGHJ",
+        "seq": 1,
+        "date": "2025-12-08",
+        "recordedAt": "2025-12-08T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-2IPJJ",
+        "seq": 2,
+        "date": "2025-12-08",
+        "recordedAt": "2025-12-08T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-7BYLJ",
+        "seq": 3,
+        "date": "2025-12-08",
+        "recordedAt": "2025-12-08T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-C56NJ",
+        "seq": 4,
+        "date": "2026-08-15",
+        "recordedAt": "2026-08-15T09:30:00.000Z",
+        "type": "Endorsement",
+        "title": "Endorsement requested: Vehicle change",
+        "detail": "Add 1 refrigerated trailer unit to the fleet. HELD — material change, not yet applied.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "changeType": "Vehicle change",
+          "materiality": "Material",
+          "premiumImpact": 980,
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-15",
+          "requestNote": "Add 1 refrigerated trailer unit to the fleet."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03015",
+    "holder": "Copperline Trucking LLC",
+    "product": "Comprehensive Auto",
+    "status": "Active",
+    "effectiveDate": "2025-12-09",
+    "expirationDate": "2026-12-09",
+    "premium": 142000,
+    "termNumber": 1,
+    "producer": "Diane Kowalski",
+    "state": "Texas",
+    "submittedOn": "2025-12-09",
+    "sumInsured": "$1,704,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-6ZN1J",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-12-09",
+        "type": "Schedule"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-MROSJ",
+        "seq": 1,
+        "date": "2025-12-09",
+        "recordedAt": "2025-12-09T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-RKXUJ",
+        "seq": 2,
+        "date": "2025-12-09",
+        "recordedAt": "2025-12-09T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-WD6WJ",
+        "seq": 3,
+        "date": "2025-12-09",
+        "recordedAt": "2025-12-09T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-16EZJ",
+        "seq": 4,
+        "date": "2026-08-16",
+        "recordedAt": "2026-08-16T09:30:00.000Z",
+        "type": "Endorsement",
+        "title": "Endorsement requested: Limit change",
+        "detail": "Increase liability limit ahead of a new long-haul contract. HELD — material change, not yet applied.",
+        "user": "Broker portal",
+        "status": "Pending",
+        "meta": {
+          "changeType": "Limit change",
+          "materiality": "Material",
+          "premiumImpact": 4100,
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
+          "submittedOn": "2026-08-16",
+          "requestNote": "Increase liability limit ahead of a new long-haul contract."
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03016",
+    "holder": "Timberline Trucking Co.",
+    "product": "Comprehensive Auto",
+    "status": "Cancelled",
+    "effectiveDate": "2025-09-10",
+    "expirationDate": "2026-09-10",
+    "premium": 65000,
+    "termNumber": 1,
+    "producer": "Apex Insurance Brokers",
+    "state": "Missouri",
+    "submittedOn": "2025-09-10",
+    "sumInsured": "$780,000 ACV",
+    "documents": [
+      {
+        "id": "DOC-0U4EK",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-09-10",
+        "type": "Schedule"
+      },
+      {
+        "id": "DOC-5NDHK",
+        "name": "Cancellation notice",
+        "version": 1,
+        "generatedAt": "2026-07-20",
+        "type": "Notice"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-BTW3J",
+        "seq": 1,
+        "date": "2025-09-10",
+        "recordedAt": "2025-09-10T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-GM55J",
+        "seq": 2,
+        "date": "2025-09-10",
+        "recordedAt": "2025-09-10T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-LFE8J",
+        "seq": 3,
+        "date": "2025-09-10",
+        "recordedAt": "2025-09-10T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-Q8MAK",
+        "seq": 4,
+        "date": "2026-07-20",
+        "recordedAt": "2026-07-20T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Auto-cancelled (non-payment)",
+        "detail": "Premium not received by the grace period deadline. Policy cancelled pro-rata, effective 2026-07-20. Refund $9,260.",
+        "user": "System",
+        "status": "Completed",
+        "meta": {
+          "reason": "Non-Payment",
+          "initiatedBy": "System",
+          "channel": "System",
+          "submittedOn": "2026-07-20",
+          "cancelType": "Pro-Rata",
+          "refund": 9260
+        }
+      },
+      {
+        "id": "TXN-V1VCK",
+        "seq": 5,
+        "date": "2026-08-14",
+        "recordedAt": "2026-08-14T09:30:00.000Z",
+        "type": "Reinstatement",
+        "title": "Reinstatement requested — awaiting decision",
+        "detail": "Insured paid the outstanding premium and is requesting reinstatement of the commercial trucking fleet policy.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-14",
+          "requestNote": "Payment has cleared — please reinstate our fleet policy.",
+          "outstandingClaimed": 5400
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03017",
+    "holder": "Crossroads Freight Inc.",
+    "product": "Comprehensive Auto",
+    "status": "Cancelled",
+    "effectiveDate": "2025-09-11",
+    "expirationDate": "2026-09-11",
+    "premium": 82300,
+    "termNumber": 1,
+    "producer": "Direct",
+    "state": "North Carolina",
+    "submittedOn": "2025-09-11",
+    "sumInsured": "$987,600 ACV",
+    "documents": [
+      {
+        "id": "DOC-ZIUUK",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-09-11",
+        "type": "Schedule"
+      },
+      {
+        "id": "DOC-4B3WK",
+        "name": "Cancellation notice",
+        "version": 1,
+        "generatedAt": "2026-07-21",
+        "type": "Notice"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-AHMJK",
+        "seq": 1,
+        "date": "2025-09-11",
+        "recordedAt": "2025-09-11T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-FAVLK",
+        "seq": 2,
+        "date": "2025-09-11",
+        "recordedAt": "2025-09-11T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-K33NK",
+        "seq": 3,
+        "date": "2025-09-11",
+        "recordedAt": "2025-09-11T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-PWCQK",
+        "seq": 4,
+        "date": "2026-07-21",
+        "recordedAt": "2026-07-21T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Auto-cancelled (non-payment)",
+        "detail": "Premium not received by the grace period deadline. Policy cancelled pro-rata, effective 2026-07-21. Refund $11,725.",
+        "user": "System",
+        "status": "Completed",
+        "meta": {
+          "reason": "Non-Payment",
+          "initiatedBy": "System",
+          "channel": "System",
+          "submittedOn": "2026-07-21",
+          "cancelType": "Pro-Rata",
+          "refund": 11725
+        }
+      },
+      {
+        "id": "TXN-UPLSK",
+        "seq": 5,
+        "date": "2026-08-15",
+        "recordedAt": "2026-08-15T09:30:00.000Z",
+        "type": "Reinstatement",
+        "title": "Reinstatement requested — awaiting decision",
+        "detail": "Insured paid the outstanding premium and is requesting reinstatement of the commercial trucking fleet policy.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-15",
+          "requestNote": "Payment has cleared — please reinstate our fleet policy.",
+          "outstandingClaimed": 8200
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03018",
+    "holder": "Buckeye Hauling LLC",
+    "product": "Comprehensive Auto",
+    "status": "Cancelled",
+    "effectiveDate": "2025-09-12",
+    "expirationDate": "2026-09-12",
+    "premium": 99600,
+    "termNumber": 1,
+    "producer": "Meridian Risk Partners",
+    "state": "Texas",
+    "submittedOn": "2025-09-12",
+    "sumInsured": "$1,195,200 ACV",
+    "documents": [
+      {
+        "id": "DOC-Y6JAL",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-09-12",
+        "type": "Schedule"
+      },
+      {
+        "id": "DOC-3ZSCL",
+        "name": "Cancellation notice",
+        "version": 1,
+        "generatedAt": "2026-07-22",
+        "type": "Notice"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-94BZK",
+        "seq": 1,
+        "date": "2025-09-12",
+        "recordedAt": "2025-09-12T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-EYK1K",
+        "seq": 2,
+        "date": "2025-09-12",
+        "recordedAt": "2025-09-12T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-JRT3K",
+        "seq": 3,
+        "date": "2025-09-12",
+        "recordedAt": "2025-09-12T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-OK25K",
+        "seq": 4,
+        "date": "2026-07-22",
+        "recordedAt": "2026-07-22T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Auto-cancelled (non-payment)",
+        "detail": "Premium not received by the grace period deadline. Policy cancelled pro-rata, effective 2026-07-22. Refund $14,190.",
+        "user": "System",
+        "status": "Completed",
+        "meta": {
+          "reason": "Non-Payment",
+          "initiatedBy": "System",
+          "channel": "System",
+          "submittedOn": "2026-07-22",
+          "cancelType": "Pro-Rata",
+          "refund": 14190
+        }
+      },
+      {
+        "id": "TXN-TDB8K",
+        "seq": 5,
+        "date": "2026-08-16",
+        "recordedAt": "2026-08-16T09:30:00.000Z",
+        "type": "Reinstatement",
+        "title": "Reinstatement requested — awaiting decision",
+        "detail": "Insured paid the outstanding premium and is requesting reinstatement of the commercial trucking fleet policy.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-16",
+          "requestNote": "Payment has cleared — please reinstate our fleet policy.",
+          "outstandingClaimed": 3100
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03019",
+    "holder": "Delta Trucking Partners",
+    "product": "Comprehensive Auto",
+    "status": "Cancelled",
+    "effectiveDate": "2025-09-13",
+    "expirationDate": "2026-09-13",
+    "premium": 116900,
+    "termNumber": 1,
+    "producer": "Diane Kowalski",
+    "state": "Ohio",
+    "submittedOn": "2025-09-13",
+    "sumInsured": "$1,402,800 ACV",
+    "documents": [
+      {
+        "id": "DOC-XU9PL",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-09-13",
+        "type": "Schedule"
+      },
+      {
+        "id": "DOC-2NISL",
+        "name": "Cancellation notice",
+        "version": 1,
+        "generatedAt": "2026-07-23",
+        "type": "Notice"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-8S1EL",
+        "seq": 1,
+        "date": "2025-09-13",
+        "recordedAt": "2025-09-13T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-DMAHL",
+        "seq": 2,
+        "date": "2025-09-13",
+        "recordedAt": "2025-09-13T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-IFJJL",
+        "seq": 3,
+        "date": "2025-09-13",
+        "recordedAt": "2025-09-13T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-N8RLL",
+        "seq": 4,
+        "date": "2026-07-23",
+        "recordedAt": "2026-07-23T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Auto-cancelled (non-payment)",
+        "detail": "Premium not received by the grace period deadline. Policy cancelled pro-rata, effective 2026-07-23. Refund $16,654.",
+        "user": "System",
+        "status": "Completed",
+        "meta": {
+          "reason": "Non-Payment",
+          "initiatedBy": "System",
+          "channel": "System",
+          "submittedOn": "2026-07-23",
+          "cancelType": "Pro-Rata",
+          "refund": 16654
+        }
+      },
+      {
+        "id": "TXN-S10NL",
+        "seq": 5,
+        "date": "2026-08-17",
+        "recordedAt": "2026-08-17T09:30:00.000Z",
+        "type": "Reinstatement",
+        "title": "Reinstatement requested — awaiting decision",
+        "detail": "Insured paid the outstanding premium and is requesting reinstatement of the commercial trucking fleet policy.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-17",
+          "requestNote": "Payment has cleared — please reinstate our fleet policy.",
+          "outstandingClaimed": 11600
+        }
+      }
+    ]
+  },
+  {
+    "id": "POL-2026-03020",
+    "holder": "Northstar Freight Systems",
+    "product": "Comprehensive Auto",
+    "status": "Cancelled",
+    "effectiveDate": "2025-09-14",
+    "expirationDate": "2026-09-14",
+    "premium": 134200,
+    "termNumber": 1,
+    "producer": "Trevor Osei",
+    "state": "Georgia",
+    "submittedOn": "2025-09-14",
+    "sumInsured": "$1,610,400 ACV",
+    "documents": [
+      {
+        "id": "DOC-WIZ5L",
+        "name": "Policy schedule",
+        "version": 1,
+        "generatedAt": "2025-09-14",
+        "type": "Schedule"
+      },
+      {
+        "id": "DOC-1B87L",
+        "name": "Cancellation notice",
+        "version": 1,
+        "generatedAt": "2026-07-24",
+        "type": "Notice"
+      }
+    ],
+    "history": [
+      {
+        "id": "TXN-7GRUL",
+        "seq": 1,
+        "date": "2025-09-14",
+        "recordedAt": "2025-09-14T09:30:00.000Z",
+        "type": "Submission",
+        "title": "Submission received",
+        "detail": "Commercial trucking fleet application received.",
+        "user": "Broker portal",
+        "status": "Completed",
+        "meta": {
+          "channel": "Broker"
+        }
+      },
+      {
+        "id": "TXN-CA0WL",
+        "seq": 2,
+        "date": "2025-09-14",
+        "recordedAt": "2025-09-14T09:30:00.000Z",
+        "type": "Underwriting",
+        "title": "Approved within delegated authority",
+        "detail": "Fleet risk assessed — approved for issue.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "tier": "Delegated authority",
+          "score": 78
+        }
+      },
+      {
+        "id": "TXN-H38YL",
+        "seq": 3,
+        "date": "2025-09-14",
+        "recordedAt": "2025-09-14T09:30:00.000Z",
+        "type": "Issuance",
+        "title": "Policy issued",
+        "detail": "Commercial trucking fleet policy issued and bound.",
+        "user": "A. Bennett",
+        "status": "Completed",
+        "meta": {
+          "channel": "System"
+        }
+      },
+      {
+        "id": "TXN-MWH1L",
+        "seq": 4,
+        "date": "2026-07-24",
+        "recordedAt": "2026-07-24T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "Auto-cancelled (non-payment)",
+        "detail": "Premium not received by the grace period deadline. Policy cancelled pro-rata, effective 2026-07-24. Refund $19,119.",
+        "user": "System",
+        "status": "Completed",
+        "meta": {
+          "reason": "Non-Payment",
+          "initiatedBy": "System",
+          "channel": "System",
+          "submittedOn": "2026-07-24",
+          "cancelType": "Pro-Rata",
+          "refund": 19119
+        }
+      },
+      {
+        "id": "TXN-RPQ3L",
+        "seq": 5,
+        "date": "2026-08-18",
+        "recordedAt": "2026-08-18T09:30:00.000Z",
+        "type": "Reinstatement",
+        "title": "Reinstatement requested — awaiting decision",
+        "detail": "Insured paid the outstanding premium and is requesting reinstatement of the commercial trucking fleet policy.",
+        "user": "Self-service portal",
+        "status": "Pending",
+        "meta": {
+          "initiatedBy": "Insured",
+          "channel": "Self-service portal",
+          "submittedOn": "2026-08-18",
+          "requestNote": "Payment has cleared — please reinstate our fleet policy.",
+          "outstandingClaimed": 6750
+        }
+      }
+    ]
   }
 ];

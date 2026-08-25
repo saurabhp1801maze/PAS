@@ -129,6 +129,51 @@
     sidePanel.querySelector(".panel-body").appendChild(sideGrid);
     page.appendChild(sidePanel);
 
+    /* --- connected carriers: the modular-architecture piece made concrete --- */
+    var policies = PAS.getPolicies();
+    var carrierPanel = ui.panel({
+      title: "Connected carriers",
+      what: "Veridex is the MGA — it doesn't carry risk itself. Each product line is placed with the one partner that has appetite for it.",
+      why: "This is what \"a modular architecture that consumes data from connected carriers\" means concretely: real data segmented by carrier (PAS.PRODUCT_CARRIER), not one undifferentiated book.",
+      pad: 0,
+    }, []);
+    carrierPanel.querySelector(".panel-body").appendChild(ui.dataTable({
+      columns: ["Carrier", { label: "Lines placed", what: "Which products this partner has appetite for." },
+        { label: "Policies", what: "Records on their paper." },
+        { label: "In-force premium", what: "Sum of active premium placed with them." },
+        { label: "Loss ratio", what: "Incurred claims ÷ premium, on their book only." }],
+      rows: PAS.CARRIERS.map(function (c) {
+        var book = policies.filter(function (p) { return p.carrier === c; });
+        var active = book.filter(function (p) { return p.status === "Active"; });
+        var lines = Array.from(new Set(book.map(function (p) { return p.product; })));
+        var premium = active.reduce(function (s, p) { return s + p.premium; }, 0);
+        return [c, lines.join(", "), book.length, PAS.moneyShort(premium), Math.round(PAS.lossRatio(active) * 100) + "%"];
+      }),
+      wrapCells: true,
+    }));
+    page.appendChild(carrierPanel);
+
+    var composablePanel = ui.panel({
+      title: "Composable modules",
+      what: "The output of one module already feeds the next — the outbox pattern above is the mechanism, not a new abstraction to build.",
+      why: "An endorsement's premium delta becomes Billing's input; a cancellation's refund becomes Billing's input; an issued policy's data becomes Reinsurance's input. Composability here means every module speaks the same domain-event contract, so a new consumer (a new carrier's claims system, a new reporting module) subscribes to the existing bus instead of every producer being rewritten to know about it.",
+    }, []);
+    var compBody = composablePanel.querySelector(".panel-body");
+    compBody.appendChild(ui.h("div", { class: "faint-note" }, "Concretely, from PAS.EVENT_FOR / PAS.CONSUMERS in store.js:"));
+    var chain = ui.h("div", { class: "mt-9" });
+    [
+      ["Endorsement approved", "policyEndorsed", "Billing, Documents"],
+      ["Cancellation approved", "policyCancelled", "Billing, Claims, Documents"],
+      ["Transfer approved", "policyTransferred", "Billing, Documents, CRM, Reinsurance"],
+    ].forEach(function (row) {
+      var line = ui.h("div", { class: "effect-row" });
+      line.appendChild(PAS.icon("zap", { size: 13 }));
+      line.appendChild(ui.h("span", {}, row[0] + " → " + row[1] + " → " + row[2]));
+      chain.appendChild(line);
+    });
+    compBody.appendChild(chain);
+    page.appendChild(composablePanel);
+
     var root = document.getElementById("page-content");
     root.innerHTML = "";
     root.appendChild(ui.screen("architecture", page));

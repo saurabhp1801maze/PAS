@@ -11,9 +11,9 @@
     ["Submission", "A new risk arrives and is scored, priced and accepted or declined.", true, "Underwriting desk"],
     ["Policy Change", "A mid-term alteration to an in-force contract — the endorsement.", true, "Endorsement desk"],
     ["Renewal", "A new term on the same policy, re-underwritten and re-priced.", true, "Renewal desk"],
-    ["Cancellation", "Cover ends before the term does, on one of four bases.", true, "Cancellation desk"],
+    ["Cancellation", "Cover ends before the term does, on one of three bases.", true, "Cancellation desk"],
     ["Reinstatement", "A cancelled policy is restored, inside a limited window.", true, "Reinstatement desk"],
-    ["Rewrite", "Cancel and replace onto a new policy, preserving continuity.", false, "Not built"],
+    ["Rewrite (Transfer)", "A change of named insured — same policy ID, same term, same ledger, only the holder changes.", true, "Transfer desk"],
     ["Reissue", "Correct a document without altering coverage terms.", false, "Not built"],
   ];
 
@@ -81,7 +81,7 @@
     taxPanel.querySelector(".panel-body").appendChild(ui.dataTable({
       columns: ["Type",
         { label: "What it does", what: "The business event the type records." },
-        { label: "Status", what: "Whether this app can record the type today.", rule: "Rewrite and Reissue are named in the design docs but were never built." },
+        { label: "Status", what: "Whether this app can record the type today.", rule: "Reissue is named in the design docs but was never built." },
         { label: "Where", what: "The desk that owns the decision." }],
       rows: TAXONOMY.map(function (t) {
         return [ui.h("span", { class: "cell-name" }, t[0]), t[1],
@@ -91,7 +91,7 @@
     }));
     var taxNote = ui.h("div", { class: "mt-13" });
     taxNote.appendChild(ui.callout("warn",
-      "Reissue is the higher-frequency gap. Correcting a misspelled name on a schedule currently has to be modelled as an Endorsement, which records a coverage change on a ledger a regulator reads. Rewrite's absence means product or entity changes have to be modelled as cancellation plus new business, which breaks the continuity chain."));
+      "Reissue is the remaining gap. Correcting a misspelled name on a schedule currently has to be modelled as an Endorsement, which records a coverage change on a ledger a regulator reads — a cosmetic fix and a material change end up looking identical in the history."));
     taxPanel.querySelector(".panel-body").appendChild(taxNote);
     page.appendChild(taxPanel);
 
@@ -129,6 +129,35 @@
       wrapCells: true,
     }));
     page.appendChild(initPanel);
+
+    /* --- user & role directory: the honest shape of "user management" this prototype has ---
+       No real backend auth exists here — there's one browser session, and the role switcher in
+       the topbar changes who you're viewing the platform as. What IS real: a permission model
+       (canDecide / canRequest / scope) that every screen actually reads, not a decorative label.
+       A production system would put real accounts behind these same five rows. */
+    var userPanel = ui.panel({
+      title: "User & role directory",
+      what: "Every role this platform recognizes, with the permissions each one actually carries.",
+      why: "This is the real permission model the role switcher, the nav-hiding and the scoped dashboards all read from — PAS.ROLES in store.js, not a separate mock.",
+      pad: 0,
+    }, []);
+    userPanel.querySelector(".panel-body").appendChild(ui.dataTable({
+      columns: ["Role", "Identity",
+        { label: "Scope", what: "What slice of the book this role sees.", rule: "\"all\" is portfolio-wide; every other scope is a real filter, not a relabeled full view." },
+        { label: "Can decide", what: "Whether this role can approve or decline a held transaction." },
+        { label: "Can request", what: "Whether this role can raise a new request (a cancellation, an endorsement, a service request)." }],
+      rows: Object.keys(PAS.ROLES).map(function (k) {
+        var r = PAS.ROLES[k];
+        return [ui.pill(r.tone, r.label, r.icon), r.identity, r.scope,
+          r.canDecide ? ui.pill("green", "Yes") : ui.pill("gray", "No"),
+          r.canRequest ? ui.pill("green", "Yes") : ui.pill("gray", "No")];
+      }),
+      wrapCells: true,
+    }));
+    var authNote = ui.h("div", { class: "mt-13" });
+    authNote.appendChild(ui.callout("warn", "No real authentication exists — this is one browser session with a role switcher, not a multi-user system. A production build would put real accounts, SSO and row-level permissions behind these same five roles rather than a client-side sessionStorage flag; see docs/common.md's target architecture for where that layer would sit."));
+    userPanel.querySelector(".panel-body").appendChild(authNote);
+    page.appendChild(userPanel);
 
     /* --- shared invariants --- */
     var patPanel = ui.panel({

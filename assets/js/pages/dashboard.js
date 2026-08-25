@@ -380,8 +380,11 @@
      the active book, including one deliberately consistent with the "adverse loss ratio... 140%"
      narrative already on Bharat Steel Works' cancellation record, so the two screens agree
      instead of one silently contradicting the other. */
-  function renderPortfolioDashboard(page, policies, role) {
+  function renderPortfolioDashboard(page, allPolicies, role) {
     var spec = PAS.ROLES[role];
+    /* MGA sees the whole portfolio; Carrier is genuinely scoped to the paper placed with them
+       (PAS.PRODUCT_CARRIER) — a real filter, not the same data with a different label. */
+    var policies = PAS.scopePolicies(allPolicies, role);
     var active = policies.filter(function (p) { return p.status === "Active"; });
     var cancelled = policies.filter(function (p) { return p.status === "Cancelled"; });
     var declined = policies.filter(function (p) { return p.status === "Declined"; });
@@ -543,12 +546,86 @@
     page.appendChild(panel);
   }
 
+  /* The end-customer portal. A real one would be a separate public-facing app with its own
+     customer accounts — this reuses the internal shell's role system instead, scoped by `holder`
+     the same way Broker/Producer is scoped by `producer`, since the goal here is real, working
+     self-service functionality rather than a second application. First-person throughout: this
+     is the one screen in the whole app written from the policyholder's side of the glass, not
+     operations'. */
+  function renderCustomerPortal(page, policies) {
+    var spec = PAS.ROLES.Customer;
+    var mine = PAS.scopePolicies(policies, "Customer");
+
+    page.appendChild(ui.pageHeader({
+      icon: "user", tone: "blue", title: "My Policies",
+      sub: "Welcome back, " + spec.identity,
+      what: "Your own policies only — coverage, documents and activity.", why: "Nothing here reaches any other customer's data or any internal desk.",
+    }));
+
+    if (mine.length === 0) {
+      page.appendChild(ui.callout("info", "No policies found for " + spec.identity + "."));
+      return;
+    }
+
+    mine.forEach(function (p) {
+      page.appendChild(ui.kpiRow([
+        { label: "Product", value: p.product, tip: "What this policy covers." },
+        { label: "Status", value: p.status, tone: PAS.STATUS_TONE[p.status], tip: "Current lifecycle state." },
+        { label: "Premium", value: PAS.money(p.premium), tip: "Annual premium for the current term." },
+        { label: "Cover period", value: p.effectiveDate + " → " + p.expirationDate, tip: "Your current term." },
+      ]));
+
+      var grid = ui.h("div", { class: "two-col-grid" });
+
+      var covPanel = ui.panel({ title: "Your coverage", what: p.id + " · " + p.sumInsured, why: "How your premium breaks down across what's actually covered." }, []);
+      var covBody = covPanel.querySelector(".panel-body");
+      var breakdown = PAS.coverageBreakdown(p);
+      if (breakdown.length === 0) covBody.appendChild(ui.h("div", { class: "faint-note" }, "No coverage breakdown available for this product."));
+      else {
+        var maxCov = Math.max.apply(null, breakdown.map(function (c) { return c.premium; }));
+        breakdown.forEach(function (c) { covBody.appendChild(ui.hbar({ label: c.name, value: c.premium, max: maxCov, note: PAS.money(c.premium), tone: c.premium === maxCov ? "indigo" : "blue" })); });
+      }
+      grid.appendChild(covPanel);
+
+      var docPanel = ui.panel({ title: "Your documents", what: "Every schedule, certificate and notice issued to you.", pad: 0 }, []);
+      docPanel.querySelector(".panel-body").appendChild(ui.dataTable({
+        columns: ["Document", "Type", "Version", "Issued"],
+        rows: (p.documents || []).map(function (d) { return [d.name, d.type, "v" + d.version, d.generatedAt]; }),
+        emptyText: "No documents issued yet.",
+      }));
+      grid.appendChild(docPanel);
+      page.appendChild(grid);
+
+      var activityPanel = ui.panel({ title: "Recent activity", what: "Everything that's happened on this policy.", pad: 0 }, []);
+      activityPanel.querySelector(".panel-body").appendChild(ui.dataTable({
+        columns: ["Date", "What happened", "Status"],
+        rows: p.history.slice().sort(function (a, b) { return b.seq - a.seq; }).slice(0, 8).map(function (h) {
+          return [h.date, h.title, ui.txnStatusBadge(h.status)];
+        }),
+      }));
+      page.appendChild(activityPanel);
+    });
+
+    page.appendChild(ui.logRequestForm({
+      policies: mine,
+      typeLabel: "service",
+      initiatorKeys: ["Insured"],
+      extraFields: function () { return null; },
+      onSubmit: function (payload) {
+        PAS.api.call("POST", "/api/v1/policies/" + payload.policyId + "/service-requests", { category: "Customer request", channel: payload.channel, notes: payload.note },
+          { module: "Servicing", policyId: payload.policyId, statusCode: 201, label: "Service request — " + spec.identity, response: { serviceRequestId: PAS.uid("SRV"), status: "logged" } })
+          .then(function () { PAS.logService(payload.policyId, { category: "Customer request", channel: payload.channel, notes: payload.note, sla: 24 }); render(); });
+      },
+    }));
+  }
+
   function render() {
     var role = PAS.getRole();
     var policies = PAS.getPolicies();
     var page = ui.h("div", {});
     if (role === "MGA" || role === "Carrier") renderPortfolioDashboard(page, policies, role);
     else if (role === "Broker/Producer") renderBrokerDashboard(page, policies);
+    else if (role === "Customer") renderCustomerPortal(page, policies);
     else renderUnderwriterDashboard(page, policies);
 
     var root = document.getElementById("page-content");

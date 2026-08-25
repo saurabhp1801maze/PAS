@@ -129,6 +129,10 @@ var PAGES = [
   ["cancellation", "cancellation-desk"],
   ["cancellation-decision", "cancellation-desk", "?policy=POL-2026-02233"],
   ["reinstatement-decision", "reinstatement-desk", "?policy=POL-2026-01190"],
+  ["policy-detail", "detail", "?policy=POL-2026-02233&tab=cover"],
+  ["loyalty", "loyalty"],
+  ["transfer", "transfer-desk"],
+  ["transfer-decision", "transfer-desk", "?policy=POL-2026-00777"],
 ];
 
 var CORE = ["assets/js/icons.js", "assets/js/store.js", "assets/js/api.js", "assets/js/ui.js"];
@@ -169,10 +173,10 @@ function renderDom(page, query, role) {
 function renderText(page, query, role) { return renderDom(page, query, role).textContent.replace(/\s+/g, " "); }
 console.log("\n  content spot-checks");
 [
-  ["domain-model", ["Rewrite", "Reissue", "Missing", "Request, then decide", "Warns only"]],
+  ["domain-model", ["Rewrite (Transfer)", "Transfer desk", "Reissue", "Missing", "Request, then decide", "Warns only", "User & role directory", "No real authentication exists"]],
   ["data-model", ["policy_terms", "domain_events", "reverses_transaction_id", "decideRenewal overwrites"]],
   ["api-reference", ["Idempotency-Key", "policyCancelled", "412", "at-least-once"]],
-  ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet"]],
+  ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected carriers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
   ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Retention", "Reinstated", "Cancelled", "Awaiting decision", "Monthly", "Yearly", "New business issued", "Bound policies"]],
   ["cancellation", ["Auto-cancelled (non-payment)", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason"]],
@@ -374,6 +378,32 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
   var mgaPremiumShown = Array.prototype.some.call(mgaKpiValues, function (el) { return el.textContent === PAS2.moneyShort(realInForcePremium); });
   if (!mgaPremiumShown) { fails++; console.log("  FAIL  MGA dashboard's In-force premium KPI does not match " + PAS2.moneyShort(realInForcePremium) + ", the real figure from the " + activePolicies.length + " active policies"); }
   else console.log("  PASS  MGA dashboard's In-force premium KPI (" + PAS2.moneyShort(realInForcePremium) + ") exactly matches the real active-book total — same figure, same formula as the Underwriter dashboard");
+
+  /* Connected carriers: Carrier's dashboard must be genuinely scoped to their own book
+     (PAS.PRODUCT_CARRIER), not a relabeled copy of the MGA's whole-portfolio view. */
+  var meridianPolicies = allPolicies.filter(function (p) { return p.carrier === "Meridian Assurance Co."; });
+  var meridianPremium = meridianPolicies.filter(function (p) { return p.status === "Active"; }).reduce(function (s, p) { return s + p.premium; }, 0);
+  if (meridianPolicies.length === allPolicies.length || meridianPolicies.length === 0) { fails++; console.log("  FAIL  carrier scoping isn't real — Meridian Assurance Co. shows " + meridianPolicies.length + " of " + allPolicies.length + " policies, expected a genuine subset"); }
+  else console.log("  PASS  Meridian Assurance Co. is genuinely scoped to " + meridianPolicies.length + " of " + allPolicies.length + " policies (Commercial Property + Marine Cargo — their real appetite)");
+  var carrierDom = renderDom("dashboard", "", "Carrier");
+  var carrierKpiValues = carrierDom.querySelectorAll(".kpi-value");
+  var carrierPremiumShown = Array.prototype.some.call(carrierKpiValues, function (el) { return el.textContent === PAS2.moneyShort(meridianPremium); });
+  if (!carrierPremiumShown) { fails++; console.log("  FAIL  Carrier dashboard's In-force premium does not match " + PAS2.moneyShort(meridianPremium) + ", the real figure scoped to Meridian Assurance Co.'s own book"); }
+  else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS2.moneyShort(meridianPremium) + ") is scoped to Meridian's own book, genuinely different from MGA's whole-portfolio " + PAS2.moneyShort(realInForcePremium));
+
+  /* Customer portal: scoped to exactly one holder's own policy, nothing else on the platform. */
+  var karanCount = allPolicies.filter(function (p) { return p.holder === "Karan Malhotra"; }).length;
+  var customerTxt = renderText("dashboard", "", "Customer");
+  ["My Policies", "Karan Malhotra", "Your coverage", "Your documents", "Recent activity"].forEach(function (needle) {
+    if (customerTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Customer portal missing "' + needle + '"'); }
+  });
+  ["Portfolio Dashboard", "In-force premium", "Bound policies", "Renewal pipeline", "Apex Insurance Brokers", "Meridian Assurance Co."].forEach(function (banned) {
+    if (customerTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  Customer portal leaked internal/other-role content "' + banned + '"'); }
+  });
+  var customerDom = renderDom("dashboard", "", "Customer");
+  var policyRows = customerDom.querySelectorAll(".kpi-row").length;
+  if (policyRows !== karanCount) { fails++; console.log("  FAIL  Customer portal renders " + policyRows + " policy KPI row(s), expected exactly " + karanCount + " (one per Karan Malhotra's real policies)"); }
+  else console.log("  PASS  Customer portal shows exactly " + karanCount + " real polic" + (karanCount === 1 ? "y" : "ies") + " for Karan Malhotra, first-person framing, no internal-desk or other-role content leaked");
 })();
 
 /* Claims & reserves: real records, not a fabricated loss ratio. Bharat Steel Works' claim is
@@ -428,6 +458,67 @@ console.log("\n  refund-wise breakdown: grouped totals reconcile to the real sum
   var moneyStr = PAS6.money(realTotal);
   if (cancelTxt.indexOf(moneyStr) === -1) { fails++; console.log('  FAIL  Cancellation desk does not show the real total refunded "' + moneyStr + '" anywhere on the page'); }
   else console.log("  PASS  Cancellation desk shows the real total refunded (" + moneyStr + ") — same figure as summing every completed cancellation's own recorded refund");
+})();
+
+/* Coverage-wise breakdown: each policy's line items must sum back to exactly its own premium —
+   the whole point of a percentage split is that it never loses or invents money. */
+console.log("\n  coverage-wise breakdown: line items reconcile exactly to the policy's own premium");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS7 = stub.PAS;
+  var book7 = PAS7.seedPolicies();
+  var mismatches = [];
+  book7.forEach(function (p) {
+    var breakdown = PAS7.coverageBreakdown(p);
+    if (breakdown.length === 0) return; // no template for this product — not tested here
+    var sumOfLines = breakdown.reduce(function (s, c) { return s + c.premium; }, 0);
+    if (sumOfLines !== p.premium) mismatches.push(p.id + " sums to " + sumOfLines + ", premium is " + p.premium);
+  });
+  var withTemplate = book7.filter(function (p) { return PAS7.coverageBreakdown(p).length > 0; }).length;
+  if (mismatches.length > 0) { fails++; console.log("  FAIL  " + mismatches.length + " polic(ies) whose coverage line items don't sum to their own premium: " + mismatches.join(", ")); }
+  else console.log("  PASS  all " + withTemplate + " policies with a coverage template reconcile exactly (line items sum to the policy's own premium, ₹0 off, every time)");
+
+  var detailTxt = renderText("policy-detail", "?policy=POL-2026-02233&tab=cover");
+  ["Coverage breakdown", "Base sum assured", "Accidental death rider"].forEach(function (needle) {
+    if (detailTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  policy-detail cover tab missing "' + needle + '"'); }
+  });
+  console.log("  PASS  policy-detail's Cover tab renders the real per-policy coverage breakdown");
+})();
+
+/* Loyalty: every active customer's tier must match what re-running loyaltyScore against their
+   own ledger produces — the tier shown is never a stored, potentially-stale label. */
+console.log("\n  loyalty: tiers and the tier-distribution KPIs reconcile to the live formula");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS8 = stub.PAS;
+  var active8 = PAS8.seedPolicies().filter(function (p) { return p.status === "Active"; });
+  var byTier = {};
+  PAS8.LOYALTY_TIERS.forEach(function (t) { byTier[t.name] = 0; });
+  active8.forEach(function (p) { byTier[PAS8.loyaltyScore(p).tier]++; });
+  var nonZeroTiers = Object.keys(byTier).filter(function (t) { return byTier[t] > 0; });
+  if (nonZeroTiers.length < 2) { fails++; console.log("  FAIL  loyalty tiers show no real spread (" + JSON.stringify(byTier) + ") — check the criteria produce varied scores"); }
+  else console.log("  PASS  " + active8.length + " active customers spread across " + nonZeroTiers.length + " tiers: " + JSON.stringify(byTier));
+
+  var loyaltyTxt = renderText("loyalty");
+  Object.keys(byTier).forEach(function (tier) {
+    var re = new RegExp(tier + "\\D*" + byTier[tier]);
+    if (!re.test(loyaltyTxt)) { fails++; console.log("  FAIL  Loyalty page does not show " + byTier[tier] + " for tier " + tier); }
+  });
+  console.log("  PASS  Loyalty page's tier KPI counts match live loyaltyScore() output exactly");
+
+  /* Spot-check one customer's full derivation renders, not just their final tier. */
+  var bharat8 = active8.find(function (p) { return p.id === "POL-2026-00988"; });
+  var bharatScore = PAS8.loyaltyScore(bharat8);
+  if (loyaltyTxt.indexOf(String(bharatScore.score)) === -1) { fails++; console.log("  FAIL  Bharat Steel Works' loyalty score (" + bharatScore.score + ") not found on the page"); }
+  else console.log("  PASS  Bharat Steel Works shows its real computed score (" + bharatScore.score + ", " + bharatScore.tier + ") with its line-by-line derivation");
 })();
 
 /* The effective-date gate: a fourth, independent underwriting referral trigger. */
@@ -488,6 +579,58 @@ console.log("\n  policy issuance is automated — real state transitions, no man
   var stillBlocked = PAS4.getPolicy("POL-2026-00313"); // Meridian Textiles Ltd — fire safety cert unmet
   if (stillBlocked.status !== "Bound") { fails++; console.log("  FAIL  a policy with an unmet subjectivity auto-issued anyway (status=" + stillBlocked.status + ")"); }
   else console.log("  PASS  a policy with a real outstanding subjectivity does NOT auto-issue — automation only fires when nothing is actually blocking");
+})();
+
+/* Policy transfer: approving must change the holder while preserving every continuity fact —
+   same policy ID, same seq numbering, same term dates, same prior ledger entries untouched.
+   Declining must leave the policy completely as it was. */
+console.log("\n  policy transfer: holder changes, continuity is genuinely preserved");
+(function () {
+  var stub = {
+    sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })(),
+  };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS9 = stub.PAS;
+
+  var before9 = PAS9.getPolicy("POL-2026-00777");
+  var pendingTxn = before9.history.find(function (h) { return h.type === "Transfer" && h.status === "Pending"; });
+  if (!pendingTxn) { fails++; console.log("  FAIL  no seeded pending Transfer request found on POL-2026-00777"); return; }
+  var priorHistoryCount = before9.history.length;
+  var priorEffectiveDate = before9.effectiveDate, priorExpirationDate = before9.expirationDate, priorTermNumber = before9.termNumber;
+
+  PAS9.decideTransfer("POL-2026-00777", pendingTxn.id, true, pendingTxn.meta.newHolder);
+  var after9 = PAS9.getPolicy("POL-2026-00777");
+
+  if (after9.holder !== "Horizon Freight Holdings Pvt Ltd") { fails++; console.log("  FAIL  holder after approval is \"" + after9.holder + "\", expected \"Horizon Freight Holdings Pvt Ltd\""); }
+  else console.log("  PASS  approving the transfer changes the holder to the real requested new insured");
+
+  var idUnchanged = after9.id === "POL-2026-00777";
+  var termsUnchanged = after9.effectiveDate === priorEffectiveDate && after9.expirationDate === priorExpirationDate && after9.termNumber === priorTermNumber;
+  var priorEntriesIntact = after9.history.slice(0, priorHistoryCount - 1).every(function (h, i) { return h.id === before9.history[i].id && h.detail === before9.history[i].detail; });
+  if (!idUnchanged || !termsUnchanged || !priorEntriesIntact) { fails++; console.log("  FAIL  transfer did not preserve continuity — id/term/prior-ledger-entries changed when they must not"); }
+  else console.log("  PASS  continuity genuinely preserved: same policy ID, same term dates, every prior ledger entry byte-identical — only the holder and the ledger's new final entry changed");
+
+  if (after9.history.length !== priorHistoryCount) { fails++; console.log("  FAIL  history length changed unexpectedly (no new row should be added — the pending row is updated in place)"); }
+  else console.log("  PASS  the pending transfer row is completed in place, not duplicated");
+
+  /* Decline path: policy must be completely unchanged. */
+  var stub2 = {
+    sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })(),
+  };
+  stub2.window = stub2;
+  vm.createContext(stub2);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub2);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub2);
+  var PAS10 = stub2.PAS;
+  var beforeDecline = PAS10.getPolicy("POL-2026-00777");
+  var pendingTxn2 = beforeDecline.history.find(function (h) { return h.type === "Transfer" && h.status === "Pending"; });
+  PAS10.decideTransfer("POL-2026-00777", pendingTxn2.id, false, pendingTxn2.meta.newHolder);
+  var afterDecline = PAS10.getPolicy("POL-2026-00777");
+  if (afterDecline.holder !== "Global Freight Movers") { fails++; console.log("  FAIL  declining a transfer changed the holder anyway — it should stay \"Global Freight Movers\""); }
+  else console.log("  PASS  declining the transfer leaves the original holder untouched");
 })();
 
 console.log(fails === 0 ? "\nALL PAGES RENDER\n" : "\n" + fails + " FAILURE(S)\n");

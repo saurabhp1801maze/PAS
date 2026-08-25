@@ -69,6 +69,16 @@
       cb.appendChild(ui.kv({ k: "Sum insured", v: policy.sumInsured || "—" }));
       cb.appendChild(ui.kv({ k: "Premium", v: PAS.money(policy.premium) }));
       cb.appendChild(ui.kv({ k: "Term number", v: policy.termNumber, what: "How many times this policy has renewed." }));
+      var breakdown = PAS.coverageBreakdown(policy);
+      if (breakdown.length) {
+        var covWrap = ui.h("div", { class: "mt-13" });
+        covWrap.appendChild(ui.tipLabel({ text: "Coverage breakdown", what: "Premium split across this product's layers of cover.", why: "A fixed percentage split (PAS.COVERAGE_TEMPLATE) applied to this policy's own premium — a documented modeling simplification, not a live-rated figure per layer.", className: "label-11 block mb-9" }));
+        var maxShare = Math.max.apply(null, breakdown.map(function (c) { return c.premium; }));
+        breakdown.forEach(function (c) {
+          covWrap.appendChild(ui.hbar({ label: c.name, value: c.premium, max: maxShare, note: PAS.money(c.premium) + " · " + Math.round(c.share * 100) + "%", tone: c.premium === maxShare ? "indigo" : "blue" }));
+        });
+        cb.appendChild(covWrap);
+      }
       grid.appendChild(coverPanel);
       var partiesPanel = ui.panel({ title: "Parties & distribution", what: "Who is insured and who placed the business." }, []);
       var pb = partiesPanel.querySelector(".panel-body");

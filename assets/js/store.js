@@ -314,6 +314,21 @@
   };
   PAS.CLAIMS_BY_ID = CLAIMS_BY_ID;
 
+  /* ---------- connected carriers: a real multi-carrier data model ----------
+     Veridex is the MGA; it doesn't carry risk itself, it places business with the carrier
+     partner that has appetite for that line — the mechanism a real "modular architecture that
+     consumes data/services from connected carriers" would be built on. Each product line is
+     placed with exactly one partner (a real MGA's paper is split by appetite, not at random),
+     so `p.carrier` is a genuine second dimension to segment the book by — this is what makes the
+     Carrier role's dashboard actually scope to "my own book" instead of the whole portfolio. */
+  var PRODUCT_CARRIER = {
+    "Commercial Property": "Meridian Assurance Co.", "Marine Cargo": "Meridian Assurance Co.",
+    "Comprehensive Auto": "Apex General Insurance", "Home Owners": "Apex General Insurance",
+    "Term Life": "Horizon Life & Health", "Group Health": "Horizon Life & Health",
+  };
+  PAS.PRODUCT_CARRIER = PRODUCT_CARRIER;
+  PAS.CARRIERS = ["Meridian Assurance Co.", "Apex General Insurance", "Horizon Life & Health"];
+
   /* Every claim across a set of policies, flattened with its parent policy attached — the shape
      every claims-aware panel iterates over. */
   function allClaims(policies) {
@@ -350,6 +365,40 @@
     return template.map(function (c) { return { name: c.name, share: c.share, premium: Math.round(policy.premium * c.share) }; });
   }
   PAS.coverageBreakdown = coverageBreakdown;
+
+  /* ---------- loyalty: configurable criteria, computed from real ledger data ----------
+     Same shape as the underwriting risk model — a weights table an admin could tune, plus a pure
+     function that shows its derivation line by line rather than asserting a tier. Every input is
+     a fact already on the policy (renewal count, claims on file, cancellation history, premium)
+     — nothing here is a fabricated "loyalty points" balance. */
+  var LOYALTY_CRITERIA = {
+    perRenewalTerm: 15, claimFreeBonus: 20, noCancellationBonus: 15,
+    highValuePremium: 500000, highValueBonus: 10,
+  };
+  PAS.LOYALTY_CRITERIA = LOYALTY_CRITERIA;
+  var LOYALTY_TIERS = [
+    { name: "Platinum", min: 60, tone: "violet" },
+    { name: "Gold", min: 40, tone: "amber" },
+    { name: "Silver", min: 20, tone: "blue" },
+    { name: "Bronze", min: 0, tone: "gray" },
+  ];
+  PAS.LOYALTY_TIERS = LOYALTY_TIERS;
+  function loyaltyScore(policy) {
+    var w = LOYALTY_CRITERIA;
+    var renewals = Math.max(0, (policy.termNumber || 1) - 1);
+    var claims = (policy.claims || []).length;
+    var priorCx = policy.history.filter(function (h) { return h.type === "Cancellation" && h.status === "Completed"; }).length;
+    var lines = [];
+    function add(label, value, note) { if (value) lines.push({ label: label, value: value, note: note }); }
+    add("Renewed " + renewals + " time" + (renewals === 1 ? "" : "s"), renewals * w.perRenewalTerm, "Every completed renewal is worth " + w.perRenewalTerm + " points.");
+    add("Claim-free", claims === 0 ? w.claimFreeBonus : 0, claims === 0 ? "No claims on file." : "");
+    add("Never cancelled", priorCx === 0 ? w.noCancellationBonus : 0, priorCx === 0 ? "No completed cancellation in this policy's history." : "");
+    add("High-value policy", policy.premium >= w.highValuePremium ? w.highValueBonus : 0, "Premium at or above " + money(w.highValuePremium) + ".");
+    var score = lines.reduce(function (s, l) { return s + l.value; }, 0);
+    var tier = LOYALTY_TIERS.find(function (t) { return score >= t.min; }) || LOYALTY_TIERS[LOYALTY_TIERS.length - 1];
+    return { score: score, tier: tier.name, tone: tier.tone, lines: lines };
+  }
+  PAS.loyaltyScore = loyaltyScore;
   function reservesTotal(policies) {
     return allClaims(policies).filter(function (x) { return x.c.status === "Open"; }).reduce(function (s, x) { return s + x.c.reserved; }, 0);
   }
@@ -543,6 +592,8 @@
           txn(1, "2026-01-15", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" }),
           txn(2, "2026-04-02", "Endorsement", "Endorsement: Add route", "Added Chennai–Singapore lane to the schedule.", "Meridian Risk", { changeType: "Coverage change", materiality: "Minor", premiumImpact: 12000 }),
           txn(3, "2026-06-18", "Servicing", "Service request logged", "Duplicate certificate of insurance emailed for customs clearance.", "Meridian Risk", { category: "Document request", channel: "Email" }),
+          txn(4, "2026-08-21", "Transfer", "Transfer requested — awaiting decision", "Broker reports the holding company was acquired; the freight operation continues under the new corporate entity.", "Broker portal",
+            { reason: "Ownership Change", newHolder: "Horizon Freight Holdings Pvt Ltd", initiatedBy: "Broker/Producer", channel: "Broker portal", submittedOn: "2026-08-21", requestNote: "Global Freight Movers was acquired by Horizon Freight Holdings on Aug 15 — please transfer the cargo policy to the new entity, same fleet, same routes." }, "Pending"),
         ] },
       { id: "POL-2025-03321", holder: "Anita Krishnamurthy", product: "Group Health", status: "Active",
         effectiveDate: "2025-09-01", expirationDate: "2026-09-01", premium: 68000, termNumber: 1,
@@ -608,7 +659,7 @@
         producer: "Apex Insurance Brokers", state: "Karnataka", sumInsured: "₹35,00,000", documents: [],
         history: [txn(1, "2024-06-15", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" })] },
     ];
-    list.forEach(function (p) { p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; });
+    list.forEach(function (p) { p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; });
     return list;
   }
   PAS.seedPolicies = seedPolicies;
@@ -618,6 +669,7 @@
   PAS.EVENT_FOR = {
     "/issue": "policyIssued", "/endorsements": "policyEndorsed", "/cancellations": "policyCancelled",
     "/reinstatements": "policyReinstated", "/renewals": "policyRenewed", "/non-renewal": "policyNonRenewed",
+    "/transfers": "policyTransferred",
     "/service-requests": "serviceRequestLogged", "/approve": "transactionApproved",
     "/reject": "transactionRejected", "/reverse": "transactionReversed",
     "/underwriting-decision": "underwritingDecided", "/documents": "documentGenerated",
@@ -628,6 +680,7 @@
     policyReinstated: ["Billing", "Claims"], documentGenerated: ["Documents"], underwritingDecided: ["CRM"],
     transactionApproved: ["Billing"], transactionRejected: ["CRM"], transactionReversed: ["Billing"],
     policyNonRenewed: ["CRM", "Documents"], serviceRequestLogged: ["CRM"],
+    policyTransferred: ["Billing", "Documents", "CRM", "Reinsurance"],
   };
   PAS.eventTypeFor = function (ep) {
     var k = Object.keys(PAS.EVENT_FOR).find(function (x) { return ep.indexOf(x) !== -1; });
@@ -648,8 +701,8 @@
   PAS.CANCEL_INITIATOR_KEYS = ["Insured", "Broker/Producer", "MGA", "Carrier", "System"];
   PAS.STATUS_TONE = { Active: "green", Cancelled: "red", Expired: "gray", Bound: "amber", Referred: "violet", Submitted: "blue", "Non-renewed": "red", Declined: "red" };
   PAS.TXN_TONE = { Completed: "green", Pending: "amber", Rejected: "red", Reversed: "violet" };
-  PAS.MODULE_TONE = { Submission: "blue", Underwriting: "violet", Bind: "amber", Issuance: "indigo", Endorsement: "amber", Cancellation: "red", Reinstatement: "green", Renewal: "blue", Servicing: "violet" };
-  PAS.MODULE_ICON = { Submission: "inbox", Underwriting: "clipboard-check", Bind: "shield-check", Issuance: "stamp", Endorsement: "edit-3", Cancellation: "x-circle", Reinstatement: "rotate-ccw", Renewal: "refresh-cw", Servicing: "headphones" };
+  PAS.MODULE_TONE = { Submission: "blue", Underwriting: "violet", Bind: "amber", Issuance: "indigo", Endorsement: "amber", Cancellation: "red", Reinstatement: "green", Renewal: "blue", Servicing: "violet", Transfer: "indigo" };
+  PAS.MODULE_ICON = { Submission: "inbox", Underwriting: "clipboard-check", Bind: "shield-check", Issuance: "stamp", Endorsement: "edit-3", Cancellation: "x-circle", Reinstatement: "rotate-ccw", Renewal: "refresh-cw", Servicing: "headphones", Transfer: "send" };
 
   PAS.PAGE_APIS = {
     dashboard: [["GET", "/api/v1/policies/kpis", "Portfolio aggregates for the KPI strip"], ["GET", "/api/v1/policies?limit=50", "The register behind every panel"]],
@@ -661,10 +714,12 @@
     "reinstatement-desk": [["GET", "/api/v1/policies?status=cancelled", "Reinstatement candidates"], ["POST", "/api/v1/policies/{policyId}/reinstatements", "Validates window then returns to ACTIVE"]],
     "renewal-desk": [["GET", "/api/v1/renewals/upcoming", "Policies inside the notice window"], ["POST", "/api/v1/policies/{policyId}/renewals", "Creates the next PolicyTerm"]],
     "servicing-desk": [["GET", "/api/v1/service-requests", "Servicing ledger"], ["POST", "/api/v1/policies/{policyId}/service-requests", "Logs a request against the SLA"]],
+    "transfer-desk": [["GET", "/api/v1/transfers?status=requested", "Transfer requests awaiting a decision"], ["POST", "/api/v1/policies/{policyId}/transfers", "Records a change of named insured, preserving continuity"]],
     workbench: [["GET", "/api/v1/transactions", "The full append-only ledger"], ["POST", "/api/v1/transactions/{txnId}/reverse", "Appends a compensating row"]],
     registry: [["GET", "/api/v1/policies", "Cursor-paged, tenant-scoped register"]],
     detail: [["GET", "/api/v1/policies/{policyId}", "Aggregate + ETag"], ["GET", "/api/v1/policies/{policyId}/transactions", "Ledger in seq order"], ["POST", "/api/v1/policies/{policyId}/documents", "Renders and stores a new version"]],
     documents: [["GET", "/api/v1/documents", "Document metadata across the book"]],
+    loyalty: [["GET", "/api/v1/loyalty", "Every active policy's computed tier and score"], ["GET", "/api/v1/loyalty/criteria", "The current weight table — what earns points and how much"]],
     "domain-model": [],
     "data-model": [],
     "api-reference": [],
@@ -705,6 +760,10 @@
       ["GET", "/api/v1/service-requests", "The servicing ledger.", ""],
       ["GET", "/api/v1/documents", "Document metadata across the book.", "Metadata only — the bytes live in Blob Storage."],
     ] },
+    { resource: "Loyalty", base: "/api/v1/loyalty", endpoints: [
+      ["GET", "/api/v1/loyalty", "Every active policy's computed tier and score.", "Computed on read from renewal count, claims and cancellation history — never a stored points balance."],
+      ["GET", "/api/v1/loyalty/criteria", "The current weight table.", "What earns points and how much — configurable, not hardcoded into the scoring logic itself."],
+    ] },
   ];
 
   /* Sidebar nav: [pageKey, label, iconName, href] */
@@ -718,8 +777,9 @@
       ["reinstatement-desk", "Reinstatement", "rotate-ccw", "reinstatement.html"],
       ["renewal-desk", "Renewal", "refresh-cw", "renewal.html"],
       ["servicing-desk", "Servicing", "headphones", "servicing.html"],
+      ["transfer-desk", "Transfer", "send", "transfer.html"],
     ] },
-    { label: "Records", items: [["registry", "Policy register", "list-checks", "registry.html"], ["workbench", "Transaction workbench", "git-branch", "workbench.html"], ["documents", "Documents", "file-check-2", "documents.html"]] },
+    { label: "Records", items: [["registry", "Policy register", "list-checks", "registry.html"], ["workbench", "Transaction workbench", "git-branch", "workbench.html"], ["documents", "Documents", "file-check-2", "documents.html"], ["loyalty", "Loyalty", "award", "loyalty.html"]] },
     { label: "Reference", items: [
       ["domain-model", "Domain model", "git-branch", "domain-model.html"],
       ["data-model", "Data model", "database", "data-model.html"],
@@ -748,10 +808,13 @@
     "renew-detail": { nav: "renewal-desk", title: "Decision desks / Renewal" },
     "servicing-desk": { nav: "servicing-desk", title: "Decision desks / Servicing" },
     "servicing-detail": { nav: "servicing-desk", title: "Decision desks / Servicing" },
+    "transfer-desk": { nav: "transfer-desk", title: "Decision desks / Transfer" },
+    "transfer-detail": { nav: "transfer-desk", title: "Decision desks / Transfer" },
     registry: { nav: "registry", title: "Records / Policy register" },
     detail: { nav: "registry", title: "Records / Policy detail" },
     workbench: { nav: "workbench", title: "Records / Transaction workbench" },
     documents: { nav: "documents", title: "Records / Documents" },
+    loyalty: { nav: "loyalty", title: "Records / Loyalty" },
     "domain-model": { nav: "domain-model", title: "Reference / Domain model" },
     "data-model": { nav: "data-model", title: "Reference / Data model" },
     "api-reference": { nav: "api-reference", title: "Reference / API reference" },
@@ -763,16 +826,16 @@
     "uw-desk": "underwriting-decision.html", "issue-desk": "issue-decision.html",
     "endorsement-desk": "endorsement-decision.html", "cancellation-desk": "cancellation-decision.html",
     "reinstatement-desk": "reinstatement-decision.html", "renewal-desk": "renewal-decision.html",
-    "servicing-desk": "servicing-decision.html",
+    "servicing-desk": "servicing-decision.html", "transfer-desk": "transfer-decision.html",
   };
   PAS.DESK_URL_OF = {
     "uw-desk": "underwriting.html", "issue-desk": "issue.html", "endorsement-desk": "endorsement.html",
     "cancellation-desk": "cancellation.html", "reinstatement-desk": "reinstatement.html",
-    "renewal-desk": "renewal.html", "servicing-desk": "servicing.html",
+    "renewal-desk": "renewal.html", "servicing-desk": "servicing.html", "transfer-desk": "transfer.html",
   };
   /* Which desk owns the decision for each held transaction type — used by the cross-type
      Pending Approvals index to route to the right decision page. */
-  PAS.TYPE_TO_DESK = { Underwriting: "uw-desk", Endorsement: "endorsement-desk", Cancellation: "cancellation-desk", Renewal: "renewal-desk", Reinstatement: "reinstatement-desk" };
+  PAS.TYPE_TO_DESK = { Underwriting: "uw-desk", Endorsement: "endorsement-desk", Cancellation: "cancellation-desk", Renewal: "renewal-desk", Reinstatement: "reinstatement-desk", Transfer: "transfer-desk" };
 
   /* ================= roles ================= */
   /* Four roles, one demo identity per role (this prototype has no real auth — switching role
@@ -793,23 +856,34 @@
     Carrier: {
       label: "Carrier", icon: "shield-check", tone: "green", identity: "Meridian Assurance Co.",
       scope: "carrier", canDecide: false, canRequest: false,
-      desc: "The risk-bearing partner's view of the paper written on their behalf — premium, loss activity, reserves. Read-only, and scoped to their own book once this prototype models more than one carrier (see domain-model.html).",
+      desc: "The risk-bearing partner's view of the paper written on their behalf — premium, loss activity, reserves. Read-only, and genuinely scoped to their own book (PAS.PRODUCT_CARRIER), not the whole portfolio.",
     },
     "Broker/Producer": {
       label: "Broker / Producer", icon: "users", tone: "amber", identity: "Apex Insurance Brokers",
       scope: "producer", canDecide: false, canRequest: true,
       desc: "The business this producer placed, and nothing else. Can raise a request (a cancellation, an endorsement); cannot decide one.",
     },
+    Customer: {
+      label: "Customer", icon: "user", tone: "blue", identity: "Karan Malhotra",
+      scope: "holder", canDecide: false, canRequest: true,
+      desc: "The end-customer portal — a named insured's own policy, documents and coverage, and the ability to raise a self-service request. Nothing else on the platform is visible from here.",
+    },
   };
   PAS.ROLES = ROLES;
   /* Desks a read-only role (MGA, Carrier) can't reach — decisions live with the Underwriter. A
      Broker/Producer keeps the request-raising desks (Cancellation, Reinstatement, Renewal,
-     Endorsement, Servicing all accept a logged request) but loses Underwriting/Issue, which are
-     internal decision points a producer never sees into. */
+     Endorsement, Servicing, Transfer all accept a logged request) but loses Underwriting/Issue,
+     which are internal decision points a producer never sees into. Customer is the narrowest of
+     all — a real customer portal is ordinarily a separate public-facing application, not a role
+     inside the internal ops shell; modeled as a role here so it can reuse the same scoping,
+     request-raising and document infrastructure everything else already has, with the sidebar
+     reduced to just Dashboard (which is where their whole portal view lives). */
+  var OPS_ONLY_DESKS = ["uw-desk", "issue-desk", "endorsement-desk", "cancellation-desk", "reinstatement-desk", "renewal-desk", "servicing-desk", "transfer-desk", "approvals"];
   PAS.NAV_HIDDEN_FOR_ROLE = {
-    MGA: ["uw-desk", "issue-desk", "endorsement-desk", "cancellation-desk", "reinstatement-desk", "renewal-desk", "servicing-desk", "approvals"],
-    Carrier: ["uw-desk", "issue-desk", "endorsement-desk", "cancellation-desk", "reinstatement-desk", "renewal-desk", "servicing-desk", "approvals"],
+    MGA: OPS_ONLY_DESKS,
+    Carrier: OPS_ONLY_DESKS,
     "Broker/Producer": ["uw-desk", "issue-desk", "approvals"],
+    Customer: OPS_ONLY_DESKS.concat(["registry", "workbench", "documents", "loyalty", "domain-model", "data-model", "api-reference", "architecture"]),
   };
 
   var ROLE_KEY = "pas.role.v1";
@@ -829,8 +903,10 @@
      see the Domain model screen's note on this gap. */
   PAS.scopePolicies = function (policies, role) {
     var spec = ROLES[role];
-    if (!spec || spec.scope === "all" || spec.scope === "carrier") return policies;
+    if (!spec || spec.scope === "all") return policies;
     if (spec.scope === "producer") return policies.filter(function (p) { return p.producer === spec.identity; });
+    if (spec.scope === "carrier") return policies.filter(function (p) { return p.carrier === spec.identity; });
+    if (spec.scope === "holder") return policies.filter(function (p) { return p.holder === spec.identity; });
     return policies;
   };
 
@@ -941,7 +1017,7 @@
   PAS.raiseRequest = function (id, type, meta) {
     return patch(id, function (p) {
       var submittedOn = meta.submittedOn || todayISO();
-      var titles = { Cancellation: "Cancellation requested — awaiting decision", Renewal: "Renewal requested — awaiting decision", Reinstatement: "Reinstatement requested — awaiting decision", Endorsement: "Endorsement requested — awaiting decision" };
+      var titles = { Cancellation: "Cancellation requested — awaiting decision", Renewal: "Renewal requested — awaiting decision", Reinstatement: "Reinstatement requested — awaiting decision", Endorsement: "Endorsement requested — awaiting decision", Transfer: "Transfer requested — awaiting decision" };
       var effDate = type === "Renewal" ? p.expirationDate : todayISO();
       return pushTxn(p, { date: effDate, type: type, status: "Pending", title: titles[type],
         detail: "Requested by " + meta.initiatedBy + " via " + meta.channel + ". \"" + meta.requestNote + "\"",
@@ -996,6 +1072,34 @@
         });
       }
       return Object.assign({}, p, { history: history, status: "Non-renewed" });
+    });
+  };
+
+  /* ---------- policy transfer — a change of named insured, with continuity preserved ----------
+     Same policy ID, same ledger, same term dates and history — only the holder changes. This is
+     the "Rewrite" transaction type named in docs/common.md's taxonomy but never built: a business
+     sale, an ownership change, or an estate/inheritance transfer, modeled as a decision on the
+     existing policy rather than cancel-and-rewrite-as-new-business, which would break the
+     continuity chain the append-only ledger exists to preserve. */
+  var TRANSFER_REASONS = ["Business Sale", "Ownership Change", "Estate/Inheritance", "Other"];
+  PAS.TRANSFER_REASONS = TRANSFER_REASONS;
+  PAS.decideTransfer = function (id, txnId, approve, newHolder) {
+    return patch(id, function (p) {
+      var prevHolder = p.holder;
+      var history = p.history.map(function (h) {
+        if (h.id !== txnId) return h;
+        return Object.assign({}, h, {
+          status: approve ? "Completed" : "Rejected", approvedBy: "You",
+          title: approve ? ("Transferred to " + newHolder) : "Transfer declined",
+          detail: approve ? ("Named insured changed from \"" + prevHolder + "\" to \"" + newHolder + "\". Continuity preserved — same policy ID, same term, same ledger.") : ("Declined. Policy remains held by \"" + prevHolder + "\". " + h.detail),
+          meta: Object.assign({}, h.meta, { previousHolder: prevHolder, newHolder: newHolder }),
+        });
+      });
+      if (!approve) return Object.assign({}, p, { history: history });
+      return Object.assign({}, p, {
+        history: history, holder: newHolder,
+        documents: (p.documents || []).concat([{ id: uid("DOC"), name: "Policy schedule", version: (p.documents || []).filter(function (d) { return d.name === "Policy schedule"; }).length + 1, generatedAt: todayISO(), type: "Schedule" }]),
+      });
     });
   };
   PAS.logService = function (id, m) {

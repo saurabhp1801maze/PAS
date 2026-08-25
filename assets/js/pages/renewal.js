@@ -33,16 +33,26 @@
       },
     }));
 
-    page.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Confirmed renewal intent, ready for re-underwriting and pricing.", className: "label-11 block mb-9" }));
-    page.appendChild(ui.dataTable({
-      columns: ["Policy", "Insured", "Requested by", { label: "Expires", what: "End of the current term." }, { label: "Days left", what: "Time before expiry." }, { label: "Premium", what: "Expiring term premium." }, ""],
-      rows: pend.map(function (t) {
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(t.h.meta), t.p.expirationDate,
-          PAS.daysBetween(PAS.todayISO(), t.p.expirationDate) + "d", PAS.moneyShort(t.p.premium), ui.cellOpen("Review")];
-      }),
+    var reqHead = ui.h("div", { class: "period-toggle-row" });
+    reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Confirmed renewal intent, ready for re-underwriting and pricing.", className: "label-11" }));
+    var renewalTable = ui.sortableTable({
+      storageKey: "pas.renewal.columns.v1",
+      columns: [
+        { key: "policy", label: "Policy", locked: true, sortValue: function (t) { return t.p.id; }, cell: function (t) { return ui.cellId(t.p.id); } },
+        { key: "insured", label: "Insured", locked: true, sortValue: function (t) { return (t.p.holder || "").toLowerCase(); }, cell: function (t) { return ui.cellName(t.p.holder); } },
+        { key: "requestedBy", label: "Requested by", sortValue: function (t) { return (t.h.meta && t.h.meta.initiatedBy) || ""; }, cell: function (t) { return ui.initiatorPill(t.h.meta); } },
+        { key: "expires", label: "Expires", what: "End of the current term.", sortValue: function (t) { return t.p.expirationDate; }, cell: function (t) { return t.p.expirationDate; } },
+        { key: "daysLeft", label: "Days left", what: "Time before expiry.", sortValue: function (t) { return PAS.daysBetween(PAS.todayISO(), t.p.expirationDate); }, cell: function (t) { return PAS.daysBetween(PAS.todayISO(), t.p.expirationDate) + "d"; } },
+        { key: "premium", label: "Premium", what: "Expiring term premium.", sortValue: function (t) { return t.p.premium || 0; }, cell: function (t) { return PAS.moneyShort(t.p.premium); } },
+      ],
+      trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
+      rows: pend,
+      onRowClick: function (t) { location.href = "renewal-decision.html?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id); },
       emptyText: "No renewal confirmations awaiting decision.",
-      onRowClick: function (i) { location.href = "renewal-decision.html?policy=" + encodeURIComponent(pend[i].p.id) + "&txn=" + encodeURIComponent(pend[i].h.id); },
-    }));
+    });
+    reqHead.appendChild(renewalTable.columnsControl);
+    page.appendChild(reqHead);
+    page.appendChild(renewalTable.tableWrap);
 
     if (noRequest.length > 0) {
       var extra = ui.h("div", { class: "mt-18" });

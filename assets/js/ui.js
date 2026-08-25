@@ -150,6 +150,118 @@
     wrap.appendChild(scroll);
     return wrap;
   }
+  /* A dataTable with two things layered on top, shared by every "requests awaiting decision"
+     desk list and the Policy Register: click-to-sort headers, and a "Columns" control the viewer
+     uses to show/hide which of the available columns render (persisted per opts.storageKey so
+     the choice survives navigating away and back).
+
+     opts: {
+       storageKey: sessionStorage key for the visible-column choice,
+       columns: [{ key, label, locked, what, why, rule, sortValue(record), cell(record) }, ...],
+         `locked` columns are always shown and never offered in the picker — reserve it for
+         whichever column(s) identify the row, since hiding every column would leave nothing to
+         click.
+       defaultVisible: keys shown before the viewer has ever touched the picker (default: every
+         non-locked column),
+       trailingColumn: optional { label, cell(record) } appended after the data columns, always
+         shown, never sortable — e.g. the row's "Review"/"Open" action,
+       rows: the real records (not pre-rendered cells) — sortValue/cell both take one of these.
+         Either a plain array (the common case — one fixed set for this render), or a function
+         returning one, re-read on every rebuild — for a page like the Policy Register where its
+         own search/filter controls change the row set and call `.rebuild()` after updating their
+         own state, a static array captured at construction time would go stale immediately.
+       onRowClick(record, i): i is the index into whatever order is currently displayed (post-
+         sort), so callers must key off `record`, not a remembered index into their own array,
+       emptyText, wrapCells: passed straight through to dataTable.
+     }
+     Returns { columnsControl, tableWrap, rebuild } — the two DOM nodes are standalone; the caller
+     places them wherever fits its own layout (a toolbar row, next to a section label, ...) and
+     may call `rebuild()` itself after changing something the table's own controls don't know
+     about (e.g. a `rows` function whose upstream filter changed). */
+  function sortableTable(opts) {
+    var columns = opts.columns;
+    var defaultVisible = opts.defaultVisible || columns.filter(function (c) { return !c.locked; }).map(function (c) { return c.key; });
+    function loadVisible() {
+      try {
+        var raw = sessionStorage.getItem(opts.storageKey);
+        if (raw) { var parsed = JSON.parse(raw); if (Array.isArray(parsed) && parsed.length) return parsed; }
+      } catch (e) { /* ignore */ }
+      return defaultVisible.slice();
+    }
+    function saveVisible(keys) { try { sessionStorage.setItem(opts.storageKey, JSON.stringify(keys)); } catch (e) { /* ignore */ } }
+    var visibleKeys = loadVisible().filter(function (k) { return columns.some(function (c) { return c.key === k; }); });
+    if (visibleKeys.length === 0) visibleKeys = defaultVisible.slice();
+
+    var columnsBtnWrap = h("div", { class: "multiselect" });
+    var columnsBtn = h("button", { type: "button", class: "field-input select-fixed multiselect-btn" }, "Columns");
+    columnsBtnWrap.appendChild(columnsBtn);
+    var panelEl = null;
+    function onDocClick(e) { if (panelEl && !panelEl.contains(e.target) && !columnsBtn.contains(e.target)) closePanel(); }
+    function closePanel() { if (!panelEl) return; panelEl.remove(); panelEl = null; document.removeEventListener("click", onDocClick); }
+    function openPanel() {
+      panelEl = h("div", { class: "multiselect-panel" });
+      var list = h("div", { class: "multiselect-list" });
+      columns.forEach(function (c) {
+        if (c.locked) return;
+        list.appendChild(checkboxRow({
+          label: c.label, checked: visibleKeys.indexOf(c.key) !== -1,
+          onChange: function (checked) {
+            if (checked) { if (visibleKeys.indexOf(c.key) === -1) visibleKeys.push(c.key); }
+            else { visibleKeys = visibleKeys.filter(function (k) { return k !== c.key; }); }
+            saveVisible(visibleKeys);
+            rebuild();
+          },
+        }));
+      });
+      panelEl.appendChild(list);
+      columnsBtnWrap.appendChild(panelEl);
+      document.addEventListener("click", onDocClick);
+    }
+    columnsBtn.addEventListener("click", function (e) { e.stopPropagation(); if (panelEl) closePanel(); else openPanel(); });
+
+    var tableWrap = h("div", {});
+    var sortState = null; /* { key, dir } */
+    function rebuild() {
+      var activeColumns = columns.filter(function (c) { return c.locked || visibleKeys.indexOf(c.key) !== -1; });
+      var sortCol = sortState && activeColumns.filter(function (c) { return c.key === sortState.key; })[0];
+      var rows = typeof opts.rows === "function" ? opts.rows() : opts.rows;
+      if (sortCol) {
+        var dir = sortState.dir;
+        rows = rows.slice().sort(function (a, b) {
+          var va = sortCol.sortValue(a), vb = sortCol.sortValue(b);
+          var cmp = (typeof va === "number" && typeof vb === "number") ? (va - vb) : String(va).localeCompare(String(vb));
+          return dir === "asc" ? cmp : -cmp;
+        });
+      }
+      var headerCols = activeColumns.map(function (c) { return (c.what || c.why || c.rule) ? { label: c.label, what: c.what, why: c.why, rule: c.rule } : c.label; });
+      var sortableFlags = activeColumns.map(function () { return true; });
+      if (opts.trailingColumn) { headerCols.push(opts.trailingColumn.label || ""); sortableFlags.push(false); }
+      var sortDisplayState = sortCol ? { col: activeColumns.indexOf(sortCol), dir: sortState.dir } : null;
+      tableWrap.innerHTML = "";
+      tableWrap.appendChild(dataTable({
+        columns: headerCols,
+        sortable: sortableFlags,
+        sortState: sortDisplayState,
+        wrapCells: opts.wrapCells,
+        onSort: function (i) {
+          if (i >= activeColumns.length) return; /* the trailing action column isn't sortable */
+          var key = activeColumns[i].key;
+          if (sortState && sortState.key === key) sortState = { key: key, dir: sortState.dir === "asc" ? "desc" : "asc" };
+          else sortState = { key: key, dir: "asc" };
+          rebuild();
+        },
+        rows: rows.map(function (r) {
+          var cells = activeColumns.map(function (c) { return c.cell(r); });
+          if (opts.trailingColumn) cells.push(opts.trailingColumn.cell(r));
+          return cells;
+        }),
+        onRowClick: opts.onRowClick ? function (i) { opts.onRowClick(rows[i], i); } : null,
+        emptyText: opts.emptyText,
+      }));
+    }
+    rebuild();
+    return { columnsControl: columnsBtnWrap, tableWrap: tableWrap, rebuild: rebuild };
+  }
   function deskList(opts) {
     var wrap = h("div", {});
     wrap.appendChild(pageHeader(opts));
@@ -881,7 +993,7 @@
     h: h, append: appendKids, tooltip: tooltip, tipLabel: tipLabel, infoDot: infoDot,
     pill: pill, badge: badge, txnStatusBadge: txnStatusBadge, modulePill: modulePill, initiatorPill: initiatorPill,
     cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
-    codeBlock: codeBlock, dataTable: dataTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
+    codeBlock: codeBlock, dataTable: dataTable, sortableTable: sortableTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
     backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,
     callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
     decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, decisionTrailSide: decisionTrailSide, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,

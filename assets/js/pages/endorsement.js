@@ -63,21 +63,34 @@
       },
     }));
 
-    page.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted change requests, ordered newest first.", className: "label-11 block mb-9" }));
-    page.appendChild(ui.dataTable({
-      columns: ["Policy", "Insured", "Requested by", { label: "Change", what: "Category of mid-term change." }, { label: "Effective", what: "Business date the change applies from." }, { label: "Flags", what: "Future-dated or out-of-sequence." }, { label: "Materiality", what: "Whether this alters the underlying risk.", rule: "Material changes require re-underwriting before they can be approved." }, { label: "Premium impact", what: "Prorated delta from effective date to end of term." }, ""],
-      rows: pend.map(function (t) {
-        var impact = (t.h.meta && t.h.meta.premiumImpact) || 0;
-        var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, (impact >= 0 ? "+" : "") + PAS.money(impact));
-        var flags = [];
-        if (t.h.meta && t.h.meta.futureDated) flags.push(ui.pill("blue", "Future"));
-        if (t.h.meta && t.h.meta.outOfSequence) flags.push(ui.pill("red", "OOS"));
-        var flagCell = ui.h("span", {}, flags.length ? flags : [ui.pill("gray", "—")]);
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(t.h.meta), t.h.meta.changeType, t.h.meta.effectiveDate || t.h.date, flagCell, ui.pill(t.h.meta.materiality === "Material" ? "red" : "gray", t.h.meta.materiality), impactSpan, ui.cellOpen("Review")];
-      }),
+    function endorseFlags(t) {
+      var flags = [];
+      if (t.h.meta && t.h.meta.futureDated) flags.push(ui.pill("blue", "Future"));
+      if (t.h.meta && t.h.meta.outOfSequence) flags.push(ui.pill("red", "OOS"));
+      return ui.h("span", {}, flags.length ? flags : [ui.pill("gray", "—")]);
+    }
+    var reqHead = ui.h("div", { class: "period-toggle-row" });
+    reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted change requests, ordered newest first.", className: "label-11" }));
+    var endorsementTable = ui.sortableTable({
+      storageKey: "pas.endorsement.columns.v1",
+      columns: [
+        { key: "policy", label: "Policy", locked: true, sortValue: function (t) { return t.p.id; }, cell: function (t) { return ui.cellId(t.p.id); } },
+        { key: "insured", label: "Insured", locked: true, sortValue: function (t) { return (t.p.holder || "").toLowerCase(); }, cell: function (t) { return ui.cellName(t.p.holder); } },
+        { key: "requestedBy", label: "Requested by", sortValue: function (t) { return (t.h.meta && t.h.meta.initiatedBy) || ""; }, cell: function (t) { return ui.initiatorPill(t.h.meta); } },
+        { key: "change", label: "Change", what: "Category of mid-term change.", sortValue: function (t) { return t.h.meta.changeType || ""; }, cell: function (t) { return t.h.meta.changeType; } },
+        { key: "effective", label: "Effective", what: "Business date the change applies from.", sortValue: function (t) { return t.h.meta.effectiveDate || t.h.date; }, cell: function (t) { return t.h.meta.effectiveDate || t.h.date; } },
+        { key: "flags", label: "Flags", what: "Future-dated or out-of-sequence.", sortValue: function (t) { return (t.h.meta && t.h.meta.futureDated ? "Future" : "") + (t.h.meta && t.h.meta.outOfSequence ? "OOS" : ""); }, cell: endorseFlags },
+        { key: "materiality", label: "Materiality", what: "Whether this alters the underlying risk.", rule: "Material changes require re-underwriting before they can be approved.", sortValue: function (t) { return t.h.meta.materiality || ""; }, cell: function (t) { return ui.pill(t.h.meta.materiality === "Material" ? "red" : "gray", t.h.meta.materiality); } },
+        { key: "premiumImpact", label: "Premium impact", what: "Prorated delta from effective date to end of term.", sortValue: function (t) { return (t.h.meta && t.h.meta.premiumImpact) || 0; }, cell: function (t) { var impact = (t.h.meta && t.h.meta.premiumImpact) || 0; return ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, (impact >= 0 ? "+" : "") + PAS.money(impact)); } },
+      ],
+      trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
+      rows: pend,
+      onRowClick: function (t) { location.href = "endorsement-decision.html?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id); },
       emptyText: "No endorsements awaiting decision.",
-      onRowClick: function (i) { location.href = "endorsement-decision.html?policy=" + encodeURIComponent(pend[i].p.id) + "&txn=" + encodeURIComponent(pend[i].h.id); },
-    }));
+    });
+    reqHead.appendChild(endorsementTable.columnsControl);
+    page.appendChild(reqHead);
+    page.appendChild(endorsementTable.tableWrap);
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

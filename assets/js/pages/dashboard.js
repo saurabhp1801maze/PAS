@@ -456,6 +456,23 @@
     twoCol.appendChild(compPanel);
     page.appendChild(twoCol);
 
+    /* Top 3 by in-force premium for each of the three distribution dimensions this dashboard
+       now filters by — Broker, MGA, Carrier. Each is capped at 3 with a "See N others" toggle
+       rather than always listing every one, so a long tail of low-volume producers can't push
+       the card past its neighbors; expanding one doesn't collapse the others. */
+    var TOP_ENTITY_ROWS = 3;
+    var topGrid = ui.h("div", { class: "three-col-grid" });
+    var topBrokerPanel = ui.panel({ title: "Top brokers", what: "In-force premium per broker, largest first.", why: "Which producers the book actually depends on." }, []);
+    var topBrokerBody = topBrokerPanel.querySelector(".panel-body");
+    topGrid.appendChild(topBrokerPanel);
+    var topMgaPanel = ui.panel({ title: "Top MGAs", what: "In-force premium per MGA, largest first.", why: "Which wholesale facilities are carrying the most bound risk." }, []);
+    var topMgaBody = topMgaPanel.querySelector(".panel-body");
+    topGrid.appendChild(topMgaPanel);
+    var topCarrierPanel = ui.panel({ title: "Top carriers", what: "In-force premium per carrier, largest first.", why: "Concentration on one carrier's paper is a placement risk." }, []);
+    var topCarrierBody = topCarrierPanel.querySelector(".panel-body");
+    topGrid.appendChild(topCarrierPanel);
+    page.appendChild(topGrid);
+
     var threeCol = ui.h("div", { class: "three-col-grid" });
     /* Capped so a growing book can't push the panel's height past its neighbors — each list is
        already sorted by what makes it most actionable, so the cap drops the least urgent items,
@@ -561,7 +578,37 @@
       });
     }
 
-    function buildAll() { renderToggle(); buildKpis(); buildChart(); buildSnapshotPanels(); }
+    /* Expand/collapse state per card, kept outside buildTopEntities so it survives every rebuild
+       (a filter change or period switch) rather than resetting to collapsed each time. */
+    var brokerState = { expanded: false }, mgaState = { expanded: false }, carrierState = { expanded: false };
+    function buildRankedList(body, list, field, state) {
+      var keys = Array.from(new Set(list.map(function (p) { return p[field]; }).filter(Boolean)));
+      var rows = keys.map(function (k) {
+        return {
+          k: k,
+          v: sum(list.filter(function (p) { return p[field] === k && p.status === "Active"; }), function (p) { return p.premium; }),
+          n: list.filter(function (p) { return p[field] === k; }).length,
+        };
+      }).sort(function (a, b) { return b.v - a.v; });
+      var max = Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1]));
+      body.innerHTML = "";
+      if (rows.length === 0) { body.appendChild(ui.h("div", { class: "faint-note" }, "No records in this filter.")); return; }
+      var shown = state.expanded ? rows : rows.slice(0, TOP_ENTITY_ROWS);
+      shown.forEach(function (r) { body.appendChild(ui.hbar({ label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " pol", tone: r.v === max ? "indigo" : "blue" })); });
+      if (rows.length > TOP_ENTITY_ROWS) {
+        var btn = ui.h("button", { class: "btn ghost-link mt-6" }, state.expanded ? "Show top " + TOP_ENTITY_ROWS + " only" : "See " + (rows.length - TOP_ENTITY_ROWS) + " others");
+        btn.addEventListener("click", function () { state.expanded = !state.expanded; buildTopEntities(); });
+        body.appendChild(btn);
+      }
+    }
+    function buildTopEntities() {
+      var policies = scopedPolicies();
+      buildRankedList(topBrokerBody, policies, "producer", brokerState);
+      buildRankedList(topMgaBody, policies, "mga", mgaState);
+      buildRankedList(topCarrierBody, policies, "carrier", carrierState);
+    }
+
+    function buildAll() { renderToggle(); buildKpis(); buildChart(); buildSnapshotPanels(); buildTopEntities(); }
     buildAll();
   }
 

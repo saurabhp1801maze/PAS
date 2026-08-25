@@ -20,19 +20,25 @@
     var lastOfMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
     return y + "-" + pad2(m) + "-" + pad2(Math.min(d, lastOfMonth));
   };
-  var money = function (n) { return "₹" + Math.round(n || 0).toLocaleString("en-IN"); };
+  var money = function (n) { return "$" + Math.round(n || 0).toLocaleString("en-US"); };
   var moneyShort = function (n) {
-    return n >= 10000000 ? "₹" + (n / 10000000).toFixed(2) + "Cr"
-      : n >= 100000 ? "₹" + (n / 100000).toFixed(1) + "L" : money(n);
+    return n >= 1000000 ? "$" + (n / 1000000).toFixed(2) + "M"
+      : n >= 1000 ? "$" + (n / 1000).toFixed(1) + "K" : money(n);
   };
-  var fmtTime = function (iso) { return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" }); };
+  var fmtTime = function (iso) { return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }); };
 
   PAS.uid = uid; PAS.todayISO = todayISO; PAS.addDays = addDays; PAS.addYears = addYears; PAS.daysBetween = daysBetween;
   PAS.money = money; PAS.moneyShort = moneyShort; PAS.fmtTime = fmtTime;
 
   var REINSTATEMENT_WINDOW_DAYS = 45;
+  /* 45 days matches the NAIC model act's nonrenewal-notice convention (most states require at
+     least 45 days before expiration; a minority require 30, a few go to 60-75 for specific
+     lines), so it's a defensible single number for a prototype that isn't state-specific. */
   var RENEWAL_LEAD_DAYS = 45;
-  var AUTHORITY_LIMIT = 5000000;
+  /* A regional underwriter's delegated binding authority, not a regulatory figure — $250,000 of
+     premium is a realistic single-account ceiling before a submission has to go to a senior
+     underwriter in a US P&C shop. */
+  var AUTHORITY_LIMIT = 250000;
   var LOW_SCORE_REFER = 50;
   PAS.REINSTATEMENT_WINDOW_DAYS = REINSTATEMENT_WINDOW_DAYS;
   PAS.RENEWAL_LEAD_DAYS = RENEWAL_LEAD_DAYS;
@@ -95,13 +101,17 @@
   /* Reason — why, independent of Type. Each carries the notice period that must run before the
      effective date (this is where that requirement actually lives now, not on Type), and the
      Type a reason recommends by default before the Initiated By check can downgrade it. */
+  /* Notice-day defaults follow the NAIC model act's cancellation timeline: at least 10 days for
+     nonpayment, at least 30 days for other reasons within the first 60 days on risk, and at least
+     45 days once the policy has been in force beyond 60 days or is a renewal. "Underwriting" here
+     represents that post-60-day, insurer-initiated exit, so it takes the 45-day figure. */
   var CANCEL_REASONS = {
     "Insured Request": { noticeDays: 0, defaultType: "Short-Rate" },
-    "Non-Payment": { noticeDays: 15, defaultType: "Pro-Rata" },
+    "Non-Payment": { noticeDays: 10, defaultType: "Pro-Rata" },
     "Fraud": { noticeDays: 0, defaultType: "Pro-Rata" },
-    "Underwriting": { noticeDays: 30, defaultType: "Pro-Rata" },
+    "Underwriting": { noticeDays: 45, defaultType: "Pro-Rata" },
     "Sold Vehicle/Business": { noticeDays: 0, defaultType: "Short-Rate" },
-    "Other": { noticeDays: 15, defaultType: "Short-Rate" },
+    "Other": { noticeDays: 30, defaultType: "Short-Rate" },
   };
 
   /* Initiated By — who, independent of Type and Reason. The valid values themselves are defined
@@ -299,18 +309,18 @@
      A minimal claims subsystem — enough for the MGA/Carrier dashboards to compute a genuine loss
      ratio and reserve figure instead of the "not modeled" gap this used to be. Each claim is
      `{ id, type, status, reportedOn, incurred, paid, reserved }`, attached to its policy the same
-     way `documents` already is. Bharat Steel Works (POL-2026-00988) is deliberately consistent
+     way `documents` already is. Ironwood Steel Works (POL-2026-00988) is deliberately consistent
      with the cancellation already on its ledger — that record's own detail text says "adverse
      loss ratio... 140% over two terms," so its claim's incurred amount is set to exactly 140% of
-     premium (₹8,90,000 × 1.4 = ₹12,46,000) rather than an arbitrary number that would contradict
+     premium ($100,000 × 1.4 = $140,000) rather than an arbitrary number that would contradict
      the narrative already on file. */
   var CLAIMS_BY_ID = {
-    "POL-2026-00988": [{ type: "Fire", status: "Closed", reportedOn: "2026-05-02", incurred: 1246000, paid: 1246000, reserved: 0 }],
-    "POL-2025-06210": [{ type: "Collision", status: "Closed", reportedOn: "2026-03-14", incurred: 32000, paid: 32000, reserved: 0 }],
-    "POL-2026-00777": [{ type: "Cargo damage", status: "Open", reportedOn: "2026-07-28", incurred: 180000, paid: 60000, reserved: 120000 }],
-    "POL-2025-04456": [{ type: "Water damage", status: "Closed", reportedOn: "2026-02-19", incurred: 45000, paid: 45000, reserved: 0 }],
-    "POL-2025-09112": [{ type: "Theft", status: "Open", reportedOn: "2026-08-01", incurred: 28000, paid: 5000, reserved: 23000 }],
-    "POL-2024-09321": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-01-11", incurred: 95000, paid: 95000, reserved: 0 }],
+    "POL-2026-00988": [{ type: "Fire", status: "Closed", reportedOn: "2026-05-02", incurred: 140000, paid: 140000, reserved: 0 }],
+    "POL-2025-06210": [{ type: "Collision", status: "Closed", reportedOn: "2026-03-14", incurred: 2400, paid: 2400, reserved: 0 }],
+    "POL-2026-00777": [{ type: "Cargo damage", status: "Open", reportedOn: "2026-07-28", incurred: 14500, paid: 4800, reserved: 9700 }],
+    "POL-2025-04456": [{ type: "Water damage", status: "Closed", reportedOn: "2026-02-19", incurred: 4500, paid: 4500, reserved: 0 }],
+    "POL-2025-09112": [{ type: "Theft", status: "Open", reportedOn: "2026-08-01", incurred: 1600, paid: 290, reserved: 1310 }],
+    "POL-2024-09321": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-01-11", incurred: 9500, paid: 9500, reserved: 0 }],
   };
   PAS.CLAIMS_BY_ID = CLAIMS_BY_ID;
 
@@ -343,9 +353,9 @@
       { id: "claim-notice", title: "Claim notice period", text: "Loss or damage must be notified within 15 days of discovery." },
     ],
     "Comprehensive Auto": [
-      { id: "ncb", title: "No-Claim Bonus", text: "A no-claim bonus applies on own-damage premium at renewal for each consecutive claim-free year, per the applicable NCB slab, and is forfeited entirely on any claim in the expiring term." },
-      { id: "territorial", title: "Territorial limits", text: "Cover applies only within the geographical territory of India." },
-      { id: "driver-clause", title: "Named driver / valid licence clause", text: "The vehicle must be driven by the insured or a named driver holding a valid, effective driving licence at the time of loss." },
+      { id: "ncb", title: "Claims-free discount", text: "A claims-free discount applies to own-damage premium at renewal for each consecutive claim-free year, per the applicable discount tier, and is forfeited entirely on any at-fault claim in the expiring term." },
+      { id: "territorial", title: "Territorial limits", text: "Cover applies only within the United States, its territories and Canada." },
+      { id: "driver-clause", title: "Named driver / valid licence clause", text: "The vehicle must be driven by the insured or a named driver holding a valid, effective driver's licence at the time of loss." },
       { id: "claim-notice", title: "Claim notice period", text: "Any accident, theft or loss must be reported within 48 hours." },
     ],
     "Commercial Property": [
@@ -361,16 +371,16 @@
       { id: "duty-to-sue", title: "Duty to sue and labour", text: "The insured must take all reasonable steps to minimise loss and preserve rights of recovery against carriers or other third parties." },
     ],
     "Group Health": [
-      { id: "waiting-period", title: "Pre-existing condition waiting period", text: "Pre-existing conditions are covered only after a continuous waiting period of 36 months from first enrolment." },
-      { id: "room-rent", title: "Room rent sub-limit", text: "Room rent is capped at 1% of the sum insured per day; a higher category room reduces all associated claim amounts proportionally." },
-      { id: "copay", title: "Co-payment clause", text: "A co-payment of 10% applies to each admissible claim, borne by the insured member." },
-      { id: "portability", title: "Portability rights", text: "The insured may port continuity of waiting periods to another insurer at renewal, subject to the IRDAI portability notice window." },
+      { id: "waiting-period", title: "New-enrollee waiting period", text: "Coverage for a newly eligible employee begins on the first of the month following 60 days of continuous employment; pre-existing conditions are covered from day one, per the Affordable Care Act." },
+      { id: "room-rent", title: "Deductible and out-of-pocket maximum", text: "An annual per-member deductible applies before coinsurance begins; once the member's out-of-pocket maximum is reached, the plan pays 100% of covered charges for the remainder of the plan year." },
+      { id: "copay", title: "Co-payment and coinsurance clause", text: "A fixed co-payment applies per office visit, with 20% coinsurance on all other covered services after the deductible is met." },
+      { id: "portability", title: "Continuation and portability rights", text: "A member losing eligibility may elect COBRA continuation coverage for up to 18 months, and enrolling in a new employer's plan triggers HIPAA special-enrollment rights regardless of the new plan's open-enrollment window." },
     ],
     "Term Life": [
-      { id: "suicide", title: "Suicide exclusion clause", text: "No death benefit is payable if death by suicide occurs within 12 months of the policy's commencement or revival; 80% of premiums paid are refunded instead." },
-      { id: "free-look", title: "Free-look period", text: "The policy may be returned within 30 days of receipt for a refund of premium less proportionate risk premium, medical costs and stamp duty." },
-      { id: "grace-period", title: "Grace period", text: "A grace period of 30 days (15 days for monthly mode) is allowed for premium payment without loss of continuity." },
-      { id: "nomination", title: "Nomination", text: "The policyholder may nominate or change a nominee at any time during the policy term by written request." },
+      { id: "suicide", title: "Suicide exclusion clause", text: "No death benefit is payable if death by suicide occurs within 24 months of the policy's commencement or reinstatement; premiums paid are refunded instead." },
+      { id: "free-look", title: "Free-look period", text: "The policy may be returned within 10 days of receipt for a full refund of premium paid, per the NAIC model minimum — some states require longer." },
+      { id: "grace-period", title: "Grace period", text: "A grace period of 30 days (10 days for monthly mode) is allowed for premium payment without loss of continuity." },
+      { id: "nomination", title: "Beneficiary designation", text: "The policyholder may designate or change a beneficiary at any time during the policy term by written request." },
     ],
   };
   PAS.TERMS_TEMPLATE = TERMS_TEMPLATE;
@@ -437,9 +447,19 @@
     "Term Life": [{ name: "Base sum assured", share: 0.90 }, { name: "Accidental death rider", share: 0.10 }],
   };
   PAS.COVERAGE_TEMPLATE = COVERAGE_TEMPLATE;
+  /* Every line but the last rounds independently; the last absorbs whatever rounding remainder
+     is left so the split always reconciles exactly to the policy's own premium, for any premium
+     — rounding each share independently and summing can drift a dollar off in either direction
+     whenever the premium doesn't divide the shares evenly. */
   function coverageBreakdown(policy) {
     var template = COVERAGE_TEMPLATE[policy.product] || [];
-    return template.map(function (c) { return { name: c.name, share: c.share, premium: Math.round(policy.premium * c.share) }; });
+    var running = 0;
+    return template.map(function (c, i) {
+      var isLast = i === template.length - 1;
+      var line = isLast ? (policy.premium - running) : Math.round(policy.premium * c.share);
+      running += line;
+      return { name: c.name, share: c.share, premium: line };
+    });
   }
   PAS.coverageBreakdown = coverageBreakdown;
 
@@ -481,261 +501,21 @@
   }
   PAS.reservesTotal = reservesTotal;
 
+  /* The raw book of business lives in data/policies.js — a plain <script> include (see every
+     HTML page's script chain, and CORE in the test harness) that runs before this file and sets
+     window.PAS_SEED_POLICIES. Loaded as a script, not fetched, so the app keeps working when
+     opened directly via file:// with no local server — a blocking XHR/fetch to a local JSON file
+     is blocked by browser CORS policy over file://, a <script src> is not. Deep-cloned on every
+     call so repeated seedPolicies() calls (e.g. after Reset demo data) never share object
+     references with a previous call. */
+  function fetchSeedRecords() {
+    if (!Array.isArray(global.PAS_SEED_POLICIES)) {
+      throw new Error("Seed data not found — data/policies.js must be loaded (as a <script> tag) before store.js.");
+    }
+    return JSON.parse(JSON.stringify(global.PAS_SEED_POLICIES));
+  }
   function seedPolicies() {
-    var list = [
-      /* --- awaiting an underwriting decision --- */
-      { id: "SUB-2026-0041", holder: "Sharma Textiles Pvt Ltd", product: "Commercial Property", status: "Referred",
-        effectiveDate: "2026-09-01", expirationDate: "2027-09-01", premium: 6200000, termNumber: 1,
-        producer: "Apex Insurance Brokers", state: "Maharashtra", submittedOn: "2026-08-14", sumInsured: "₹12,00,00,000",
-        documents: [], history: [
-          txn(1, "2026-08-14", "Submission", "Submission received", "Commercial property risk, 3 locations, Bhiwandi & Surat.", "Apex Brokers", { channel: "Broker" }),
-          txn(2, "2026-08-15", "Underwriting", "Auto-referred to senior underwriter", "Premium above delegated authority and score below threshold.", "System", { tier: "Senior underwriter", initiatedBy: "System", channel: "Auto-referral engine", submittedOn: "2026-08-15", requestNote: "Score and authority checks failed — routed automatically, no human trigger." }, "Pending"),
-        ] },
-      { id: "SUB-2026-0042", holder: "Kavita Enterprises", product: "Comprehensive Auto", status: "Referred",
-        effectiveDate: "2026-09-05", expirationDate: "2027-09-05", premium: 184000, termNumber: 1,
-        producer: "Direct", state: "Karnataka", submittedOn: "2026-08-17", sumInsured: "₹18,00,000 IDV",
-        documents: [], history: [
-          txn(1, "2026-08-17", "Submission", "Submission received", "Fleet of 4 commercial vehicles.", "Direct", { channel: "Direct" }),
-          txn(2, "2026-08-18", "Underwriting", "Awaiting underwriter decision", "Two at-fault claims in the prior term.", "System", { tier: "Senior underwriter", initiatedBy: "System", channel: "Auto-referral engine", submittedOn: "2026-08-18", requestNote: "Score below threshold on prior claims history — routed automatically." }, "Pending"),
-        ] },
-      { id: "SUB-2026-0043", holder: "Coastal Marine Traders", product: "Marine Cargo", status: "Referred",
-        effectiveDate: "2026-09-10", expirationDate: "2027-09-10", premium: 5800000, termNumber: 1,
-        producer: "Meridian Risk Partners", state: "Maharashtra", submittedOn: "2026-08-16", sumInsured: "₹9,50,00,000",
-        documents: [], history: [
-          txn(1, "2026-08-16", "Submission", "Submission received", "Cargo cover for 3 vessels, Mumbai–Colombo route.", "Meridian Risk", { channel: "Broker" }),
-          txn(2, "2026-08-17", "Underwriting", "Auto-referred to senior underwriter", "Premium exceeds delegated agent authority.", "System", { tier: "Senior underwriter", initiatedBy: "System", channel: "Auto-referral engine", submittedOn: "2026-08-17", requestNote: "Premium above authority limit — routed automatically." }, "Pending"),
-        ] },
-      { id: "SUB-2026-0044", holder: "Horizon Health Corp", product: "Group Health", status: "Referred",
-        effectiveDate: "2026-09-12", expirationDate: "2027-09-12", premium: 920000, termNumber: 1,
-        producer: "Direct", state: "Delhi", submittedOn: "2026-08-20", sumInsured: "₹5,00,00,000 (group limit)",
-        documents: [], history: [
-          txn(1, "2026-08-20", "Submission", "Submission received", "Group health cover for 140 employees.", "Direct", { channel: "Direct" }),
-          txn(2, "2026-08-20", "Underwriting", "Awaiting underwriter decision", "New group scheme, no prior claims history on file.", "System", { tier: "Senior underwriter", initiatedBy: "System", channel: "Auto-referral engine", submittedOn: "2026-08-20", requestNote: "First-time group scheme — routed for manual review pending census data." }, "Pending"),
-        ] },
-
-      /* --- bound, awaiting formal issue --- */
-      { id: "POL-2026-00311", holder: "Nirmala Rao", product: "Home Owners", status: "Bound",
-        effectiveDate: "2026-08-25", expirationDate: "2027-08-25", premium: 46800, termNumber: 1,
-        producer: "Apex Insurance Brokers", state: "Maharashtra", sumInsured: "₹85,00,000",
-        binder: { number: "BN-2026-0311", boundOn: "2026-08-12", expiryDate: "2026-09-11",
-          subjectivities: [{ label: "Signed proposal form", met: true }, { label: "Electrical safety certificate", met: false }] },
-        documents: [], history: [
-          txn(1, "2026-08-10", "Submission", "Submission received", "New home owners risk, Pune.", "Apex Brokers", {}),
-          txn(2, "2026-08-11", "Underwriting", "Underwriting: Approve", "Score 81, within agent authority.", "A. Nair", { score: 81, tier: "Within agent authority" }),
-          txn(3, "2026-08-12", "Bind", "Bound — binder BN-2026-0311", "Provisional cover in force for 30 days pending issue.", "A. Nair", { binderNumber: "BN-2026-0311" }),
-        ] },
-      { id: "POL-2026-00312", holder: "Ganesh Logistics LLP", product: "Comprehensive Auto", status: "Bound",
-        effectiveDate: "2026-08-22", expirationDate: "2027-08-22", premium: 312000, termNumber: 1,
-        producer: "Meridian Risk Partners", state: "Gujarat", sumInsured: "₹42,00,000 IDV",
-        binder: { number: "BN-2026-0312", boundOn: "2026-08-16", expiryDate: "2026-09-15",
-          subjectivities: [{ label: "Signed proposal form", met: true }, { label: "Fleet schedule confirmed", met: true }] },
-        documents: [], history: [
-          txn(1, "2026-08-14", "Submission", "Submission received", "12-vehicle goods carrier fleet.", "Meridian Risk", {}),
-          txn(2, "2026-08-15", "Underwriting", "Underwriting: Approve", "Score 76, within agent authority.", "A. Nair", { score: 76, tier: "Within agent authority" }),
-          txn(3, "2026-08-16", "Bind", "Bound — binder BN-2026-0312", "All subjectivities satisfied; ready to issue.", "A. Nair", { binderNumber: "BN-2026-0312" }),
-        ] },
-      { id: "POL-2026-00313", holder: "Meridian Textiles Ltd", product: "Commercial Property", status: "Bound",
-        effectiveDate: "2026-08-28", expirationDate: "2027-08-28", premium: 612000, termNumber: 1,
-        producer: "Apex Insurance Brokers", state: "Gujarat", sumInsured: "₹4,20,00,000",
-        binder: { number: "BN-2026-0313", boundOn: "2026-08-13", expiryDate: "2026-09-12",
-          subjectivities: [{ label: "Signed proposal form", met: true }, { label: "Fire safety certificate", met: false }] },
-        documents: [], history: [
-          txn(1, "2026-08-11", "Submission", "Submission received", "Textile warehouse and factory floor, Surat.", "Apex Brokers", {}),
-          txn(2, "2026-08-12", "Underwriting", "Underwriting: Approve", "Score 74, within agent authority.", "A. Nair", { score: 74, tier: "Within agent authority" }),
-          txn(3, "2026-08-13", "Bind", "Bound — binder BN-2026-0313", "Provisional cover in force pending fire safety certificate.", "A. Nair", { binderNumber: "BN-2026-0313" }),
-        ] },
-      { id: "POL-2026-00314", holder: "Deepak Auto Traders", product: "Comprehensive Auto", status: "Bound",
-        effectiveDate: "2026-08-26", expirationDate: "2027-08-26", premium: 218000, termNumber: 1,
-        producer: "Direct", state: "Telangana", sumInsured: "₹31,00,000 IDV",
-        binder: { number: "BN-2026-0314", boundOn: "2026-08-17", expiryDate: "2026-09-16",
-          subjectivities: [{ label: "Signed proposal form", met: true }, { label: "Vehicle inspection report", met: true }] },
-        documents: [], history: [
-          txn(1, "2026-08-15", "Submission", "Submission received", "8-vehicle showroom fleet.", "Direct", {}),
-          txn(2, "2026-08-16", "Underwriting", "Underwriting: Approve", "Score 79, within agent authority.", "A. Nair", { score: 79, tier: "Within agent authority" }),
-          txn(3, "2026-08-17", "Bind", "Bound — binder BN-2026-0314", "All subjectivities satisfied; ready to issue.", "A. Nair", { binderNumber: "BN-2026-0314" }),
-        ] },
-
-      /* --- in force, with work pending against them --- */
-      { id: "POL-2025-09112", holder: "Meera Shankar", product: "Comprehensive Auto", status: "Active",
-        effectiveDate: "2025-09-05", expirationDate: "2026-09-05", premium: 48200, termNumber: 1,
-        producer: "Direct", state: "Karnataka", sumInsured: "₹8,50,000 IDV",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2025-09-05", type: "Schedule" },
-                    { id: uid("DOC"), name: "Certificate of insurance", version: 1, generatedAt: "2025-09-05", type: "Certificate" }],
-        history: [
-          txn(1, "2025-09-05", "Underwriting", "Underwriting: Approve", "Score 82, within agent authority.", "System", { score: 82, tier: "Within agent authority" }),
-          txn(2, "2025-09-05", "Bind", "Bound — binder BN-25091", "Provisional cover bound.", "U. Sharma", { binderNumber: "BN-25091" }),
-          txn(3, "2025-09-05", "Issuance", "Policy issued", "Schedule and certificate generated.", "U. Sharma", { channel: "Direct" }),
-          txn(4, "2026-08-18", "Endorsement", "Endorsement requested: Add driver", "Add named driver Rohit Verma. HELD — material change, not yet applied.", "Broker portal",
-            { changeType: "Add/remove driver", materiality: "Material", premiumImpact: 4200, initiatedBy: "Broker/Producer", channel: "Broker portal", submittedOn: "2026-08-18", requestNote: "Please add Rohit Verma as a named driver from next week." }, "Pending"),
-        ] },
-      { id: "POL-2025-04456", holder: "Vikram Enterprises", product: "Home Owners", status: "Active",
-        effectiveDate: "2025-10-12", expirationDate: "2026-10-12", premium: 58000, termNumber: 1,
-        producer: "Meridian Risk Partners", state: "Maharashtra", sumInsured: "₹1,10,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2025-10-12", type: "Schedule" }],
-        history: [
-          txn(1, "2025-10-12", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" }),
-          txn(2, "2026-08-14", "Endorsement", "Endorsement requested: Coverage change", "Add flood cover following monsoon risk review. HELD — material change, not yet applied.", "Broker portal",
-            { changeType: "Coverage change", materiality: "Material", premiumImpact: 7800, initiatedBy: "Broker/Producer", channel: "Broker portal", submittedOn: "2026-08-14", requestNote: "Client wants flood cover added given this year's monsoon forecast." }, "Pending"),
-        ] },
-      { id: "POL-2026-00120", holder: "Ritu Kapoor", product: "Comprehensive Auto", status: "Active",
-        effectiveDate: "2026-04-02", expirationDate: "2027-04-02", premium: 39000, termNumber: 1,
-        producer: "Direct", state: "Karnataka", sumInsured: "₹7,40,000 IDV",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2026-04-02", type: "Schedule" }],
-        history: [
-          txn(1, "2026-04-02", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2026-08-17", "Endorsement", "Endorsement requested: Address change", "Registered address updated to new residence in Bengaluru.", "Self-service portal",
-            { changeType: "Address change", materiality: "Minor", premiumImpact: 0, initiatedBy: "Insured", channel: "Self-service portal", submittedOn: "2026-08-17", requestNote: "Moved house last week, please update my address on file." }, "Pending"),
-        ] },
-      { id: "POL-2024-00187", holder: "Priya Deshmukh", product: "Home Owners", status: "Active",
-        effectiveDate: "2025-08-20", expirationDate: "2026-08-20", premium: 21800, termNumber: 2,
-        producer: "Apex Insurance Brokers", state: "Maharashtra", sumInsured: "₹42,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 2, generatedAt: "2025-08-20", type: "Schedule" }],
-        history: [
-          txn(1, "2024-08-20", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2025-08-20", "Renewal", "Renewed into term 2", "No change in coverage.", "System", { previousPremium: 20200, newPremium: 21800 }),
-          txn(3, "2026-08-20", "Renewal", "Renewal requested — awaiting decision", "Insured confirmed intent to renew via self-service portal. Term expires today; re-underwriting and pricing pending.", "Self-service portal",
-            { initiatedBy: "Insured", channel: "Self-service portal", submittedOn: "2026-08-11", requestNote: "Please renew my home policy, no changes needed." }, "Pending"),
-        ] },
-      { id: "POL-2026-02233", holder: "Karan Malhotra", product: "Term Life", status: "Active",
-        effectiveDate: "2026-02-01", expirationDate: "2027-02-01", premium: 15600, termNumber: 1,
-        producer: "Direct", state: "Delhi", sumInsured: "₹1,00,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2026-02-01", type: "Schedule" }],
-        history: [
-          txn(1, "2026-02-01", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2026-08-19", "Cancellation", "Cancellation requested — held for review", "Insured requests cancellation. Short-rate. HELD — awaiting review.", "Broker portal",
-            { reason: "Insured Request", initiatedBy: "Broker/Producer", channel: "Broker portal", submittedOn: "2026-08-19", requestNote: "Client is emigrating and no longer needs the policy." }, "Pending"),
-        ] },
-      { id: "POL-2026-00988", holder: "Bharat Steel Works", product: "Commercial Property", status: "Active",
-        effectiveDate: "2026-03-15", expirationDate: "2027-03-15", premium: 890000, termNumber: 3,
-        producer: "Meridian Risk Partners", state: "West Bengal", sumInsured: "₹6,50,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 3, generatedAt: "2026-03-15", type: "Schedule" }],
-        history: [
-          txn(1, "2026-03-15", "Renewal", "Renewed into term 3", "Premium increased 8% on claims experience.", "A. Nair", { previousPremium: 824000, newPremium: 890000 }),
-          txn(2, "2026-09-15", "Cancellation", "Cancellation requested — held for review", "Carrier-initiated on adverse loss ratio. HELD — requires a second underwriter's sign-off before it can proceed.", "Internal review",
-            { reason: "Underwriting", initiatedBy: "Carrier", channel: "Internal review", submittedOn: "2026-08-19", requestNote: "Loss ratio has run 140% over two terms on this location — recommend non-renewal path via mid-term cancellation with full notice." }, "Pending"),
-        ] },
-      { id: "POL-2026-00560", holder: "Ashok Furnishings", product: "Commercial Property", status: "Active",
-        effectiveDate: "2026-05-01", expirationDate: "2027-05-01", premium: 264000, termNumber: 1,
-        producer: "Meridian Risk Partners", state: "Gujarat", sumInsured: "₹2,80,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2026-05-01", type: "Schedule" }],
-        history: [
-          txn(1, "2026-05-01", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" }),
-          txn(2, "2026-08-18", "Cancellation", "Cancellation requested — held for review", "Carrier-initiated after inconsistencies found in the proposal declaration. HELD — fraud review.", "Internal review",
-            { reason: "Fraud", initiatedBy: "Carrier", channel: "Internal review", submittedOn: "2026-08-18", requestNote: "Site survey contradicts declared stock value by a wide margin — recommend fraud review before any further action." }, "Pending"),
-        ] },
-      { id: "POL-2025-08765", holder: "Neha Bhatt", product: "Home Owners", status: "Active",
-        effectiveDate: "2025-12-01", expirationDate: "2026-12-01", premium: 27400, termNumber: 1,
-        producer: "Direct", state: "Maharashtra", sumInsured: "₹55,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2025-12-01", type: "Schedule" }],
-        history: [
-          txn(1, "2025-12-01", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2026-08-16", "Cancellation", "Cancellation requested — held for review", "Insured is relocating overseas and no longer needs the property covered.", "Self-service portal",
-            { reason: "Insured Request", initiatedBy: "Insured", channel: "Self-service portal", submittedOn: "2026-08-16", requestNote: "We're moving abroad end of this month, please cancel the policy." }, "Pending"),
-        ] },
-      { id: "POL-2025-06210", holder: "Suresh Iyer", product: "Comprehensive Auto", status: "Active",
-        effectiveDate: "2025-09-10", expirationDate: "2026-09-10", premium: 44500, termNumber: 1,
-        producer: "Apex Insurance Brokers", state: "Tamil Nadu", sumInsured: "₹8,90,000 IDV",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2025-09-10", type: "Schedule" }],
-        history: [
-          txn(1, "2025-09-10", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" }),
-          txn(2, "2026-08-15", "Renewal", "Renewal requested — awaiting decision", "Broker confirmed renewal intent ahead of the notice deadline.", "Broker portal",
-            { initiatedBy: "Broker/Producer", channel: "Broker portal", submittedOn: "2026-08-15", requestNote: "Client confirmed renewal, no changes to the vehicle." }, "Pending"),
-        ] },
-      { id: "POL-2024-09321", holder: "Lakshmi Textiles Ltd", product: "Commercial Property", status: "Active",
-        effectiveDate: "2025-10-01", expirationDate: "2026-10-01", premium: 745000, termNumber: 3,
-        producer: "Meridian Risk Partners", state: "Gujarat", sumInsured: "₹5,80,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 3, generatedAt: "2025-10-01", type: "Schedule" }],
-        history: [
-          txn(1, "2023-10-01", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" }),
-          txn(2, "2024-10-01", "Renewal", "Renewed into term 2", "No change in coverage.", "System", { previousPremium: 690000, newPremium: 712000 }),
-          txn(3, "2025-08-20", "Endorsement", "Endorsement: Limit change", "Sum insured increased following new machinery installation.", "Apex Brokers", { changeType: "Limit change", materiality: "Material", premiumImpact: 33000 }),
-          txn(4, "2025-10-01", "Renewal", "Renewed into term 3", "Premium reflects increased sum insured.", "System", { previousPremium: 712000, newPremium: 745000 }),
-          txn(5, "2026-08-12", "Renewal", "Renewal requested — awaiting decision", "Insured confirmed renewal via self-service portal.", "Self-service portal",
-            { initiatedBy: "Insured", channel: "Self-service portal", submittedOn: "2026-08-12", requestNote: "Please renew, we may add a fourth location next term but not yet." }, "Pending"),
-        ] },
-      { id: "POL-2025-07734", holder: "Rakesh Oberoi", product: "Term Life", status: "Active",
-        effectiveDate: "2025-07-01", expirationDate: "2035-07-01", premium: 42000, termNumber: 1,
-        producer: "Direct", state: "Delhi", sumInsured: "₹2,00,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2025-07-01", type: "Schedule" }],
-        history: [
-          txn(1, "2025-07-01", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2026-02-14", "Servicing", "Service request logged", "Nominee details updated on file.", "Direct", { category: "Contact update", channel: "Phone" }),
-        ] },
-      { id: "POL-2026-00777", holder: "Global Freight Movers", product: "Marine Cargo", status: "Active",
-        effectiveDate: "2026-01-15", expirationDate: "2027-01-15", premium: 1180000, termNumber: 1,
-        producer: "Meridian Risk Partners", state: "Tamil Nadu", sumInsured: "₹18,00,00,000",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2026-01-15", type: "Schedule" }],
-        history: [
-          txn(1, "2026-01-15", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" }),
-          txn(2, "2026-04-02", "Endorsement", "Endorsement: Add route", "Added Chennai–Singapore lane to the schedule.", "Meridian Risk", { changeType: "Coverage change", materiality: "Minor", premiumImpact: 12000 }),
-          txn(3, "2026-06-18", "Servicing", "Service request logged", "Duplicate certificate of insurance emailed for customs clearance.", "Meridian Risk", { category: "Document request", channel: "Email" }),
-          txn(4, "2026-08-21", "Transfer", "Transfer requested — awaiting decision", "Broker reports the holding company was acquired; the freight operation continues under the new corporate entity.", "Broker portal",
-            { reason: "Ownership Change", newHolder: "Horizon Freight Holdings Pvt Ltd", initiatedBy: "Broker/Producer", channel: "Broker portal", submittedOn: "2026-08-21", requestNote: "Global Freight Movers was acquired by Horizon Freight Holdings on Aug 15 — please transfer the cargo policy to the new entity, same fleet, same routes." }, "Pending"),
-        ] },
-      { id: "POL-2025-03321", holder: "Anita Krishnamurthy", product: "Group Health", status: "Active",
-        effectiveDate: "2025-09-01", expirationDate: "2026-09-01", premium: 68000, termNumber: 1,
-        producer: "Direct", state: "Karnataka", sumInsured: "₹15,00,000 (family floater)",
-        documents: [{ id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: "2025-09-01", type: "Schedule" }],
-        history: [
-          txn(1, "2025-09-01", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2026-03-11", "Servicing", "Service request logged", "Query on cashless hospital network coverage.", "Direct", { category: "Inquiry", channel: "Phone" }),
-          txn(3, "2026-07-02", "Servicing", "Service request logged", "Billing dispute on last installment resolved.", "Direct", { category: "Billing", channel: "Email" }),
-        ] },
-
-      /* --- cancelled: one reinstatement candidate, one time-barred --- */
-      { id: "POL-2026-01190", holder: "Divya Krishnan", product: "Comprehensive Auto", status: "Cancelled",
-        effectiveDate: "2026-01-10", expirationDate: "2027-01-10", premium: 33000, termNumber: 1,
-        producer: "Direct", state: "Tamil Nadu", sumInsured: "₹6,20,000 IDV",
-        documents: [{ id: uid("DOC"), name: "Cancellation notice", version: 1, generatedAt: "2026-08-05", type: "Notice" }],
-        history: [
-          txn(1, "2026-01-10", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2026-08-05", "Cancellation", "Policy cancelled", "Cancelled for non-payment after the 15-day notice ran.", "System",
-            { reason: "Non-Payment", cancelType: "Pro-Rata", initiatedBy: "System", refund: 0 }),
-          txn(3, "2026-08-19", "Reinstatement", "Reinstatement requested — awaiting decision", "Insured paid the outstanding premium and is requesting reinstatement via the self-service portal.", "Self-service portal",
-            { initiatedBy: "Insured", channel: "Self-service portal", submittedOn: "2026-08-19", requestNote: "Payment has gone through now, please reactivate my policy.", outstandingClaimed: 33000 }, "Pending"),
-        ] },
-      { id: "POL-2026-00045", holder: "Farhan Sheikh", product: "Comprehensive Auto", status: "Cancelled",
-        effectiveDate: "2025-11-20", expirationDate: "2026-11-20", premium: 36200, termNumber: 1,
-        producer: "Direct", state: "Telangana", sumInsured: "₹6,80,000 IDV",
-        documents: [{ id: uid("DOC"), name: "Cancellation notice", version: 1, generatedAt: "2026-08-10", type: "Notice" }],
-        history: [
-          txn(1, "2025-11-20", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2026-08-10", "Cancellation", "Policy cancelled", "Cancelled for non-payment after the 15-day notice ran.", "System",
-            { reason: "Non-Payment", cancelType: "Pro-Rata", initiatedBy: "System", refund: 0 }),
-          txn(3, "2026-08-18", "Reinstatement", "Reinstatement requested — awaiting decision", "Insured called in to confirm payment has cleared and requests reinstatement.", "Phone",
-            { initiatedBy: "Insured", channel: "Phone", submittedOn: "2026-08-18", requestNote: "Sorry for the delay, payment has gone through, please switch the cover back on.", outstandingClaimed: 36200 }, "Pending"),
-        ] },
-      { id: "POL-2025-12200", holder: "Ovais Traders", product: "Home Owners", status: "Cancelled",
-        effectiveDate: "2025-06-01", expirationDate: "2026-06-01", premium: 41000, termNumber: 1,
-        producer: "Meridian Risk Partners", state: "Maharashtra", sumInsured: "₹95,00,000",
-        documents: [{ id: uid("DOC"), name: "Cancellation notice", version: 1, generatedAt: "2026-07-25", type: "Notice" }],
-        history: [
-          txn(1, "2025-06-01", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" }),
-          txn(2, "2026-07-25", "Cancellation", "Policy cancelled", "Cancelled following a confirmed fraud investigation — declaration discrepancies substantiated.", "A. Nair",
-            { reason: "Fraud", cancelType: "Pro-Rata", initiatedBy: "Carrier", refund: 0 }),
-        ] },
-      { id: "POL-2025-05678", holder: "Meenal Joshi", product: "Comprehensive Auto", status: "Cancelled",
-        effectiveDate: "2025-04-10", expirationDate: "2026-04-10", premium: 29800, termNumber: 1,
-        producer: "Direct", state: "Maharashtra", sumInsured: "₹5,60,000 IDV",
-        documents: [{ id: uid("DOC"), name: "Cancellation notice", version: 1, generatedAt: "2026-06-21", type: "Notice" }],
-        history: [
-          txn(1, "2025-04-10", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Direct" }),
-          txn(2, "2026-06-21", "Cancellation", "Policy cancelled", "Cancelled at insured's request — vehicle sold.", "R. Iyer",
-            { reason: "Sold Vehicle/Business", cancelType: "Short-Rate", initiatedBy: "Insured", refund: 5100 }),
-        ] },
-      { id: "POL-2025-11044", holder: "Arjun Bhatia", product: "Comprehensive Auto", status: "Cancelled",
-        effectiveDate: "2025-11-01", expirationDate: "2026-11-01", premium: 39500, termNumber: 1,
-        producer: "Apex Insurance Brokers", state: "Delhi", sumInsured: "₹7,10,000 IDV",
-        documents: [], history: [
-          txn(1, "2025-11-01", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" }),
-          txn(2, "2026-05-30", "Cancellation", "Policy cancelled", "Cancelled at insured's request — vehicle sold. Short-rate refund issued.", "R. Iyer",
-            { reason: "Sold Vehicle/Business", cancelType: "Short-Rate", initiatedBy: "Insured", refund: 6900 }),
-        ] },
-      { id: "POL-2024-07765", holder: "Sanjay Rao", product: "Home Owners", status: "Expired",
-        effectiveDate: "2024-06-15", expirationDate: "2025-06-15", premium: 18400, termNumber: 1,
-        producer: "Apex Insurance Brokers", state: "Karnataka", sumInsured: "₹35,00,000", documents: [],
-        history: [txn(1, "2024-06-15", "Issuance", "Policy issued", "New business bound and issued.", "U. Sharma", { channel: "Broker" })] },
-    ];
+    var list = fetchSeedRecords();
     list.forEach(function (p) { p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; });
     return list;
   }
@@ -923,12 +703,12 @@
      read-only roles rather than shown-but-disabled, since neither can act on a held transaction. */
   var ROLES = {
     Underwriter: {
-      label: "Underwriter", icon: "clipboard-check", tone: "violet", identity: "Rahul Verma",
+      label: "Underwriter", icon: "clipboard-check", tone: "violet", identity: "A. Bennett",
       scope: "all", canDecide: true, canRequest: true,
       desc: "Full operational access — every desk, every policy, every decision.",
     },
     MGA: {
-      label: "MGA", icon: "building-2", tone: "indigo", identity: "Priya Nair",
+      label: "MGA", icon: "building-2", tone: "indigo", identity: "Jordan Blake",
       scope: "all", canDecide: false, canRequest: false,
       desc: "Portfolio-wide analytics across every product line, broker and state. Read-only — an MGA sees the book, underwriters decide it.",
     },
@@ -943,7 +723,7 @@
       desc: "The business this producer placed, and nothing else. Can raise a request (a cancellation, an endorsement); cannot decide one.",
     },
     Customer: {
-      label: "Customer", icon: "user", tone: "blue", identity: "Karan Malhotra",
+      label: "Customer", icon: "user", tone: "blue", identity: "Marcus Whitfield",
       scope: "holder", canDecide: false, canRequest: true,
       desc: "The end-customer portal — a named insured's own policy, documents and coverage, and the ability to raise a self-service request. Nothing else on the platform is visible from here.",
     },

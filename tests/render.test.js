@@ -152,7 +152,7 @@ var PAGES = [
   ["terms", "terms"],
 ];
 
-var CORE = ["assets/js/icons.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/api.js", "assets/js/ui.js"];
+var CORE = ["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/api.js", "assets/js/ui.js"];
 var fails = 0;
 
 PAGES.forEach(function (pair) {
@@ -210,10 +210,10 @@ console.log("\n  content spot-checks");
 console.log("\n  cancellation-decision: Type/Reason/Initiated By/Timing + worked-example refund");
 (function () {
   var txt = renderText("cancellation-decision", "?policy=POL-2026-02233");
-  ["Insured Request", "Broker/Producer", "Immediate", "Short-Rate", "₹6,385", "₹709"].forEach(function (needle) {
+  ["Insured Request", "Broker/Producer", "Immediate", "Short-Rate", "$982", "$109"].forEach(function (needle) {
     if (txt.indexOf(needle) === -1) { fails++; console.log('  FAIL  cancellation-decision missing "' + needle + '"'); }
   });
-  console.log("  PASS  Karan Malhotra: Reason=Insured Request, Initiated By=Broker/Producer, Type=Short-Rate, refund=₹6,385 matches the doc's worked example exactly");
+  console.log("  PASS  Marcus Whitfield: Reason=Insured Request, Initiated By=Broker/Producer, Type=Short-Rate, refund=$982 matches the doc's worked example exactly");
 })();
 
 /* Reinstatement desk: the original cancellation's full attribute set (added this pass) surfaces
@@ -224,7 +224,7 @@ console.log("\n  reinstatement-decision: original cancellation's Initiated By + 
   ["Initiated by", "System", "Timing", "Immediate", "Non-Payment"].forEach(function (needle) {
     if (txt.indexOf(needle) === -1) { fails++; console.log('  FAIL  reinstatement-decision missing "' + needle + '"'); }
   });
-  console.log("  PASS  Divya Krishnan's original cancellation shows Initiated By (System) and Timing (Immediate), not just Reason and Type");
+  console.log("  PASS  Olivia Sanders' original cancellation shows Initiated By (System) and Timing (Immediate), not just Reason and Type");
 })();
 
 /* Dashboard-specific regressions:
@@ -260,6 +260,7 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS = stub.PAS;
   var policies = PAS.getPolicies();
@@ -346,7 +347,7 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
 
   ["MGA", "Carrier"].forEach(function (role) {
     var txt = renderText("dashboard", "", role);
-    /* MGA's identity ("Priya Nair") isn't expected in the dashboard body — it's shown once, in
+    /* MGA's identity ("Jordan Blake") isn't expected in the dashboard body — it's shown once, in
        the topbar role pill (layout.js, not loaded by this page-only harness); the dashboard
        itself is about the whole book, not "MGA's own" book. Carrier's framing is different — the
        book is explicitly "written on their paper" — so its sub-line does name the identity. */
@@ -373,6 +374,7 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS2 = stub.PAS;
   var allPolicies = PAS2.getPolicies();
@@ -409,9 +411,9 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
   else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS2.moneyShort(meridianPremium) + ") is scoped to Meridian's own book, genuinely different from MGA's whole-portfolio " + PAS2.moneyShort(realInForcePremium));
 
   /* Customer portal: scoped to exactly one holder's own policy, nothing else on the platform. */
-  var karanCount = allPolicies.filter(function (p) { return p.holder === "Karan Malhotra"; }).length;
+  var karanCount = allPolicies.filter(function (p) { return p.holder === "Marcus Whitfield"; }).length;
   var customerTxt = renderText("dashboard", "", "Customer");
-  ["My Policies", "Karan Malhotra", "Your coverage", "Your documents", "Recent activity"].forEach(function (needle) {
+  ["My Policies", "Marcus Whitfield", "Your coverage", "Your documents", "Recent activity"].forEach(function (needle) {
     if (customerTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Customer portal missing "' + needle + '"'); }
   });
   ["Portfolio Dashboard", "In-force premium", "Bound policies", "Renewal pipeline", "Apex Insurance Brokers", "Meridian Assurance Co."].forEach(function (banned) {
@@ -419,11 +421,11 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
   });
   var customerDom = renderDom("dashboard", "", "Customer");
   var policyRows = customerDom.querySelectorAll(".kpi-row").length;
-  if (policyRows !== karanCount) { fails++; console.log("  FAIL  Customer portal renders " + policyRows + " policy KPI row(s), expected exactly " + karanCount + " (one per Karan Malhotra's real policies)"); }
-  else console.log("  PASS  Customer portal shows exactly " + karanCount + " real polic" + (karanCount === 1 ? "y" : "ies") + " for Karan Malhotra, first-person framing, no internal-desk or other-role content leaked");
+  if (policyRows !== karanCount) { fails++; console.log("  FAIL  Customer portal renders " + policyRows + " policy KPI row(s), expected exactly " + karanCount + " (one per Marcus Whitfield's real policies)"); }
+  else console.log("  PASS  Customer portal shows exactly " + karanCount + " real polic" + (karanCount === 1 ? "y" : "ies") + " for Marcus Whitfield, first-person framing, no internal-desk or other-role content leaked");
 })();
 
-/* Claims & reserves: real records, not a fabricated loss ratio. Bharat Steel Works' claim is
+/* Claims & reserves: real records, not a fabricated loss ratio. Ironwood Steel Works' claim is
    deliberately consistent with the "adverse loss ratio... 140%" narrative already on its
    cancellation record — the two must agree exactly, not just both exist. */
 console.log("\n  claims & reserves: real data, internally consistent with the existing loss-ratio narrative");
@@ -432,19 +434,20 @@ console.log("\n  claims & reserves: real data, internally consistent with the ex
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS5 = stub.PAS;
   var book5 = PAS5.seedPolicies();
   var bharat = book5.find(function (p) { return p.id === "POL-2026-00988"; });
   var bharatRatio = Math.round(PAS5.lossRatio([bharat]) * 100);
-  if (bharatRatio !== 140) { fails++; console.log("  FAIL  Bharat Steel Works' claim loss ratio is " + bharatRatio + "%, expected exactly 140% to match its cancellation record's own \"adverse loss ratio... 140%\" narrative"); }
-  else console.log("  PASS  Bharat Steel Works' seeded claim (₹12,46,000 incurred ÷ ₹8,90,000 premium) computes to exactly 140% — matches its own cancellation narrative, not a coincidence");
+  if (bharatRatio !== 140) { fails++; console.log("  FAIL  Ironwood Steel Works' claim loss ratio is " + bharatRatio + "%, expected exactly 140% to match its cancellation record's own \"adverse loss ratio... 140%\" narrative"); }
+  else console.log("  PASS  Ironwood Steel Works' seeded claim ($140,000 incurred ÷ $100,000 premium) computes to exactly 140% — matches its own cancellation narrative, not a coincidence");
 
   var active5 = book5.filter(function (p) { return p.status === "Active"; });
   var totalClaims = PAS5.allClaims(active5).length;
   var totalReserves = PAS5.reservesTotal(active5);
   if (totalClaims === 0) { fails++; console.log("  FAIL  no claims exist anywhere in the active book"); }
-  else console.log("  PASS  " + totalClaims + " real claims on file across the active book, ₹" + totalReserves.toLocaleString("en-IN") + " in open reserves");
+  else console.log("  PASS  " + totalClaims + " real claims on file across the active book, $" + totalReserves.toLocaleString("en-US") + " in open reserves");
 
   var mgaDom2 = renderDom("dashboard", "", "MGA");
   var mgaTxt2 = mgaDom2.textContent.replace(/\s+/g, " ");
@@ -462,6 +465,7 @@ console.log("\n  refund-wise breakdown: grouped totals reconcile to the real sum
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS6 = stub.PAS;
   var book6 = PAS6.seedPolicies();
@@ -469,7 +473,7 @@ console.log("\n  refund-wise breakdown: grouped totals reconcile to the real sum
   book6.forEach(function (p) { p.history.forEach(function (h) { if (h.type === "Cancellation" && h.status === "Completed") completed6.push(h); }); });
   var realTotal = completed6.reduce(function (s, h) { return s + (Number(h.meta && h.meta.refund) || 0); }, 0);
   if (completed6.length === 0) { fails++; console.log("  FAIL  no completed cancellations exist to test the breakdown against"); }
-  else console.log("  PASS  " + completed6.length + " completed cancellations, ₹" + realTotal.toLocaleString("en-IN") + " total refunded — the real figure the breakdown must reconcile to");
+  else console.log("  PASS  " + completed6.length + " completed cancellations, $" + realTotal.toLocaleString("en-US") + " total refunded — the real figure the breakdown must reconcile to");
 
   var cancelTxt = renderText("cancellation");
   var moneyStr = PAS6.money(realTotal);
@@ -485,6 +489,7 @@ console.log("\n  coverage-wise breakdown: line items reconcile exactly to the po
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS7 = stub.PAS;
   var book7 = PAS7.seedPolicies();
@@ -497,7 +502,7 @@ console.log("\n  coverage-wise breakdown: line items reconcile exactly to the po
   });
   var withTemplate = book7.filter(function (p) { return PAS7.coverageBreakdown(p).length > 0; }).length;
   if (mismatches.length > 0) { fails++; console.log("  FAIL  " + mismatches.length + " polic(ies) whose coverage line items don't sum to their own premium: " + mismatches.join(", ")); }
-  else console.log("  PASS  all " + withTemplate + " policies with a coverage template reconcile exactly (line items sum to the policy's own premium, ₹0 off, every time)");
+  else console.log("  PASS  all " + withTemplate + " policies with a coverage template reconcile exactly (line items sum to the policy's own premium, $0 off, every time)");
 
   var detailTxt = renderText("policy-detail", "?policy=POL-2026-02233&tab=cover");
   ["Coverage breakdown", "Base sum assured", "Accidental death rider"].forEach(function (needle) {
@@ -514,6 +519,7 @@ console.log("\n  loyalty: tiers and the tier-distribution KPIs reconcile to the 
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS8 = stub.PAS;
   var active8 = PAS8.seedPolicies().filter(function (p) { return p.status === "Active"; });
@@ -534,8 +540,8 @@ console.log("\n  loyalty: tiers and the tier-distribution KPIs reconcile to the 
   /* Spot-check one customer's full derivation renders, not just their final tier. */
   var bharat8 = active8.find(function (p) { return p.id === "POL-2026-00988"; });
   var bharatScore = PAS8.loyaltyScore(bharat8);
-  if (loyaltyTxt.indexOf(String(bharatScore.score)) === -1) { fails++; console.log("  FAIL  Bharat Steel Works' loyalty score (" + bharatScore.score + ") not found on the page"); }
-  else console.log("  PASS  Bharat Steel Works shows its real computed score (" + bharatScore.score + ", " + bharatScore.tier + ") with its line-by-line derivation");
+  if (loyaltyTxt.indexOf(String(bharatScore.score)) === -1) { fails++; console.log("  FAIL  Ironwood Steel Works' loyalty score (" + bharatScore.score + ") not found on the page"); }
+  else console.log("  PASS  Ironwood Steel Works shows its real computed score (" + bharatScore.score + ", " + bharatScore.tier + ") with its line-by-line derivation");
 })();
 
 /* The effective-date gate: a fourth, independent underwriting referral trigger. */
@@ -545,6 +551,7 @@ console.log("\n  effective date: system-driven, with a real referral gate");
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS3 = stub.PAS;
   check3("a request within the lead-time window passes", PAS3.effectiveDateOk({ submittedOn: "2026-08-20", effectiveDate: "2026-09-19" }) === true);
@@ -573,6 +580,7 @@ console.log("\n  policy issuance is automated — real state transitions, no man
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS4 = stub.PAS;
 
@@ -609,6 +617,7 @@ console.log("\n  policy transfer: holder changes, continuity is genuinely preser
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS9 = stub.PAS;
 
@@ -621,7 +630,7 @@ console.log("\n  policy transfer: holder changes, continuity is genuinely preser
   PAS9.decideTransfer("POL-2026-00777", pendingTxn.id, true, pendingTxn.meta.newHolder);
   var after9 = PAS9.getPolicy("POL-2026-00777");
 
-  if (after9.holder !== "Horizon Freight Holdings Pvt Ltd") { fails++; console.log("  FAIL  holder after approval is \"" + after9.holder + "\", expected \"Horizon Freight Holdings Pvt Ltd\""); }
+  if (after9.holder !== "Horizon Freight Holdings LLC") { fails++; console.log("  FAIL  holder after approval is \"" + after9.holder + "\", expected \"Horizon Freight Holdings LLC\""); }
   else console.log("  PASS  approving the transfer changes the holder to the real requested new insured");
 
   var idUnchanged = after9.id === "POL-2026-00777";
@@ -640,6 +649,7 @@ console.log("\n  policy transfer: holder changes, continuity is genuinely preser
   stub2.window = stub2;
   vm.createContext(stub2);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub2);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub2);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub2);
   var PAS10 = stub2.PAS;
   var beforeDecline = PAS10.getPolicy("POL-2026-00777");
@@ -660,6 +670,7 @@ console.log("\n  configurable terms & conditions: edits genuinely persist, reset
   stub.window = stub;
   vm.createContext(stub);
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS11 = stub.PAS;
 
@@ -701,80 +712,118 @@ console.log("\n  configurable terms & conditions: edits genuinely persist, reset
    scratch check run against store.js directly), not guessed. */
 console.log("\n  registry: product + state filters genuinely narrow the table");
 (function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var bookR = stub.PAS.seedPolicies();
+
   var out = renderDom("registry");
   var rowCount = function () { return out.querySelector("tbody").querySelectorAll("tr").length; };
-  if (rowCount() !== 27) { fails++; console.log("  FAIL  registry baseline expected 27 rows, got " + rowCount()); }
-  else console.log("  PASS  baseline shows all 27 records");
+  if (rowCount() !== bookR.length) { fails++; console.log("  FAIL  registry baseline expected " + bookR.length + " rows, got " + rowCount()); }
+  else console.log("  PASS  baseline shows all " + bookR.length + " records");
 
   var selects = out.querySelectorAll("select");
   if (selects.length !== 3) { fails++; console.log("  FAIL  expected 3 filter selects (status/product/state), found " + selects.length); return; }
   var productSelect = selects[1], stateSelect = selects[2];
 
+  var expectedProduct = bookR.filter(function (p) { return p.product === "Comprehensive Auto"; }).length;
   setValue(productSelect, "Comprehensive Auto");
-  if (rowCount() !== 10) { fails++; console.log("  FAIL  product filter 'Comprehensive Auto' expected 10 rows, got " + rowCount()); }
-  else console.log("  PASS  product filter narrows to the 10 real Comprehensive Auto records");
+  if (rowCount() !== expectedProduct) { fails++; console.log("  FAIL  product filter 'Comprehensive Auto' expected " + expectedProduct + " rows, got " + rowCount()); }
+  else console.log("  PASS  product filter narrows to the " + expectedProduct + " real Comprehensive Auto records");
 
-  setValue(stateSelect, "Maharashtra");
-  if (rowCount() !== 1) { fails++; console.log("  FAIL  product+state combo expected 1 row, got " + rowCount()); }
-  else console.log("  PASS  combined product+state filter narrows to the 1 real matching record");
+  var probeState = bookR.filter(function (p) { return p.product === "Comprehensive Auto"; })[0].state;
+  var expectedBoth = bookR.filter(function (p) { return p.product === "Comprehensive Auto" && p.state === probeState; }).length;
+  setValue(stateSelect, probeState);
+  if (rowCount() !== expectedBoth) { fails++; console.log("  FAIL  product+state combo (" + probeState + ") expected " + expectedBoth + " rows, got " + rowCount()); }
+  else console.log("  PASS  combined product+state filter narrows to the " + expectedBoth + " real matching record(s) in " + probeState);
 
   var note = out.textContent;
-  if (note.indexOf("Showing 1 of 27 records") === -1) { fails++; console.log("  FAIL  missing 'Showing 1 of 27 records' note once filters are active"); }
+  var expectedNote = "Showing " + expectedBoth + " of " + bookR.length + " records";
+  if (note.indexOf(expectedNote) === -1) { fails++; console.log("  FAIL  missing '" + expectedNote + "' note once filters are active"); }
   else console.log("  PASS  'Showing X of Y' note reflects the real filtered/total counts");
 })();
 
 console.log("\n  documents: search + type filter genuinely narrow the table, and compose together");
 (function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var bookD = stub.PAS.seedPolicies();
+  var totalDocs = bookD.reduce(function (s, p) { return s + (p.documents || []).length; }, 0);
+
   var out = renderDom("documents");
   var rowCount = function () { return out.querySelector("tbody").querySelectorAll("tr").length; };
-  if (rowCount() !== 18) { fails++; console.log("  FAIL  documents baseline expected 18 rows, got " + rowCount()); }
-  else console.log("  PASS  baseline shows all 18 documents");
+  if (rowCount() !== totalDocs) { fails++; console.log("  FAIL  documents baseline expected " + totalDocs + " rows, got " + rowCount()); }
+  else console.log("  PASS  baseline shows all " + totalDocs + " documents");
 
+  var melissa = bookD.find(function (p) { return p.holder === "Melissa Shaw"; });
+  var expectedMelissa = melissa.documents.length;
   var searchInput = out.querySelector("input");
-  setValue(searchInput, "Meera");
-  if (rowCount() !== 2) { fails++; console.log("  FAIL  search 'Meera' expected 2 rows (Schedule+Certificate), got " + rowCount()); }
-  else console.log("  PASS  search narrows to Meera Shankar's real 2 documents");
+  setValue(searchInput, "Melissa");
+  if (rowCount() !== expectedMelissa) { fails++; console.log("  FAIL  search 'Melissa' expected " + expectedMelissa + " rows (Schedule+Certificate), got " + rowCount()); }
+  else console.log("  PASS  search narrows to Melissa Shaw's real " + expectedMelissa + " documents");
 
+  var expectedSchedule = melissa.documents.filter(function (d) { return d.type === "Schedule"; }).length;
   var chips = out.querySelectorAll("button").filter(function (b) { return b.classList.contains("chip"); });
   var scheduleChip = chips.filter(function (c) { return c.textContent === "Schedule"; })[0];
   if (!scheduleChip) { fails++; console.log("  FAIL  no 'Schedule' type chip found"); return; }
   scheduleChip.click();
-  if (rowCount() !== 1) { fails++; console.log("  FAIL  search 'Meera' + type 'Schedule' expected 1 row, got " + rowCount()); }
-  else console.log("  PASS  type chip composes with the active search — narrows to Meera's 1 Schedule doc");
+  if (rowCount() !== expectedSchedule) { fails++; console.log("  FAIL  search 'Melissa' + type 'Schedule' expected " + expectedSchedule + " row(s), got " + rowCount()); }
+  else console.log("  PASS  type chip composes with the active search — narrows to Melissa's " + expectedSchedule + " Schedule doc(s)");
 
   var allChip = chips.filter(function (c) { return c.textContent === "All"; })[0];
   allChip.click();
-  if (rowCount() !== 2) { fails++; console.log("  FAIL  clearing type filter (search still 'Meera') expected 2 rows, got " + rowCount()); }
+  if (rowCount() !== expectedMelissa) { fails++; console.log("  FAIL  clearing type filter (search still 'Melissa') expected " + expectedMelissa + " rows, got " + rowCount()); }
   else console.log("  PASS  clearing the type chip falls back to the search-only result set");
 })();
 
 console.log("\n  loyalty: tier chips genuinely narrow the ranked customer list");
 (function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PASL = stub.PAS;
+  var activeL = PASL.seedPolicies().filter(function (p) { return p.status === "Active"; });
+  var byTierL = {};
+  activeL.forEach(function (p) { var t = PASL.loyaltyScore(p).tier; byTierL[t] = (byTierL[t] || 0) + 1; });
+
   var out = renderDom("loyalty");
   var rowCount = function () {
     var bodies = out.querySelectorAll("tbody");
     return bodies[bodies.length - 1].querySelectorAll("tr").length;
   };
-  if (rowCount() !== 13) { fails++; console.log("  FAIL  loyalty baseline expected 13 active customers, got " + rowCount()); }
-  else console.log("  PASS  baseline shows all 13 active, scored customers");
+  if (rowCount() !== activeL.length) { fails++; console.log("  FAIL  loyalty baseline expected " + activeL.length + " active customers, got " + rowCount()); }
+  else console.log("  PASS  baseline shows all " + activeL.length + " active, scored customers");
 
   var chips = out.querySelectorAll("button").filter(function (b) { return b.classList.contains("chip"); });
   var goldChip = chips.filter(function (c) { return c.textContent === "Gold"; })[0];
+  var expectedGold = byTierL.Gold || 0;
   if (!goldChip) { fails++; console.log("  FAIL  no 'Gold' tier chip found"); return; }
   goldChip.click();
-  if (rowCount() !== 3) { fails++; console.log("  FAIL  'Gold' tier filter expected 3 rows, got " + rowCount()); }
-  else console.log("  PASS  'Gold' tier filter narrows to the 3 real Gold-tier customers");
-  if (out.textContent.indexOf("Showing 3 of 13 customers") === -1) { fails++; console.log("  FAIL  missing 'Showing 3 of 13 customers' note"); }
+  if (rowCount() !== expectedGold) { fails++; console.log("  FAIL  'Gold' tier filter expected " + expectedGold + " rows, got " + rowCount()); }
+  else console.log("  PASS  'Gold' tier filter narrows to the " + expectedGold + " real Gold-tier customers");
+  var expectedNoteL = "Showing " + expectedGold + " of " + activeL.length + " customers";
+  if (out.textContent.indexOf(expectedNoteL) === -1) { fails++; console.log("  FAIL  missing '" + expectedNoteL + "' note"); }
   else console.log("  PASS  'Showing X of Y' note reflects the real tier-filtered count");
 
   var silverChip = chips.filter(function (c) { return c.textContent === "Silver"; })[0];
+  var expectedSilver = byTierL.Silver || 0;
   silverChip.click();
-  if (rowCount() !== 7) { fails++; console.log("  FAIL  'Silver' tier filter expected 7 rows, got " + rowCount()); }
-  else console.log("  PASS  switching tiers re-filters correctly — 7 real Silver-tier customers");
+  if (rowCount() !== expectedSilver) { fails++; console.log("  FAIL  'Silver' tier filter expected " + expectedSilver + " rows, got " + rowCount()); }
+  else console.log("  PASS  switching tiers re-filters correctly — " + expectedSilver + " real Silver-tier customers");
 
   var allChip = chips.filter(function (c) { return c.textContent === "All"; })[0];
   allChip.click();
-  if (rowCount() !== 13) { fails++; console.log("  FAIL  clearing tier filter expected all 13 rows back, got " + rowCount()); }
+  if (rowCount() !== activeL.length) { fails++; console.log("  FAIL  clearing tier filter expected all " + activeL.length + " rows back, got " + rowCount()); }
   else console.log("  PASS  clearing the tier filter restores the full ranked list");
 })();
 

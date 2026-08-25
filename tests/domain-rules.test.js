@@ -3,7 +3,8 @@ var fs = require("fs"), vm = require("vm");
 var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
 stub.window = stub;
 vm.createContext(stub);
-vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
 var PAS = stub.PAS;
 
 var fails = 0;
@@ -121,8 +122,8 @@ var noUpgrade = true;
 check("a no-penalty reason (Non-Payment/Fraud/Underwriting) can never derive Short-Rate for any initiator", noUpgrade);
 
 /* Notice period now lives on Reason, not Type. */
-check("Non-Payment requires 15 days' notice", PAS.CANCEL_REASONS["Non-Payment"].noticeDays === 15);
-check("Underwriting requires 30 days' notice", PAS.CANCEL_REASONS.Underwriting.noticeDays === 30);
+check("Non-Payment requires 10 days' notice", PAS.CANCEL_REASONS["Non-Payment"].noticeDays === 10);
+check("Underwriting requires 45 days' notice", PAS.CANCEL_REASONS.Underwriting.noticeDays === 45);
 check("Insured Request requires 0 days' notice", PAS.CANCEL_REASONS["Insured Request"].noticeDays === 0);
 
 /* Timing is derived from the effective date, never stored. */
@@ -173,13 +174,13 @@ var note = PAS.recordHeldDecision(kar.id, pendCx.id, "Escalate", "Need senior re
 var stillPend = note.history.find(function (h) { return h.id === pendCx.id; });
 check("escalate leaves the held cancellation pending", stillPend.status === "Pending");
 check("escalate stamps user + action + comment on the held row",
-  stillPend.meta.lastDecision.user === "Rahul Verma" &&
+  stillPend.meta.lastDecision.user === "A. Bennett" &&
   stillPend.meta.lastDecision.action === "Escalate" &&
   /senior review/.test(stillPend.meta.lastDecision.comment));
 check("trail helper returns the escalate comment", PAS.decisionTrailFor(note, pendCx.id).some(function (a) { return a.action === "Escalate" && /senior review/.test(a.comment); }));
 var decided = PAS.decideCancellation(kar.id, pendCx.id, false, PAS.todayISO(), PAS.cancelQuote(kar, pendCx.meta.reason, pendCx.meta.initiatedBy, PAS.todayISO()), PAS.makeAudit("Decline", "Notice period not satisfied — decline and re-serve."));
 var rejected = decided.history.find(function (h) { return h.id === pendCx.id; });
-check("decline records the confirming actor, not a placeholder", rejected.approvedBy === "Rahul Verma");
+check("decline records the confirming actor, not a placeholder", rejected.approvedBy === "A. Bennett");
 check("decline comment is on the ledger row", /re-serve/.test(rejected.detail));
 check("decision history keeps escalate then decline", rejected.meta.decisionHistory.length === 2 && rejected.meta.decisionHistory[1].action === "Decline");
 

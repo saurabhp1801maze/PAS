@@ -21,7 +21,7 @@
 
     var inbound = ui.panel({ title: "Inbound — receive bound policy (from UW module)", what: "Simulates POST /api/v1/inbound/bind" }, []);
     var ib = inbound.querySelector(".panel-body");
-    var sample = { holder: "Demo Industries Pvt Ltd", product: "Commercial Property", premium: 2400000, state: "Gujarat", sumInsured: "₹5,00,00,000" };
+    var sample = { holder: "Demo Industries LLC", product: "Commercial Property", premium: 145000, state: "Texas", sumInsured: "$4,200,000" };
     ib.appendChild(ui.kv({ k: "Payload", v: JSON.stringify(sample), mono: true }));
     var recvBtn = ui.h("button", { class: "btn tone-primary" }, "Receive bound policy");
     recvBtn.addEventListener("click", function () {

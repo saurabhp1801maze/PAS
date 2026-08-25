@@ -52,7 +52,7 @@
       var outstanding = Number(outstandingInput.value) || 0;
       var audit = PAS.makeAudit(approve ? "Approve" : "Decline", comment);
       return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (approve ? "approve" : "reject"),
-        { decision: approve ? "approved" : "rejected", outstandingPremium: { amount: outstanding, currency: "INR" }, note: comment },
+        { decision: approve ? "approved" : "rejected", outstandingPremium: { amount: outstanding, currency: "USD" }, note: comment },
         { module: "Reinstatement", policyId: p.id, statusCode: 200, label: (approve ? "Approve" : "Decline") + " reinstatement — " + p.holder, response: approve ? { txnId: h.id, status: "active", gapDays: e.daysSince, disclosureRequired: true, events: ["policyReinstated"] } : { txnId: h.id, status: "rejected" } })
         .then(function () {
           PAS.decideReinstatement(p.id, h.id, approve, { gapDays: e.daysSince, outstanding: outstanding }, audit);

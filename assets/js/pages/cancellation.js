@@ -83,6 +83,11 @@
         return { k: k, v: rows.reduce(function (s, t) { return s + (Number(t.h.meta && t.h.meta.refund) || 0); }, 0), n: rows.length };
       }).sort(function (a, b) { return b.v - a.v; });
     }
+    /* The two panels below only ever show it split by type or by reason — shown plainly here too,
+       not just implied by two partial breakdowns or left inside a hover tooltip. */
+    page.appendChild(ui.h("div", { class: "label-11 mb-9" },
+      "Total refunded to date: " + PAS.money(totalRefunded) + " across " + completed.length + " completed cancellation" + (completed.length === 1 ? "" : "s") + "."));
+
     var refundGrid = ui.h("div", { class: "two-col-grid" });
     var byTypePanel = ui.panel({ title: "Refunds by type", what: "Total refunded, grouped by the decided cancellation type.", why: "Total refunded to date: " + PAS.money(totalRefunded) + " across " + completed.length + " completed cancellations." }, []);
     var byTypeBody = byTypePanel.querySelector(".panel-body");

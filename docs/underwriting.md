@@ -41,7 +41,7 @@ regardless of premium.
 | Gate | Fails when | What it is protecting against |
 |---|---|---|
 | **Score gate** | Composite risk score < `LOW_SCORE_REFER` (50) | A risk whose loss history or profile is poor enough that no one should bind it without review, at any premium. |
-| **Authority gate** | Premium > `AUTHORITY_LIMIT` (₹50,00,000) | Exposure large enough that it exceeds what any individual is delegated to commit the insurer to. |
+| **Authority gate** | Premium > `AUTHORITY_LIMIT` ($250,000) | Exposure large enough that it exceeds what any individual is delegated to commit the insurer to. |
 | **Information gate** | Underwriting data is still outstanding | A file that cannot be priced responsibly yet — e.g. a new group health scheme awaiting census data. |
 | **Effective date gate** | Requested date is backdated, or more than `EFFECTIVE_DATE_MAX_LEAD_DAYS` (60) days after submission | The one place a human-supplied date enters this system — see "Effective date: system-driven" below. |
 
@@ -65,7 +65,7 @@ own inception date and this rule doesn't apply to it.
 ### Why these have to be independent (and weren't, before a fix)
 
 Composite risk score used to be `92 − round(premium / 90,000) + noise`. Read that again: the
-score was a function of **premium**. Since `AUTHORITY_LIMIT` is ₹50,00,000, any premium above it
+score was a function of **premium**. Since `AUTHORITY_LIMIT` is $250,000, any premium above it
 already forced a score below 41 — below the 50 threshold — so the score gate always tripped
 before the authority gate could ever be the reason for a referral. The "premium exceeds delegated
 authority" message could never actually be returned; it was dead code wearing a live label. The
@@ -112,7 +112,7 @@ normal life, not an instability signal.
 
 ### Worked example
 
-Kavita Enterprises, Comprehensive Auto, premium ₹1,84,000, two at-fault claims and one other claim
+Kevin Alvarado, Comprehensive Auto, premium $2,150, two at-fault claims and one other claim
 in the prior term, new business:
 
 ```

@@ -91,7 +91,7 @@
       function decide(approve, comment) {
         var audit = PAS.makeAudit(approve ? "Approve" : "Decline", comment);
         return PAS.api.call("POST", "/api/v1/transactions/" + txnId + "/" + (approve ? "approve" : "reject"),
-          { decision: approve ? "approved" : "rejected", effectiveDate: effDate, premiumMethod: q.type, refund: { amount: Math.round(q.refund), currency: "INR" }, note: comment },
+          { decision: approve ? "approved" : "rejected", effectiveDate: effDate, premiumMethod: q.type, refund: { amount: Math.round(q.refund), currency: "USD" }, note: comment },
           { module: "Cancellation", policyId: p.id, statusCode: 200, label: (approve ? "Approve" : "Decline") + " cancellation — " + p.holder, response: approve ? { txnId: txnId, status: "completed", premiumMethod: q.type, refundAmount: Math.round(q.refund), events: ["policyCancelled"] } : { txnId: txnId, status: "rejected" } })
           .then(function () {
             PAS.decideCancellation(p.id, txnId, approve, effDate, q, audit);

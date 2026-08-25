@@ -50,7 +50,7 @@
         ["effective_date", "date", "Start of this term."],
         ["expiration_date", "date", "End of this term."],
         ["premium", "decimal", "Annual premium for this term specifically."],
-        ["sum_insured", "text / decimal", "Kept as entered — some products carry a formatted limit, others a bare IDV."],
+        ["sum_insured", "text / decimal", "Kept as entered — some products carry a formatted limit, others a bare ACV."],
         ["status", "enum", "Mirrors the policy status at the time this was the live term."],
       ],
     },

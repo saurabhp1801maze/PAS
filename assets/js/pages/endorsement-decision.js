@@ -50,7 +50,7 @@
     function act(ok, comment) {
       var audit = PAS.makeAudit(ok ? "Approve" : "Decline", comment);
       return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (ok ? "approve" : "reject"), { decision: ok ? "approved" : "rejected", note: comment },
-        { module: "Endorsement", policyId: p.id, statusCode: 200, label: (ok ? "Approve" : "Decline") + " endorsement — " + p.holder, response: { txnId: h.id, status: ok ? "completed" : "rejected", premiumDelta: { amount: h.meta.premiumImpact || 0, currency: "INR" }, policyVersion: p.history.length + 1 } })
+        { module: "Endorsement", policyId: p.id, statusCode: 200, label: (ok ? "Approve" : "Decline") + " endorsement — " + p.holder, response: { txnId: h.id, status: ok ? "completed" : "rejected", premiumDelta: { amount: h.meta.premiumImpact || 0, currency: "USD" }, policyVersion: p.history.length + 1 } })
         .then(function () {
           PAS.decideTxn(p.id, h.id, ok, audit);
           ui.flashThenGo("endorsement.html", flash(ok ? "Approve" : "Decline"));

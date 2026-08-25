@@ -279,6 +279,62 @@
     label.appendChild(document.createTextNode(opts.label));
     return label;
   }
+  /* A checkbox-dropdown: a button showing a summary ("All", one label, or "N selected") that
+     opens a panel of checkboxRow options with All/None actions. `opts.selected` is an array —
+     empty means "All" (no restriction), matching the button's own label logic, so an untouched
+     filter and an explicitly-cleared one behave identically. */
+  function multiSelect(opts) {
+    var wrap = h("div", { class: "multiselect" });
+    var btn = h("button", { type: "button", class: "field-input select-fixed multiselect-btn" });
+    wrap.appendChild(btn);
+    var panelEl = null;
+    function optValue(o) { return typeof o === "string" ? o : o.value; }
+    function optLabel(o) { return typeof o === "string" ? o : o.label; }
+    function labelFor(v) { var m = opts.options.filter(function (o) { return optValue(o) === v; })[0]; return m ? optLabel(m) : v; }
+    function updateBtn() {
+      var n = opts.selected.length;
+      btn.textContent = (n === 0 || n === opts.options.length) ? (opts.allLabel || "All")
+        : n === 1 ? labelFor(opts.selected[0]) : n + " selected";
+    }
+    function onDocClick(e) { if (panelEl && !panelEl.contains(e.target) && !btn.contains(e.target)) closePanel(); }
+    function closePanel() {
+      if (!panelEl) return;
+      panelEl.remove(); panelEl = null;
+      document.removeEventListener("click", onDocClick);
+    }
+    function openPanel() {
+      panelEl = h("div", { class: "multiselect-panel" });
+      var actions = h("div", { class: "multiselect-actions" });
+      var allBtn = h("button", { type: "button", class: "btn ghost-link" }, "All");
+      var noneBtn = h("button", { type: "button", class: "btn ghost-link" }, "None");
+      function pickAll(e) { e.stopPropagation(); opts.selected = opts.options.map(optValue); updateBtn(); opts.onChange(opts.selected.slice()); closePanel(); openPanel(); }
+      function pickNone(e) { e.stopPropagation(); opts.selected = []; updateBtn(); opts.onChange(opts.selected.slice()); closePanel(); openPanel(); }
+      allBtn.addEventListener("click", pickAll);
+      noneBtn.addEventListener("click", pickNone);
+      actions.appendChild(allBtn); actions.appendChild(noneBtn);
+      panelEl.appendChild(actions);
+      var list = h("div", { class: "multiselect-list" });
+      opts.options.forEach(function (o) {
+        var v = optValue(o), lbl = optLabel(o);
+        list.appendChild(checkboxRow({
+          label: lbl, checked: opts.selected.indexOf(v) !== -1,
+          onChange: function (checked) {
+            if (checked) { if (opts.selected.indexOf(v) === -1) opts.selected.push(v); }
+            else { opts.selected = opts.selected.filter(function (x) { return x !== v; }); }
+            updateBtn();
+            opts.onChange(opts.selected.slice());
+          },
+        }));
+      });
+      panelEl.appendChild(list);
+      wrap.appendChild(panelEl);
+      document.addEventListener("click", onDocClick);
+    }
+    btn.addEventListener("click", function (e) { e.stopPropagation(); if (panelEl) closePanel(); else openPanel(); });
+    updateBtn();
+    return wrap;
+  }
+
   function callout(tone, content) {
     var toneKey = tone === "info" ? "blue" : tone === "warn" ? "amber" : tone === "good" ? "green" : tone === "bad" ? "red" : "violet";
     var div = h("div", { class: "callout", "data-tone": toneKey });
@@ -520,7 +576,7 @@
       var meta = h("div", { class: "decision-trail-meta" });
       meta.appendChild(h("div", { class: "decision-trail-user" }, a.user || "Unknown"));
       meta.appendChild(h("div", { class: "decision-trail-at" }, a.at
-        ? new Date(a.at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+        ? new Date(a.at).toLocaleString("en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
         : "—"));
       top.appendChild(meta);
       top.appendChild(pill(tone, a.action));
@@ -680,7 +736,7 @@
     mid.appendChild(h("div", { class: "notif-row-title" + (note.kind === "event" ? " mono" : "") }, note.title));
     mid.appendChild(h("div", { class: "notif-row-detail" }, note.detail));
     row.appendChild(mid);
-    row.appendChild(h("span", { class: "notif-row-time" }, new Date(note.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })));
+    row.appendChild(h("span", { class: "notif-row-time" }, new Date(note.at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })));
     return row;
   }
 
@@ -804,7 +860,7 @@
     pill: pill, badge: badge, txnStatusBadge: txnStatusBadge, modulePill: modulePill, initiatorPill: initiatorPill,
     cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
     codeBlock: codeBlock, dataTable: dataTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
-    backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow,
+    backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,
     callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
     decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, decisionTrailSide: decisionTrailSide, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
     renderToast: renderToast, notifRow: notifRow, lifecycleStage: lifecycleStage,

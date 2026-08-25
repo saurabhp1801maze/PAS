@@ -42,7 +42,7 @@
 
         var impInput = ui.h("input", { class: "field-input", type: "number", placeholder: "0" });
         impInput.addEventListener("input", function () { extra.premiumImpact = impInput.value; });
-        var f3 = ui.field({ label: "Premium impact (₹)", hint: "Positive for an increase, negative for a decrease." }, impInput);
+        var f3 = ui.field({ label: "Premium impact ($)", hint: "Positive for an increase, negative for a decrease." }, impInput);
 
         extra.effectiveDate = PAS.todayISO();
         var effInput = ui.h("input", { class: "field-input", type: "date", value: PAS.todayISO() });

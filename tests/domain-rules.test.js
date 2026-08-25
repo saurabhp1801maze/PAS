@@ -176,7 +176,7 @@ check("escalate stamps user + action + comment on the held row",
   stillPend.meta.lastDecision.user === "Rahul Verma" &&
   stillPend.meta.lastDecision.action === "Escalate" &&
   /senior review/.test(stillPend.meta.lastDecision.comment));
-check("trail helper returns the same audit row", PAS.decisionTrailFor(note, pendCx.id).length === 1);
+check("trail helper returns the escalate comment", PAS.decisionTrailFor(note, pendCx.id).some(function (a) { return a.action === "Escalate" && /senior review/.test(a.comment); }));
 var decided = PAS.decideCancellation(kar.id, pendCx.id, false, PAS.todayISO(), PAS.cancelQuote(kar, pendCx.meta.reason, pendCx.meta.initiatedBy, PAS.todayISO()), PAS.makeAudit("Decline", "Notice period not satisfied — decline and re-serve."));
 var rejected = decided.history.find(function (h) { return h.id === pendCx.id; });
 check("decline records the confirming actor, not a placeholder", rejected.approvedBy === "Rahul Verma");

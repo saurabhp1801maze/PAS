@@ -66,7 +66,7 @@
     updateChange();
     right.push(premBlock);
 
-    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, h.id))));
+    right.push(ui.decisionTrailSide(PAS.decisionTrailFor(p, h.id)));
 
     function flash(action) {
       return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };

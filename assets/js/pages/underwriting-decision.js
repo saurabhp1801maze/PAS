@@ -39,48 +39,13 @@
 
     var right = [];
     right.push(ui.scoreDial(score));
-    var recNode = ui.h("div", {});
-    recNode.appendChild(ui.h("b", {}, "System recommendation: " + dec.outcome));
-    recNode.appendChild(ui.h("br"));
-    recNode.appendChild(document.createTextNode(dec.reason));
-    right.push(ui.callout(dec.outcome === "Approve" ? "good" : "warn", recNode));
     right.push(ui.kv({ k: "Authority tier", v: dec.tier, what: "Who may bind this risk.", rule: "Premium above " + PAS.money(PAS.AUTHORITY_LIMIT) + " always refers to a senior underwriter." }));
-    /* All four gates, always all four, each with its own verdict. They are independent: the
-       score measures risk quality, the authority limit gates exposure size, the information
-       gate holds a file that is not yet complete enough to price, and the effective date gate
-       enforces the one place a human-supplied date enters this system — a request outside the
-       system's allowed lead time refers out rather than being silently accepted. */
-    var gateWrap = ui.h("div", { class: "mt-13" });
-    gateWrap.appendChild(ui.tipLabel({ text: "Referral gates", what: "Every automatic check run against this submission.", why: "Each fails on its own — a clean risk can still refer on size, and a large premium no longer drags the score down with it.", className: "label-11 block mb-9" }));
-    dec.gates.forEach(function (g) {
-      gateWrap.appendChild(ui.kv({
-        k: g.label,
-        v: ui.pill(g.passed ? "green" : g.key === "score" ? "red" : g.key === "authority" ? "amber" : "blue", g.passed ? "Passed" : "Referred"),
-        what: g.threshold,
-        why: g.passed ? undefined : g.failReason,
-      }));
-    });
-    right.push(gateWrap);
-
-    /* The score is now shown as arithmetic rather than asserted. Every line here is a field
-       the desk was already displaying; before this they drove nothing. */
-    var derivWrap = ui.h("div", { class: "mt-13" });
-    derivWrap.appendChild(ui.tipLabel({ text: "How the score was built", what: "The full derivation, line by line.", why: "An underwriter overriding a score should be able to see what it was made of.", className: "label-11 block mb-9" }));
-    derivWrap.appendChild(ui.kv({ k: factors.product + " base", v: String(factors.base), what: "Starting point for the product line." }));
-    factors.lines.forEach(function (l) {
-      var v = ui.h("span", { style: { color: l.value >= 0 ? "var(--green)" : "var(--red)", fontWeight: "600" } }, (l.value > 0 ? "+" : "") + l.value);
-      derivWrap.appendChild(ui.kv({ k: l.label, v: v, what: l.note }));
-    });
-    if (factors.lines.length === 0) derivWrap.appendChild(ui.h("div", { class: "faint-note" }, "No adjustments — the file carries no loss history, no prior cancellations and nothing outstanding."));
-    var totalRow = ui.h("div", { class: "refund-total" });
-    totalRow.appendChild(ui.h("span", { class: "refund-total-label" }, "Composite score"));
-    totalRow.appendChild(ui.h("span", { class: "refund-total-value" }, String(score)));
-    derivWrap.appendChild(totalRow);
-    right.push(derivWrap);
 
     var held = p.history.find(function (x) { return x.type === "Underwriting" && x.status === "Pending"; });
     var txnNo = held ? held.id : "—";
-    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, held && held.id))));
+
+    var trailWrap = ui.decisionTrailSide(PAS.decisionTrailFor(p, held && held.id));
+    right.push(trailWrap);
 
     function flash(action) {
       return { title: action + " recorded", detail: p.id + " · " + txnNo, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };

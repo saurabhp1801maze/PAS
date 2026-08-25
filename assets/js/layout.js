@@ -220,6 +220,8 @@
 
   function init() {
     ensureToastContainer();
+    var flash = PAS.takeFlash && PAS.takeFlash();
+    if (flash) ui.renderToast(flash);
     wireReset();
     wireSearch();
     wireBell();

@@ -43,17 +43,35 @@
     outWrap.appendChild(ui.field({ label: "Outstanding premium to collect", hint: "The requester's claimed figure — confirm against Billing before approving." }, outstandingInput));
     right.push(outWrap);
 
-    function decide(approve) {
+    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, h.id))));
+
+    function flash(action) {
+      return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };
+    }
+    function decide(approve, comment) {
       var outstanding = Number(outstandingInput.value) || 0;
+      var audit = PAS.makeAudit(approve ? "Approve" : "Decline", comment);
       return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (approve ? "approve" : "reject"),
-        { decision: approve ? "approved" : "rejected", outstandingPremium: { amount: outstanding, currency: "INR" } },
+        { decision: approve ? "approved" : "rejected", outstandingPremium: { amount: outstanding, currency: "INR" }, note: comment },
         { module: "Reinstatement", policyId: p.id, statusCode: 200, label: (approve ? "Approve" : "Decline") + " reinstatement — " + p.holder, response: approve ? { txnId: h.id, status: "active", gapDays: e.daysSince, disclosureRequired: true, events: ["policyReinstated"] } : { txnId: h.id, status: "rejected" } })
-        .then(function () { PAS.decideReinstatement(p.id, h.id, approve, { gapDays: e.daysSince, outstanding: outstanding }); location.href = "reinstatement.html"; });
+        .then(function () {
+          PAS.decideReinstatement(p.id, h.id, approve, { gapDays: e.daysSince, outstanding: outstanding }, audit);
+          ui.flashThenGo("reinstatement.html", flash(approve ? "Approve" : "Decline"));
+        });
+    }
+    function hold(action) {
+      return function (comment) {
+        PAS.recordHeldDecision(p.id, h.id, action, comment, "Reinstatement");
+        ui.renderToast(flash(action));
+        render();
+      };
     }
 
     page.appendChild(ui.decisionLayout(left, right, [
-      { label: "Approve reinstatement", tone: "green", icon: "rotate-ccw", onRun: function () { return decide(true); }, disabled: !e.eligible, disabledReason: e.fraud ? "Policies cancelled for fraud are never eligible." : ("Cancelled " + e.daysSince + " days ago — beyond the " + PAS.REINSTATEMENT_WINDOW_DAYS + "-day window.") },
-      { label: "Decline request", icon: "ban", onRun: function () { return decide(false); } },
+      ui.confirmable(p.id, h.id, "Approve", { label: "Approve reinstatement", tone: "green", icon: "rotate-ccw", onRun: function (c) { return decide(true, c); }, disabled: !e.eligible, disabledReason: e.fraud ? "Policies cancelled for fraud are never eligible." : ("Cancelled " + e.daysSince + " days ago — beyond the " + PAS.REINSTATEMENT_WINDOW_DAYS + "-day window.") }),
+      ui.confirmable(p.id, h.id, "Decline", { label: "Decline request", icon: "ban", onRun: function (c) { return decide(false, c); } }),
+      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
+      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("reinstatement-desk", page));

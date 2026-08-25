@@ -66,23 +66,38 @@
     updateChange();
     right.push(premBlock);
 
-    function decide(approve) {
+    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, h.id))));
+
+    function flash(action) {
+      return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };
+    }
+    function decide(approve, comment) {
       var prem = currentPrem();
+      var audit = PAS.makeAudit(approve ? "Approve" : "Decline", comment);
       var response = approve
         ? { txnId: h.id, newTermNumber: p.termNumber + 1, effectiveDate: p.expirationDate, expirationDate: PAS.addYears(p.expirationDate, 1), events: ["policyRenewed"] }
         : { txnId: h.id, status: "nonRenewed", noticeServedOn: PAS.todayISO() };
       return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (approve ? "approve" : "reject"),
-        approve ? { decision: "approved", newPremium: { amount: prem, currency: "INR" }, termNumber: p.termNumber + 1 } : { decision: "rejected", reason: "underwritingDecision" },
+        approve ? { decision: "approved", newPremium: { amount: prem, currency: "INR" }, termNumber: p.termNumber + 1, note: comment } : { decision: "rejected", reason: "underwritingDecision", note: comment },
         { module: "Renewal", policyId: p.id, statusCode: 200, label: (approve ? "Approve renewal" : "Decline renewal") + " — " + p.holder, response: response })
         .then(function () {
-          PAS.decideRenewal(p.id, h.id, approve, prem);
-          location.href = "renewal.html";
+          PAS.decideRenewal(p.id, h.id, approve, prem, audit);
+          ui.flashThenGo("renewal.html", flash(approve ? "Approve" : "Decline"));
         });
+    }
+    function hold(action) {
+      return function (comment) {
+        PAS.recordHeldDecision(p.id, h.id, action, comment, "Renewal");
+        ui.renderToast(flash(action));
+        render();
+      };
     }
 
     page.appendChild(ui.decisionLayout(left, right, [
-      { label: "Approve — renew into term " + (p.termNumber + 1), tone: "primary", icon: "refresh-cw", onRun: function () { return decide(true); } },
-      { label: "Decline — non-renew", tone: "red", icon: "ban", onRun: function () { return decide(false); } },
+      ui.confirmable(p.id, h.id, "Approve", { label: "Approve — renew into term " + (p.termNumber + 1), tone: "primary", icon: "refresh-cw", onRun: function (c) { return decide(true, c); } }),
+      ui.confirmable(p.id, h.id, "Decline", { label: "Decline — non-renew", tone: "red", icon: "ban", onRun: function (c) { return decide(false, c); } }),
+      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
+      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("renewal-desk", page));

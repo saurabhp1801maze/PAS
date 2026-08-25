@@ -468,3 +468,42 @@ table.data-table tr.has-row-click:hover { background: var(--surface-alt); }
 .mb-9 { margin-bottom: 9px; } .mb-10 { margin-bottom: 10px; }
 .block { display: block; }
 .faint-note { font-size: 12px; color: var(--text-faint); }
+
+/* ================= DECISION CONFIRM MODAL ================= */
+.decision-modal-overlay {
+  position: fixed; inset: 0; z-index: 11000;
+  background: rgba(16, 17, 36, 0.46);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.decision-modal {
+  width: 100%; max-width: 480px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; box-shadow: 0 18px 50px rgba(16, 17, 36, 0.22);
+  padding: 18px 18px 16px;
+}
+.decision-modal-kicker { font-size: 10px; font-weight: 700; letter-spacing: 0.7px; text-transform: uppercase; color: var(--text-faint); }
+.decision-modal-title { margin: 4px 0 0; font-size: 18px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.decision-modal-summary {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  margin: 14px 0 12px; padding: 10px; background: var(--surface-alt); border: 1px solid var(--border); border-radius: 10px;
+}
+.decision-modal-sum-k { font-size: 10px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.4px; }
+.decision-modal-sum-v { font-size: 12.5px; font-weight: 700; color: var(--text); margin-top: 3px; }
+.decision-modal-sum-v.mono { font-family: var(--mono); font-size: 11.5px; font-weight: 600; }
+.decision-modal-warn {
+  display: flex; align-items: flex-start; gap: 8px;
+  background: var(--amber-soft); color: #8A5A00; border: 1px solid #F3D7A3;
+  border-radius: 9px; padding: 9px 10px; font-size: 12px; line-height: 1.5; margin-bottom: 12px;
+}
+.decision-modal-warn svg { flex-shrink: 0; margin-top: 1px; }
+.decision-modal-comment { min-height: 92px; resize: vertical; }
+.decision-modal-counter { font-size: 11px; font-weight: 600; color: var(--text-faint); margin: 4px 0 12px; text-align: right; }
+.decision-modal-counter[data-state="short"] { color: var(--amber); }
+.decision-modal-counter[data-state="ok"] { color: var(--green); }
+.decision-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.decision-trail { margin-top: 14px; }
+.decision-trail-row { padding: 8px 0; border-top: 1px solid var(--border); }
+.decision-trail-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.decision-trail-user { font-size: 12.5px; font-weight: 700; color: var(--text); }
+.decision-trail-at { font-size: 11px; color: var(--text-faint); margin-left: auto; }
+.decision-trail-comment { font-size: 12px; color: var(--text-soft); line-height: 1.5; margin-top: 5px; }

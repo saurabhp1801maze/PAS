@@ -62,15 +62,32 @@
     });
     right.push(effWrap);
     if (!canIssue) right.push(ui.h("div", { class: "mt-12" }, ui.callout("bad", "Issue is blocked. Cover stays provisional under the binder until every gate clears.")));
+    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, null))));
 
-    function doIssue() {
-      return PAS.api.call("POST", "/api/v1/policies/" + p.id + "/issue", { generateDocuments: true },
+    function flash(action) {
+      return { title: action + " recorded", detail: p.id, tone: action === "Issue" ? "green" : "blue" };
+    }
+    function doIssue(comment) {
+      var audit = PAS.makeAudit("Issue", comment);
+      return PAS.api.call("POST", "/api/v1/policies/" + p.id + "/issue", { generateDocuments: true, note: comment },
         { module: "Issuance", policyId: p.id, statusCode: 200, label: "Issue policy — " + p.holder, response: { policyNumber: p.id, status: "active", documents: ["policy-schedule-v1.pdf", "certificate-of-insurance-v1.pdf"], events: ["policyIssued"] } })
-        .then(function () { PAS.issuePolicy(p.id); location.href = "issue.html"; });
+        .then(function () {
+          PAS.issuePolicy(p.id, audit);
+          ui.flashThenGo("issue.html", flash("Issue"));
+        });
+    }
+    function hold(action) {
+      return function (comment) {
+        PAS.recordHeldDecision(p.id, null, action, comment, "Issuance");
+        ui.renderToast(flash(action));
+        render();
+      };
     }
 
     page.appendChild(ui.decisionLayout(left, right, [
-      { label: "Issue policy & generate documents", tone: "primary", icon: "file-check-2", onRun: doIssue, disabled: !canIssue, disabledReason: unmet.length ? ("Outstanding subjectivity: " + unmet.map(function (s) { return s.label; }).join(", ")) : "An issue gate has not passed." },
+      ui.confirmable(p.id, "—", "Issue", { label: "Issue policy & generate documents", tone: "primary", icon: "file-check-2", onRun: doIssue, disabled: !canIssue, disabledReason: unmet.length ? ("Outstanding subjectivity: " + unmet.map(function (s) { return s.label; }).join(", ")) : "An issue gate has not passed." }),
+      ui.confirmable(p.id, "—", "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
+      ui.confirmable(p.id, "—", "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("issue-desk", page));

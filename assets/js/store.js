@@ -1016,10 +1016,79 @@
     return Object.assign({}, p, { history: p.history.concat([entry]) });
   }
 
+  /* ---------- decision audit (who / when / action / comment) ---------- */
+  PAS.COMMENT_MIN_RECOMMENDED = 20;
+  PAS.actorName = function () {
+    var spec = ROLES[PAS.getRole()];
+    return (spec && spec.identity) || "You";
+  };
+  PAS.makeAudit = function (action, comment) {
+    return {
+      at: new Date().toISOString(),
+      user: PAS.actorName(),
+      action: action,
+      comment: String(comment || "").trim(),
+    };
+  };
+  function withAudit(h, audit, extra) {
+    extra = extra || {};
+    var meta = Object.assign({}, h.meta, extra.meta || {});
+    if (audit) {
+      meta.decisionHistory = ((h.meta && h.meta.decisionHistory) || []).concat([audit]);
+      meta.lastDecision = audit;
+    }
+    var next = Object.assign({}, h, extra, { meta: meta });
+    if (audit) { next.user = audit.user; next.approvedBy = audit.user; }
+    return next;
+  }
+  PAS.decisionTrailFor = function (p, txnId) {
+    if (txnId) {
+      var held = p.history.find(function (h) { return h.id === txnId; });
+      return (held && held.meta && held.meta.decisionHistory) || [];
+    }
+    return p.history.reduce(function (acc, h) {
+      if (h.meta && h.meta.noteOnly && h.meta.audit) acc.push(h.meta.audit);
+      return acc;
+    }, []);
+  };
+  /* Escalate / Request More Information: stamp the held row, append a completed note, leave status Pending. */
+  PAS.recordHeldDecision = function (id, txnId, action, comment, typeHint) {
+    var audit = PAS.makeAudit(action, comment);
+    return patch(id, function (p) {
+      var held = txnId ? p.history.find(function (h) { return h.id === txnId; }) : null;
+      var history = held
+        ? p.history.map(function (h) { return h.id === txnId ? withAudit(h, audit) : h; })
+        : p.history;
+      return pushTxn(Object.assign({}, p, { history: history }), {
+        date: todayISO(), type: (held && held.type) || typeHint || "Underwriting",
+        title: ((held && held.type) || typeHint || "Underwriting") + ": " + action,
+        detail: audit.comment, user: audit.user,
+        meta: { audit: audit, noteOnly: true },
+      });
+    });
+  };
+  var FLASH_KEY = "pas.flash.v1";
+  PAS.setFlash = function (note) {
+    try { sessionStorage.setItem(FLASH_KEY, JSON.stringify(note)); } catch (e) { /* ignore */ }
+  };
+  PAS.takeFlash = function () {
+    var raw;
+    try { raw = sessionStorage.getItem(FLASH_KEY); sessionStorage.removeItem(FLASH_KEY); } catch (e) { return null; }
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch (e) { return null; }
+  };
+  PAS.DECISION_WARNINGS = {
+    Approve: "This applies the decision to the policy. It cannot be easily undone — a reversal is a new compensating ledger entry and does not unwind premium or status automatically.",
+    Decline: "This rejects the request. The policy is left as it stands. The comment is retained for disclosure and audit and cannot be edited later.",
+    Escalate: "This does not decide the file. It records an escalation to a senior underwriter and leaves the request pending.",
+    "Request More Information": "This does not decide the file. It records a request for information and leaves the request pending until the file is complete.",
+    Issue: "Issuing creates the formal contract and generates documents. Cover moves from provisional to in-force. This cannot be easily reversed.",
+  };
+
   PAS.getPolicies = loadPolicies;
   PAS.getPolicy = function (id) { return loadPolicies().find(function (p) { return p.id === id; }); };
   PAS.resetDemoData = function () {
-    try { sessionStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem("pas.api.v1"); } catch (e) { /* ignore */ }
+    try { sessionStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem("pas.api.v1"); sessionStorage.removeItem(FLASH_KEY); } catch (e) { /* ignore */ }
     location.href = "index.html";
   };
   PAS.pendingOf = function (policies, type) {
@@ -1067,11 +1136,17 @@
     });
   }
   PAS.decide = function (id, outcome, meta) {
+    meta = meta || {};
+    var audit = meta.audit || (meta.note ? PAS.makeAudit(outcome, meta.note) : PAS.makeAudit(outcome, ""));
     return patch(id, function (p) {
       var withCompleted = Object.assign({}, p, {
-        history: p.history.map(function (h) { return (h.status === "Pending" && h.type === "Underwriting") ? Object.assign({}, h, { status: "Completed" }) : h; }),
+        history: p.history.map(function (h) {
+          return (h.status === "Pending" && h.type === "Underwriting")
+            ? withAudit(h, audit, { status: "Completed" })
+            : h;
+        }),
       });
-      var t = pushTxn(withCompleted, { date: todayISO(), type: "Underwriting", title: "Underwriting: " + outcome, detail: meta.note || ("Decided by underwriter. Score " + meta.score + ", " + meta.tier + "."), meta: meta });
+      var t = pushTxn(withCompleted, { date: todayISO(), type: "Underwriting", title: "Underwriting: " + outcome, detail: audit.comment || ("Decided by underwriter. Score " + meta.score + ", " + meta.tier + "."), user: audit.user, meta: Object.assign({}, meta, { audit: audit }) });
       if (outcome === "Approve") {
         var bound = Object.assign({}, t, { status: "Bound", binder: { number: uid("BN"), boundOn: todayISO(), expiryDate: addDays(todayISO(), 30), subjectivities: [{ label: "Signed proposal form", met: true }] } });
         return issueGatesPass(bound) ? doIssue(bound, true) : bound;
@@ -1080,8 +1155,17 @@
       return t;
     });
   };
-  PAS.issuePolicy = function (id) {
-    return patch(id, function (p) { return doIssue(p, false); });
+  PAS.issuePolicy = function (id, audit) {
+    return patch(id, function (p) {
+      var issued = doIssue(p, false);
+      if (!audit) return issued;
+      var last = issued.history[issued.history.length - 1];
+      return Object.assign({}, issued, {
+        history: issued.history.map(function (h, i) {
+          return i === issued.history.length - 1 ? withAudit(h, audit, { detail: audit.comment ? (last.detail + " " + audit.comment) : last.detail }) : h;
+        }),
+      });
+    });
   };
   PAS.toggleSubjectivity = function (id, i) {
     return patch(id, function (p) {
@@ -1103,15 +1187,17 @@
         meta: Object.assign({}, meta, { submittedOn: submittedOn }) });
     });
   };
-  PAS.decideCancellation = function (id, txnId, approve, effDate, q) {
+  PAS.decideCancellation = function (id, txnId, approve, effDate, q, audit) {
     return patch(id, function (p) {
       var history = p.history.map(function (h) {
         if (h.id !== txnId) return h;
-        return Object.assign({}, h, {
-          status: approve ? "Completed" : "Rejected", date: effDate, approvedBy: "You",
+        var detail = approve ? ("Approved. " + q.type + " basis, effective " + effDate + ". Refund " + money(q.refund) + ".") : ("Declined. Policy remains ACTIVE. " + h.detail);
+        if (audit && audit.comment) detail += " " + audit.comment;
+        return withAudit(h, audit, {
+          status: approve ? "Completed" : "Rejected", date: effDate,
           title: approve ? "Cancellation approved" : "Cancellation declined",
-          detail: approve ? ("Approved. " + q.type + " basis, effective " + effDate + ". Refund " + money(q.refund) + ".") : ("Declined. Policy remains ACTIVE. " + h.detail),
-          meta: Object.assign({}, h.meta, { cancelType: q.type, refund: Math.round(q.refund) }),
+          detail: detail,
+          meta: { cancelType: q.type, refund: Math.round(q.refund) },
         });
       });
       if (!approve) return Object.assign({}, p, { history: history });
@@ -1119,29 +1205,33 @@
         documents: (p.documents || []).concat([{ id: uid("DOC"), name: "Cancellation notice", version: 1, generatedAt: todayISO(), type: "Notice" }]) });
     });
   };
-  PAS.decideReinstatement = function (id, txnId, approve, m) {
+  PAS.decideReinstatement = function (id, txnId, approve, m, audit) {
     return patch(id, function (p) {
       var history = p.history.map(function (h) {
         if (h.id !== txnId) return h;
-        return Object.assign({}, h, {
-          status: approve ? "Completed" : "Rejected", approvedBy: "You",
+        var detail = approve ? ("Reinstated after a " + m.gapDays + "-day lapse. Outstanding premium collected: " + money(m.outstanding) + ". Gap disclosure issued.") : ("Declined. Policy remains Cancelled. " + h.detail);
+        if (audit && audit.comment) detail += " " + audit.comment;
+        return withAudit(h, audit, {
+          status: approve ? "Completed" : "Rejected",
           title: approve ? "Policy reinstated" : "Reinstatement declined",
-          detail: approve ? ("Reinstated after a " + m.gapDays + "-day lapse. Outstanding premium collected: " + money(m.outstanding) + ". Gap disclosure issued.") : ("Declined. Policy remains Cancelled. " + h.detail),
-          meta: Object.assign({}, h.meta, m),
+          detail: detail,
+          meta: m,
         });
       });
       return approve ? Object.assign({}, p, { history: history, status: "Active" }) : Object.assign({}, p, { history: history });
     });
   };
-  PAS.decideRenewal = function (id, txnId, approve, prem) {
+  PAS.decideRenewal = function (id, txnId, approve, prem, audit) {
     return patch(id, function (p) {
       var history = p.history.map(function (h) {
         if (h.id !== txnId) return h;
-        return Object.assign({}, h, {
-          status: approve ? "Completed" : "Rejected", approvedBy: "You",
+        var detail = approve ? ("Re-underwritten and renewed. Premium " + money(p.premium) + " → " + money(prem) + ".") : ("Declined. " + RENEWAL_LEAD_DAYS + "-day non-renewal notice served.");
+        if (audit && audit.comment) detail += " " + audit.comment;
+        return withAudit(h, audit, {
+          status: approve ? "Completed" : "Rejected",
           title: approve ? ("Renewed into term " + (p.termNumber + 1)) : "Renewal declined — non-renewed",
-          detail: approve ? ("Re-underwritten and renewed. Premium " + money(p.premium) + " → " + money(prem) + ".") : ("Declined. " + RENEWAL_LEAD_DAYS + "-day non-renewal notice served."),
-          meta: Object.assign({}, h.meta, { previousPremium: p.premium, newPremium: prem }),
+          detail: detail,
+          meta: { previousPremium: p.premium, newPremium: prem },
         });
       });
       if (approve) {
@@ -1162,16 +1252,18 @@
      continuity chain the append-only ledger exists to preserve. */
   var TRANSFER_REASONS = ["Business Sale", "Ownership Change", "Estate/Inheritance", "Other"];
   PAS.TRANSFER_REASONS = TRANSFER_REASONS;
-  PAS.decideTransfer = function (id, txnId, approve, newHolder) {
+  PAS.decideTransfer = function (id, txnId, approve, newHolder, audit) {
     return patch(id, function (p) {
       var prevHolder = p.holder;
       var history = p.history.map(function (h) {
         if (h.id !== txnId) return h;
-        return Object.assign({}, h, {
-          status: approve ? "Completed" : "Rejected", approvedBy: "You",
+        var detail = approve ? ("Named insured changed from \"" + prevHolder + "\" to \"" + newHolder + "\". Continuity preserved — same policy ID, same term, same ledger.") : ("Declined. Policy remains held by \"" + prevHolder + "\". " + h.detail);
+        if (audit && audit.comment) detail += " " + audit.comment;
+        return withAudit(h, audit, {
+          status: approve ? "Completed" : "Rejected",
           title: approve ? ("Transferred to " + newHolder) : "Transfer declined",
-          detail: approve ? ("Named insured changed from \"" + prevHolder + "\" to \"" + newHolder + "\". Continuity preserved — same policy ID, same term, same ledger.") : ("Declined. Policy remains held by \"" + prevHolder + "\". " + h.detail),
-          meta: Object.assign({}, h.meta, { previousHolder: prevHolder, newHolder: newHolder }),
+          detail: detail,
+          meta: { previousHolder: prevHolder, newHolder: newHolder },
         });
       });
       if (!approve) return Object.assign({}, p, { history: history });
@@ -1191,7 +1283,7 @@
       return Object.assign({}, p, { documents: (p.documents || []).concat([{ id: uid("DOC"), name: name, version: (p.documents || []).filter(function (d) { return d.name === name; }).length + 1, generatedAt: todayISO(), type: type }]) });
     });
   };
-  PAS.decideTxn = function (pid, tid, ok) {
+  PAS.decideTxn = function (pid, tid, ok, audit) {
     return patch(pid, function (p) {
       var held = p.history.find(function (h) { return h.id === tid; });
       if (!held) return p;
@@ -1200,9 +1292,12 @@
         ? ("Approved and applied." + (premiumDelta ? (" Premium adjusted " + (premiumDelta >= 0 ? "+" : "") + money(premiumDelta) + ".") : ""))
         : "Declined.";
       var detail = /HELD[^.]*\./.test(held.detail) ? held.detail.replace(/HELD[^.]*\./, outcomeText) : (held.detail + " " + outcomeText);
+      if (audit && audit.comment) detail += " " + audit.comment;
       return Object.assign({}, p, {
         premium: p.premium + premiumDelta,
-        history: p.history.map(function (h) { return h.id === tid ? Object.assign({}, h, { status: ok ? "Completed" : "Rejected", approvedBy: "Senior UW", detail: detail }) : h; }),
+        history: p.history.map(function (h) {
+          return h.id === tid ? withAudit(h, audit, { status: ok ? "Completed" : "Rejected", detail: detail }) : h;
+        }),
       });
     });
   };

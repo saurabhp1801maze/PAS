@@ -194,8 +194,18 @@
         }
         btn.addEventListener("click", function () {
           if (a.disabled || busy) return;
-          busy = a.label; render();
-          Promise.resolve(a.onRun()).then(function () { busy = null; render(); }).catch(function (err) { busy = null; render(); console.error(err); });
+          function go(comment) {
+            busy = a.label; render();
+            Promise.resolve(a.onRun(comment)).then(function () { busy = null; render(); }).catch(function (err) { busy = null; render(); console.error(err); });
+          }
+          if (a.confirm) {
+            confirmDecision(Object.assign({ tone: a.tone }, a.confirm)).then(function (comment) {
+              if (comment == null) return;
+              go(comment);
+            });
+            return;
+          }
+          go();
         });
         bar.appendChild(a.disabled && a.disabledReason ? tooltip({ rule: a.disabledReason, width: 290 }, btn) : btn);
       });
@@ -371,6 +381,122 @@
     wrap.appendChild(rightWrap);
     return wrap;
   }
+  /* Confirmation modal for every desk decision. Resolves with the comment, or null if cancelled. */
+  function confirmDecision(opts) {
+    return new Promise(function (resolve) {
+      var existing = document.querySelector ? document.querySelector(".decision-modal-overlay") : null;
+      if (existing && existing.parentNode) existing.parentNode.removeChild(existing);
+
+      var minRec = PAS.COMMENT_MIN_RECOMMENDED || 20;
+      var action = opts.action || "Confirm";
+      var tone = opts.tone || (action === "Decline" ? "red" : action === "Approve" || action === "Issue" ? "green" : "indigo");
+      var warning = opts.warning || (PAS.DECISION_WARNINGS && PAS.DECISION_WARNINGS[action]) || "This action is recorded permanently and cannot be easily reversed.";
+
+      var overlay = h("div", { class: "decision-modal-overlay", role: "presentation" });
+      var modal = h("div", { class: "decision-modal", role: "dialog", "aria-modal": "true", "aria-labelledby": "decision-modal-title" });
+
+      var head = h("div", { class: "decision-modal-head" });
+      head.appendChild(h("div", { class: "decision-modal-kicker" }, "Confirm decision"));
+      head.appendChild(h("h2", { class: "decision-modal-title", id: "decision-modal-title" }, action));
+      modal.appendChild(head);
+
+      var summary = h("div", { class: "decision-modal-summary" });
+      [["Policy No.", opts.policyNo || "—"], ["Transaction No.", opts.txnNo || "—"], ["Action", action]].forEach(function (pair) {
+        var cell = h("div", { class: "decision-modal-sum-cell" });
+        cell.appendChild(h("div", { class: "decision-modal-sum-k" }, pair[0]));
+        cell.appendChild(h("div", { class: "decision-modal-sum-v" + (pair[0] === "Action" ? "" : " mono") }, pair[1]));
+        summary.appendChild(cell);
+      });
+      modal.appendChild(summary);
+
+      var warn = h("div", { class: "decision-modal-warn" });
+      warn.appendChild(PAS.icon("alert-triangle", { size: 14 }));
+      warn.appendChild(h("span", {}, warning));
+      modal.appendChild(warn);
+
+      var ta = h("textarea", {
+        class: "field-input decision-modal-comment",
+        rows: "4",
+        maxlength: "2000",
+        placeholder: "Comment is required. State the reason for this decision (minimum " + minRec + " characters recommended)…",
+      });
+      var counter = h("div", { class: "decision-modal-counter" });
+      var btnTone = (tone === "red" || tone === "green" || tone === "primary") ? tone : "primary";
+      var confirmBtn = h("button", { class: "btn tone-" + btnTone, type: "button", disabled: true }, "Confirm");
+      function sync() {
+        var n = ta.value.trim().length;
+        var ok = n > 0;
+        confirmBtn.disabled = !ok;
+        counter.textContent = n + " / " + minRec + " recommended";
+        counter.setAttribute("data-state", n === 0 ? "empty" : n < minRec ? "short" : "ok");
+      }
+      ta.addEventListener("input", sync);
+      ta.addEventListener("keydown", function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && !confirmBtn.disabled) confirmBtn.click();
+      });
+
+      modal.appendChild(field({ label: "Decision comment", hint: "Stored on the ledger with your name and the time of confirmation. Required." }, ta));
+      modal.appendChild(counter);
+
+      var actions = h("div", { class: "decision-modal-actions" });
+      var cancelBtn = h("button", { class: "btn", type: "button" }, "Cancel");
+      actions.appendChild(confirmBtn);
+      actions.appendChild(cancelBtn);
+      modal.appendChild(actions);
+
+      overlay.appendChild(modal);
+      document.body.appendChild(overlay);
+      sync();
+      setTimeout(function () { if (ta.focus) ta.focus(); }, 0);
+
+      var settled = false;
+      function close(value) {
+        if (settled) return;
+        settled = true;
+        document.removeEventListener("keydown", onKey);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        resolve(value);
+      }
+      function onKey(e) { if (e.key === "Escape") close(null); }
+      document.addEventListener("keydown", onKey);
+      overlay.addEventListener("click", function (e) { if (e.target === overlay) close(null); });
+      cancelBtn.addEventListener("click", function () { close(null); });
+      confirmBtn.addEventListener("click", function () {
+        var comment = ta.value.trim();
+        if (!comment) return;
+        close(comment);
+      });
+    });
+  }
+  function confirmable(policyNo, txnNo, action, spec) {
+    return Object.assign({}, spec, {
+      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning },
+    });
+  }
+  function decisionTrail(rows) {
+    var wrap = h("div", { class: "decision-trail" });
+    wrap.appendChild(tipLabel({ text: "Decision history", what: "Every confirmation on this file: who acted, what they chose, and the comment they gave.", why: "Required for audit — a decision without a named actor and a written reason is not a decision.", className: "label-11 block mb-9" }));
+    if (!rows || rows.length === 0) {
+      wrap.appendChild(h("div", { class: "faint-note" }, "No confirmed decisions on this request yet."));
+      return wrap;
+    }
+    rows.slice().reverse().forEach(function (a) {
+      var row = h("div", { class: "decision-trail-row" });
+      var head = h("div", { class: "decision-trail-head" });
+      head.appendChild(h("span", { class: "decision-trail-user" }, a.user));
+      head.appendChild(pill(a.action === "Decline" ? "red" : a.action === "Approve" || a.action === "Issue" ? "green" : "amber", a.action));
+      head.appendChild(h("span", { class: "decision-trail-at" }, a.at ? new Date(a.at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""));
+      row.appendChild(head);
+      row.appendChild(h("div", { class: "decision-trail-comment" }, a.comment || "—"));
+      wrap.appendChild(row);
+    });
+    return wrap;
+  }
+  function flashThenGo(href, note) {
+    PAS.setFlash(note);
+    location.href = href;
+  }
+
   function decisionLayout(leftNode, rightNode, actions) {
     var wrap = h("div", { class: "decision-layout" });
     var grid = h("div", { class: "decision-grid" });
@@ -632,7 +758,7 @@
     codeBlock: codeBlock, dataTable: dataTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
     backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow,
     callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
-    decisionLayout: decisionLayout, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
+    decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
     renderToast: renderToast, notifRow: notifRow, lifecycleStage: lifecycleStage,
     apiLifecycle: apiLifecycle, screen: screen, TONE_HEX: TONE_HEX,
   };

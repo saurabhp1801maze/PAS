@@ -195,7 +195,7 @@ console.log("\n  content spot-checks");
   ["api-reference", ["Idempotency-Key", "policyCancelled", "412", "at-least-once"]],
   ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected carriers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
-  ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Retention", "Reinstated", "Cancelled", "Awaiting decision", "Monthly", "Yearly", "New business issued", "Cancelled policy requests"]],
+  ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Endorsement requests", "Reinstated", "Cancelled", "Awaiting decision", "Monthly", "Yearly", "New business issued", "Cancelled policy requests"]],
   ["cancellation", ["Auto-cancelled (non-payment)", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason"]],
 ].forEach(function (c) {
   var txt = renderText(c[0]);
@@ -231,9 +231,9 @@ console.log("\n  reinstatement-decision: original cancellation's Initiated By + 
    - F-15 (double-counted "Awaiting decision") must stay fixed.
    - F-16 (mislabeled GWP + hardcoded retention/deltas) must stay fixed.
    - The redesign that replaced the sectioned KPI groups with a single 8-card strip (Total/Active/
-     Renewed/Expiring soon/Retention/Reinstated/Cancelled/Awaiting decision) plus the Monthly/
-     Yearly period toggle and the 4 "open desk" work-cards must not silently regress to the
-     previous layout. */
+     Renewed/Expiring soon/Endorsement requests/Reinstated/Cancelled/Awaiting decision) plus the
+     Monthly/Yearly period toggle and the 4 "open desk" work-cards must not silently regress to
+     the previous layout. */
 console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
 (function () {
   var txt = renderText("dashboard");

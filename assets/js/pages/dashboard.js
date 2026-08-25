@@ -284,22 +284,22 @@
       var cancelled = countTxns("Cancellation", "Completed");
       var reinstated = countTxns("Reinstatement", "Completed");
       var expiring = active.filter(function (p) { return periodMatches(p.expirationDate); }).length;
-      var decidedRenewals = renewed + countTxns("Renewal", "Rejected");
       var periodNote = periodNoteText();
-      var retentionLabel, retentionTone;
-      if (decidedRenewals === 0) { retentionLabel = "—"; retentionTone = "gray"; }
-      else { var pct = Math.round((renewed / decidedRenewals) * 100); retentionLabel = pct + "%"; retentionTone = pct >= 90 ? "green" : pct >= 70 ? "amber" : "red"; }
+      /* Not period-scoped, same reasoning as Awaiting decision below — it's the live count of
+         requests sitting in the Endorsement desk's queue right now, not a completed-this-period
+         figure. */
+      var endorsementPending = PAS.pendingOf(policies, "Endorsement").length;
 
       kpiContainer.innerHTML = "";
       kpiContainer.appendChild(ui.kpiRow([
-        { label: "Total policies", value: policies.length, tip: "Every record in the register" + filterNote() + ".", why: "Portfolio size — not period-scoped, the book has no past-state snapshots to filter this against." },
-        { label: "Active policies", value: active.length, tone: "green", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
-        { label: "Renewed", value: renewed, tone: "blue", tip: "Renewals completed " + periodNote + "." },
-        { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", tip: "Active policies whose term ends " + periodNote + "." },
-        { label: "Retention", value: retentionLabel, tone: retentionTone, tip: decidedRenewals === 0 ? ("No renewals decided " + periodNote + ".") : ("Completed ÷ (completed + declined) " + periodNote + " — " + renewed + " completed, " + (decidedRenewals - renewed) + " declined.") },
-        { label: "Reinstated", value: reinstated, tone: reinstated > 0 ? "green" : "gray", tip: "Reinstatements completed " + periodNote + "." },
-        { label: "Cancelled", value: cancelled, tone: cancelled > 0 ? "red" : "gray", tip: "Cancellations completed " + periodNote + "." },
-        { label: "Awaiting decision", value: awaitingDecision, tone: "red", tip: "Pending transactions (" + pending.length + ") plus bound policies awaiting issue (" + bound.length + ") — counted once each.", why: "Operational queue, not period-scoped: it's what needs action right now, regardless of which period you're viewing." },
+        { label: "Total policies", value: policies.length, href: "registry.html", tip: "Every record in the register" + filterNote() + ".", why: "Portfolio size — not period-scoped, the book has no past-state snapshots to filter this against." },
+        { label: "Active policies", value: active.length, tone: "green", href: "registry.html", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
+        { label: "Renewed", value: renewed, tone: "blue", href: "renewal.html", tip: "Renewals completed " + periodNote + "." },
+        { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: "Active policies whose term ends " + periodNote + "." },
+        { label: "Endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html", tip: "Endorsement requests awaiting decision, right now.", why: "Operational queue, not period-scoped — same reasoning as Awaiting decision." },
+        { label: "Reinstated", value: reinstated, tone: reinstated > 0 ? "green" : "gray", href: "reinstatement.html", tip: "Reinstatements completed " + periodNote + "." },
+        { label: "Cancelled", value: cancelled, tone: cancelled > 0 ? "red" : "gray", href: "cancellation.html", tip: "Cancellations completed " + periodNote + "." },
+        { label: "Awaiting decision", value: awaitingDecision, tone: "red", href: "approvals.html", tip: "Pending transactions (" + pending.length + ") plus bound policies awaiting issue (" + bound.length + ") — counted once each.", why: "Operational queue, not period-scoped: it's what needs action right now, regardless of which period you're viewing." },
       ], true));
     }
 

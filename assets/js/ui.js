@@ -151,15 +151,24 @@
   /* wrap: true switches from an exact N-column grid (fine for the usual 4-item desk strip) to a
      responsive auto-fit grid that wraps onto a second row once cards no longer fit — needed once
      a KPI strip grows past what one row can hold at a readable width. */
+  /* opts.href turns a card into a real link to the desk that count belongs to — not just a
+     number, a way to act on it. Kept keyboard-accessible (role=link, tabindex, Enter/Space) since
+     it's a div, not a native <a>. */
   function kpiRow(items, wrap) {
     var row = h("div", { class: "kpi-row" + (wrap ? " wrap" : ""), style: wrap ? {} : { gridTemplateColumns: "repeat(" + items.length + ",minmax(0,1fr))" } });
     items.forEach(function (s) {
-      var card = h("div", { class: "kpi-card" });
+      var card = h("div", { class: "kpi-card" + (s.href ? " clickable" : "") });
       card.appendChild(s.tip || s.why ? tooltip({ tip: s.tip, why: s.why }, [h("span", { class: "label-11 kpi-label" }, s.label), infoDot(10)]) : h("div", { class: "label-11 kpi-label" }, s.label));
       var valueRow = h("div", { class: "kpi-value-row" });
       valueRow.appendChild(h("span", { class: "kpi-value" + (s.tone ? " toned" : ""), "data-tone": s.tone || null }, String(s.value)));
       if (s.delta) valueRow.appendChild(h("span", { class: "kpi-delta " + (s.delta.indexOf("+") === 0 ? "up" : "down") }, s.delta));
       card.appendChild(valueRow);
+      if (s.href) {
+        card.setAttribute("role", "link");
+        card.setAttribute("tabindex", "0");
+        card.addEventListener("click", function () { location.href = s.href; });
+        card.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); location.href = s.href; } });
+      }
       row.appendChild(card);
     });
     return row;

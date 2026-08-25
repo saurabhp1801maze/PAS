@@ -129,14 +129,20 @@
         { label: "Reason", what: "What the requester gave as their reason.", why: "Drives the default type and the notice period." },
         { label: "Type", what: "The derived refund basis — Reason plus Initiated By, never hand-picked." },
         { label: "Timing", what: "Immediate if the effective date is today or past, Future/Scheduled otherwise." },
-        { label: "Submitted", what: "When the request arrived." }, ""],
+        { label: "Submitted", what: "When the request arrived." },
+        { label: "Premium", what: "Refund due if this request is approved.", why: "Same live quote shown as Refund due on the decision screen — derived from type, term dates and effective date." },
+        ""],
       rows: pend.map(function (t) {
         var meta = t.h.meta || {};
-        var atInception = t.h.date <= t.p.effectiveDate;
-        var type = PAS.deriveCancelType(meta.reason, meta.initiatedBy, atInception);
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(meta), meta.reason || "—",
-          ui.pill(PAS.CANCEL_TYPES[type].tone, type), PAS.cancelTiming(t.h.date),
-          meta.submittedOn || t.h.date, ui.cellOpen("Review")];
+        var reason = meta.reason || "Insured Request";
+        var initiatedBy = meta.initiatedBy || "Insured";
+        var effDate = t.h.date || PAS.todayISO();
+        var atInception = effDate <= t.p.effectiveDate;
+        var type = PAS.deriveCancelType(reason, initiatedBy, atInception);
+        var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate);
+        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(meta), reason,
+          ui.pill(PAS.CANCEL_TYPES[type].tone, type), PAS.cancelTiming(effDate),
+          meta.submittedOn || t.h.date, PAS.money(Math.round(quote.refund)), ui.cellOpen("Review")];
       }),
       emptyText: "No cancellation requests awaiting decision.",
       wrapCells: true,

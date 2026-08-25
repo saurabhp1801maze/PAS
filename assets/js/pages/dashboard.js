@@ -456,15 +456,6 @@
     twoCol.appendChild(compPanel);
     page.appendChild(twoCol);
 
-    /* Full-width, not squeezed into the composition card above: a policy with an open Renewal/
-       Endorsement/Cancellation/Reinstatement/Transfer request is still "Active" (or "Cancelled",
-       for a reinstatement request) by status, so the donut above can't surface it — this strip
-       can. Its own row so a wide 5-pill wrap doesn't fight the two-col grid's height-matching
-       with its sibling donut card. */
-    var pendingPanel = ui.panel({ title: "In motion right now", what: "Policies with an open held transaction, by type.", why: "What's actively being worked right now, not just where each policy sits." }, []);
-    var pendingBody = pendingPanel.querySelector(".panel-body");
-    page.appendChild(pendingPanel);
-
     /* Top 3 by in-force premium for each of the three distribution dimensions this dashboard
        now filters by — Broker, MGA, Carrier. Each is capped at 3 with a "See N others" toggle
        rather than always listing every one, so a long tail of low-volume producers can't push
@@ -534,27 +525,6 @@
           { label: "Non-renewed", value: nonRenewed.length, tone: "indigo" },
         ],
       }));
-
-      /* Counts, not another mutually-exclusive bucket set — a policy can only ever carry one open
-         held transaction at a time in this domain model (decideXxx always resolves the prior one
-         before a new one is logged), so there's no double-count risk in listing all five. */
-      var pendingTypes = [
-        { type: "Renewal", label: "Renewal requested", tone: "blue" },
-        { type: "Endorsement", label: "Endorsement requested", tone: "indigo" },
-        { type: "Cancellation", label: "Cancellation requested", tone: "red" },
-        { type: "Reinstatement", label: "Reinstatement requested", tone: "green" },
-        { type: "Transfer", label: "Transfer requested", tone: "amber" },
-      ];
-      var pendingRows = pendingTypes.map(function (pt) {
-        return { label: pt.label, tone: pt.tone, n: txnsOfType(policies, pt.type, "Pending").length };
-      }).filter(function (r) { return r.n > 0; });
-      pendingBody.innerHTML = "";
-      if (pendingRows.length === 0) pendingBody.appendChild(ui.h("div", { class: "faint-note" }, "No open Renewal, Endorsement, Cancellation, Reinstatement or Transfer requests in this filter."));
-      else {
-        var pendingWrap = ui.h("div", { style: { display: "flex", flexWrap: "wrap", gap: "6px" } });
-        pendingRows.forEach(function (r) { pendingWrap.appendChild(ui.pill(r.tone, r.label + " · " + r.n)); });
-        pendingBody.appendChild(pendingWrap);
-      }
 
       var renewalSorted = active.slice().sort(function (a, b) { return PAS.daysBetween(PAS.todayISO(), a.expirationDate) - PAS.daysBetween(PAS.todayISO(), b.expirationDate); });
       renewalBody.innerHTML = "";

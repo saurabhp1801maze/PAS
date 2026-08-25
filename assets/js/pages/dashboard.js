@@ -112,8 +112,18 @@
     var lobFilter = [], stateFilter = [], brokerFilter = [], mgaFilter = [], carrierFilter = [];
     var lobOptions = Array.from(new Set(allPolicies.map(function (p) { return p.product; }))).sort();
     var stateOptions = Array.from(new Set(allPolicies.map(function (p) { return p.state; }).filter(Boolean))).sort();
-    var brokerOptions = Array.from(new Set(allPolicies.map(function (p) { return p.producer; }).filter(Boolean))).sort();
-    var mgaOptions = Array.from(new Set(allPolicies.map(function (p) { return p.mga; }).filter(Boolean))).sort();
+    /* Broker and MGA options carry their type (Individual vs Organization — "Direct" isn't a
+       producer at all, so it gets no type suffix) alongside the plain name, so the filter panel
+       shows which kind of entity each one is. `value` stays the plain name so matching against
+       `p.producer`/`p.mga` (both plain strings) needs no other changes. */
+    function typedLabel(name, typeMap) {
+      var t = typeMap[name];
+      return (t && t !== "Direct") ? name + " (" + t + ")" : name;
+    }
+    var brokerOptions = Array.from(new Set(allPolicies.map(function (p) { return p.producer; }).filter(Boolean))).sort()
+      .map(function (name) { return { value: name, label: typedLabel(name, PAS.BROKER_TYPE) }; });
+    var mgaOptions = Array.from(new Set(allPolicies.map(function (p) { return p.mga; }).filter(Boolean))).sort()
+      .map(function (name) { return { value: name, label: typedLabel(name, PAS.MGA_TYPE) }; });
     var carrierOptions = Array.from(new Set(allPolicies.map(function (p) { return p.carrier; }).filter(Boolean))).sort();
 
     function matchesMulti(selected, value) { return selected.length === 0 || selected.indexOf(value) !== -1; }

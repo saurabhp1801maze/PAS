@@ -339,13 +339,34 @@
   PAS.PRODUCT_CARRIER = PRODUCT_CARRIER;
   PAS.CARRIERS = ["Meridian Assurance Co.", "Apex General Insurance", "Horizon Life & Health"];
 
+  /* ---------- brokers: individuals and agencies are both real producers ----------
+     A producer of record is either a licensed individual or an agency/brokerage — the same
+     license-type distinction NIPR's NPN registry makes. `PAS.BROKERS` carries that type so the
+     dashboard filter can show it, not just a flat name list. "Direct" isn't a producer at all
+     (no broker of record placed the business), so it gets its own type rather than being
+     mislabeled Individual or Organization. */
+  PAS.BROKERS = [
+    { name: "Apex Insurance Brokers", type: "Organization" },
+    { name: "Meridian Risk Partners", type: "Organization" },
+    { name: "Diane Kowalski", type: "Individual" },
+    { name: "Trevor Osei", type: "Individual" },
+    { name: "Direct", type: "Direct" },
+  ];
+  var BROKER_TYPE = {};
+  PAS.BROKERS.forEach(function (b) { BROKER_TYPE[b.name] = b.type; });
+  PAS.BROKER_TYPE = BROKER_TYPE;
+
   /* ---------- MGA facilities: a third, genuinely independent dimension ----------
      Broker (`producer`) is who placed the business; Carrier is whose paper it's written on.
-     MGA is the wholesale facility with the binding authority in between — distinct from both,
-     and assigned by the risk's own state region (a real wholesale facility's appetite is
-     usually regional), so it doesn't just re-derive the Broker or Carrier filter under another
-     name. Every state in the seed book falls into exactly one region below; unmapped states
-     fall back to the first facility rather than throwing. */
+     MGA is the wholesale facility with the binding authority in between — distinct from both.
+     Real wholesale distribution has both agency-style facilities and individual MGAs holding
+     their own binding authority, so `PAS.MGAS` carries a type the same way `PAS.BROKERS` does.
+     Assignment is by the risk's own state region for the agency facilities (a real facility's
+     appetite is usually regional) with a deterministic slice of policies (~18%, by a stable hash
+     of the policy id so it's reproducible without a giant static map) routed to one of the two
+     individual MGAs instead — a genuine mix, not just the region lookup relabeled. Every state
+     in the seed book falls into exactly one region below; unmapped states fall back to the first
+     facility rather than throwing. */
   var STATE_REGION = {
     Maine: "Northeast", Massachusetts: "Northeast", "New Jersey": "Northeast", "New York": "Northeast",
     Pennsylvania: "Northeast", Vermont: "Northeast", Connecticut: "Northeast", "New Hampshire": "Northeast", "Rhode Island": "Northeast",
@@ -361,9 +382,25 @@
     Northeast: "Cornerstone MGA Partners", Midwest: "Heartland Underwriting Agency",
     South: "Palmetto Risk Managers", West: "Summit Peak MGA Group",
   };
-  PAS.MGAS = ["Cornerstone MGA Partners", "Heartland Underwriting Agency", "Palmetto Risk Managers", "Summit Peak MGA Group"];
-  function mgaForState(state) { return REGION_MGA[STATE_REGION[state]] || PAS.MGAS[0]; }
-  PAS.mgaForState = mgaForState;
+  var INDIVIDUAL_MGAS = ["Foster Langley", "Renata Solis"];
+  PAS.MGAS = [
+    { name: "Cornerstone MGA Partners", type: "Organization" },
+    { name: "Heartland Underwriting Agency", type: "Organization" },
+    { name: "Palmetto Risk Managers", type: "Organization" },
+    { name: "Summit Peak MGA Group", type: "Organization" },
+    { name: "Foster Langley", type: "Individual" },
+    { name: "Renata Solis", type: "Individual" },
+  ];
+  var MGA_TYPE = {};
+  PAS.MGAS.forEach(function (m) { MGA_TYPE[m.name] = m.type; });
+  PAS.MGA_TYPE = MGA_TYPE;
+  function hash32(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
+  function mgaForPolicy(p) {
+    var h = hash32(p.id);
+    if (h % 100 < 18) return INDIVIDUAL_MGAS[h % INDIVIDUAL_MGAS.length];
+    return REGION_MGA[STATE_REGION[p.state]] || PAS.MGAS[0].name;
+  }
+  PAS.mgaForPolicy = mgaForPolicy;
 
   /* ---------- configurable terms & conditions, per product ----------
      Illustrative standard clauses per product line — real insurance clause *categories*, generic
@@ -542,7 +579,7 @@
   }
   function seedPolicies() {
     var list = fetchSeedRecords();
-    list.forEach(function (p) { p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; p.mga = mgaForState(p.state); });
+    list.forEach(function (p) { p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; p.mga = mgaForPolicy(p); });
     return list;
   }
   PAS.seedPolicies = seedPolicies;

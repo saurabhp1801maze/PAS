@@ -22,20 +22,20 @@
       { label: "Notices", value: docs.filter(function (x) { return x.d.type === "Notice"; }).length, tip: "Cancellation and renewal notices." },
     ]));
 
-    var searchRow = ui.h("div", { class: "search-row" });
-    var searchWrap = ui.h("div", { class: "search-input-wrap" });
+    var toolbar = ui.h("div", { class: "register-toolbar" });
+    var searchWrap = ui.h("div", { class: "register-search" });
     searchWrap.appendChild(PAS.icon("search", { size: 14 }));
-    var searchInput = ui.h("input", { class: "field-input", placeholder: "Search policy or insured" });
+    var searchInput = ui.h("input", { class: "register-search-input", type: "search", placeholder: "Search policy or insured…", autocomplete: "off" });
     searchWrap.appendChild(searchInput);
-    searchRow.appendChild(searchWrap);
+    toolbar.appendChild(searchWrap);
     var typeChipRow = ui.h("div", { class: "chip-row" });
     TYPES.forEach(function (t) {
-      var chip = ui.h("button", { class: "chip" + (typeF === t ? " active" : "") }, t);
+      var chip = ui.h("button", { class: "chip" + (typeF === t ? " active" : ""), type: "button" }, t);
       chip.addEventListener("click", function () { typeF = t; renderChips(); buildTable(); });
       typeChipRow.appendChild(chip);
     });
-    searchRow.appendChild(typeChipRow);
-    page.appendChild(searchRow);
+    toolbar.appendChild(typeChipRow);
+    page.appendChild(toolbar);
     function renderChips() {
       typeChipRow.querySelectorAll(".chip").forEach(function (c, i) { c.classList.toggle("active", TYPES[i] === typeF); });
     }

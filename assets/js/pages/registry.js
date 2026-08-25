@@ -21,42 +21,66 @@
       { label: "Closed", value: policies.filter(function (p) { return ["Cancelled", "Expired", "Non-renewed"].indexOf(p.status) !== -1; }).length, tip: "No longer on risk." },
     ]));
 
-    var searchRow = ui.h("div", { class: "search-row" });
-    var searchWrap = ui.h("div", { class: "search-input-wrap" });
+    var toolbar = ui.h("div", { class: "register-toolbar" });
+
+    var searchWrap = ui.h("div", { class: "register-search" });
     searchWrap.appendChild(PAS.icon("search", { size: 14 }));
-    var searchInput = ui.h("input", { class: "field-input", placeholder: "Search insured or policy number" });
+    var searchInput = ui.h("input", {
+      class: "register-search-input",
+      type: "search",
+      placeholder: "Search by insured name or policy number…",
+      autocomplete: "off",
+    });
     searchWrap.appendChild(searchInput);
-    searchRow.appendChild(searchWrap);
-    var statusSelect = ui.h("select", { class: "field-input select-fixed" });
-    ["All", "Referred", "Bound", "Active", "Cancelled", "Expired", "Non-renewed"].forEach(function (s) { statusSelect.appendChild(ui.h("option", { value: s }, s)); });
-    searchRow.appendChild(statusSelect);
-    var productSelect = ui.h("select", { class: "field-input select-fixed" });
+    toolbar.appendChild(searchWrap);
+
+    var filters = ui.h("div", { class: "register-filters" });
+    var statusSelect = ui.h("select", { class: "register-select", title: "Status" });
+    ["All", "Referred", "Bound", "Active", "Cancelled", "Expired", "Non-renewed"].forEach(function (s) {
+      statusSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All statuses" : s));
+    });
+    filters.appendChild(statusSelect);
+
+    var productSelect = ui.h("select", { class: "register-select", title: "Product" });
     products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All products" : p)); });
-    searchRow.appendChild(productSelect);
-    var stateSelect = ui.h("select", { class: "field-input select-fixed" });
+    filters.appendChild(productSelect);
+
+    var stateSelect = ui.h("select", { class: "register-select", title: "State" });
     states.forEach(function (s) { stateSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All states" : s)); });
-    searchRow.appendChild(stateSelect);
-    var exportBtn = ui.h("button", { class: "btn" }, "Export CSV");
+    filters.appendChild(stateSelect);
+    toolbar.appendChild(filters);
+
+    var exportBtn = ui.h("button", { class: "btn register-export", type: "button" }, [
+      PAS.icon("download", { size: 13 }),
+      document.createTextNode(" Export CSV"),
+    ]);
     exportBtn.addEventListener("click", function () {
-      var rows = PAS.advancedSearch ? PAS.advancedSearch({ q: q, status: sf, product: pf, state: stf }) : policies;
-      var csv = PAS.exportRegisterCsv(rows);
-      var blob = new Blob([csv], { type: "text/csv" });
+      var rows = policies.filter(match);
+      var header = ["id", "holder", "product", "status", "premium", "effectiveDate", "expirationDate", "state"];
+      var lines = [header.join(",")].concat(rows.map(function (p) {
+        return [p.id, JSON.stringify(p.holder || ""), JSON.stringify(p.product || ""), p.status, p.premium, p.effectiveDate, p.expirationDate, JSON.stringify(p.state || "")].join(",");
+      }));
+      var blob = new Blob([lines.join("\n")], { type: "text/csv" });
       var a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
       a.download = "policy-register.csv";
       a.click();
     });
-    searchRow.appendChild(exportBtn);
-    page.appendChild(searchRow);
+    toolbar.appendChild(exportBtn);
+    page.appendChild(toolbar);
 
     var tableContainer = ui.h("div", {});
     page.appendChild(tableContainer);
 
+    function match(p) {
+      return (sf === "All" || p.status === sf)
+        && (pf === "All" || p.product === pf)
+        && (stf === "All" || p.state === stf)
+        && (p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
+    }
+
     function buildTable() {
-      var rows = policies.filter(function (p) {
-        return (sf === "All" || p.status === sf) && (pf === "All" || p.product === pf) && (stf === "All" || p.state === stf)
-          && (p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
-      });
+      var rows = policies.filter(match);
       tableContainer.innerHTML = "";
       if (sf !== "All" || pf !== "All" || stf !== "All" || q) {
         tableContainer.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Showing " + rows.length + " of " + policies.length + " records."));

@@ -152,7 +152,7 @@ var PAGES = [
   ["terms", "terms"],
 ];
 
-var CORE = ["assets/js/icons.js", "assets/js/store.js", "assets/js/api.js", "assets/js/ui.js"];
+var CORE = ["assets/js/icons.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/api.js", "assets/js/ui.js"];
 var fails = 0;
 
 PAGES.forEach(function (pair) {

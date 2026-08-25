@@ -16,23 +16,36 @@
 
     page.appendChild(ui.kpiRow([
       { label: "Awaiting decision", value: pending.length, tone: "amber", tip: "Held transactions of all types." },
+      { label: "SLA breached", value: pending.filter(function (t) { return PAS.getTxnSla && PAS.getTxnSla(t.h).breached; }).length, tone: "red", tip: "Past approval SLA." },
       { label: "Endorsements", value: pending.filter(function (t) { return t.h.type === "Endorsement"; }).length, tip: "Material changes needing sign-off." },
       { label: "Cancellations", value: pending.filter(function (t) { return t.h.type === "Cancellation"; }).length, tip: "Insured, broker or underwriter initiated." },
-      { label: "Renewal / reinstatement", value: pending.filter(function (t) { return t.h.type === "Renewal" || t.h.type === "Reinstatement"; }).length, tip: "Confirmed by the insured or broker, awaiting underwriter pricing." },
     ]));
 
+    var bulkBar = ui.h("div", { style: { display: "flex", gap: "10px", marginBottom: "14px" } });
+    var bulkBtn = ui.h("button", { class: "btn tone-primary" }, "Bulk approve immaterial");
+    bulkBtn.addEventListener("click", function () {
+      var items = pending.filter(function (t) { return t.h.type === "Endorsement" && t.h.meta && t.h.meta.materiality === "Minor"; })
+        .map(function (t) { return { policyId: t.p.id, txnId: t.h.id }; });
+      if (items.length && PAS.bulkApprove) PAS.bulkApprove(items);
+      render();
+    });
+    bulkBar.appendChild(bulkBtn);
+    page.appendChild(bulkBar);
+
     page.appendChild(ui.dataTable({
-      columns: [{ label: "Seq", what: "Position in the policy ledger." }, "Policy", "Insured", { label: "Type", what: "Which kind of transaction is held." }, "Requested by", { label: "Why it is held", what: "What was submitted, and by whom.", rule: "Material endorsements, fraud cancellations and authority referrals always hold." }, { label: "Effective", what: "Business date it would take effect." }, ""],
+      columns: [{ label: "Seq", what: "Position in the policy ledger." }, "Policy", "Insured", { label: "Type", what: "Which kind of transaction is held." }, "Requested by", { label: "SLA", what: "Hours until breach." }, { label: "Why it is held", what: "What was submitted, and by whom.", rule: "Material endorsements, fraud cancellations and authority referrals always hold." }, { label: "Effective", what: "Business date it would take effect." }, ""],
       rows: pending.map(function (t) {
         var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--text-faint)" } }, "#" + t.h.seq);
         var idSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--text-soft)" } }, t.p.id);
         var detailSpan = ui.h("span", { style: { fontSize: "12px", color: "var(--text-soft)", whiteSpace: "normal", display: "inline-block", maxWidth: "300px" } }, t.h.detail);
+        var sla = PAS.getTxnSla ? PAS.getTxnSla(t.h) : { remainingHours: "—", breached: false };
         var reviewBtn = ui.h("button", { class: "btn small tone-primary" }, "Review →");
         reviewBtn.addEventListener("click", function () {
           var desk = PAS.TYPE_TO_DESK[t.h.type];
+          if (!desk) { location.href = "advanced-admin-decision.html?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id); return; }
           location.href = PAS.DETAIL_URL_OF[desk] + "?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id);
         });
-        return [seqSpan, idSpan, t.p.holder, ui.modulePill(t.h.type), ui.initiatorPill(t.h.meta), detailSpan, t.h.date, reviewBtn];
+        return [seqSpan, idSpan, t.p.holder, ui.modulePill(t.h.type), ui.initiatorPill(t.h.meta), ui.pill(sla.breached ? "red" : "amber", sla.remainingHours + "h"), detailSpan, t.h.date, reviewBtn];
       }),
       emptyText: "Nothing awaiting approval.",
     }));

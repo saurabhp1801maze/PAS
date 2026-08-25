@@ -218,8 +218,33 @@
     });
   }
 
+  function syncNavFromConfig() {
+    var sidebar = document.getElementById("sidebar");
+    var footer = sidebar && sidebar.querySelector(".sidebar-footer");
+    if (!sidebar || !footer || !PAS.NAV) return;
+    sidebar.querySelectorAll(".nav-group").forEach(function (g) { g.remove(); });
+    var pageKey = document.body.getAttribute("data-page");
+    var hidden = PAS.NAV_HIDDEN_FOR_ROLE[PAS.getRole()] || [];
+    PAS.NAV.forEach(function (group) {
+      var g = ui.h("div", { class: "nav-group" });
+      g.appendChild(ui.h("div", { class: "nav-group-label" }, group.label));
+      var any = false;
+      group.items.forEach(function (it) {
+        if (hidden.indexOf(it[0]) !== -1) return;
+        any = true;
+        var active = PAS.PAGE_META[pageKey] && PAS.PAGE_META[pageKey].nav === it[0];
+        var a = ui.h("a", { class: "nav-item" + (active ? " active" : ""), href: it[3] });
+        a.appendChild(PAS.icon(it[2], { size: 13 }));
+        a.appendChild(document.createTextNode(" " + it[1]));
+        g.appendChild(a);
+      });
+      if (any) sidebar.insertBefore(g, footer);
+    });
+  }
+
   function init() {
     ensureToastContainer();
+    syncNavFromConfig();
     var flash = PAS.takeFlash && PAS.takeFlash();
     if (flash) ui.renderToast(flash);
     wireReset();

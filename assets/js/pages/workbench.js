@@ -2,7 +2,7 @@
 (function () {
   "use strict";
   var PAS = window.PAS, ui = PAS.ui;
-  var TYPES = ["All", "Submission", "Underwriting", "Bind", "Issuance", "Endorsement", "Cancellation", "Reinstatement", "Renewal", "Transfer", "Servicing"];
+  var TYPES = ["All", "Submission", "Underwriting", "Bind", "Issuance", "Endorsement", "Cancellation", "Reinstatement", "Renewal", "Transfer", "Servicing", "Rewrite", "Reissue", "Rescind", "Audit", "Lapse", "Split", "Merge"];
   var STATUSES = ["All", "Completed", "Pending", "Rejected", "Reversed"];
 
   function render() {

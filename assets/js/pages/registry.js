@@ -36,6 +36,17 @@
     var stateSelect = ui.h("select", { class: "field-input select-fixed" });
     states.forEach(function (s) { stateSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All states" : s)); });
     searchRow.appendChild(stateSelect);
+    var exportBtn = ui.h("button", { class: "btn" }, "Export CSV");
+    exportBtn.addEventListener("click", function () {
+      var rows = PAS.advancedSearch ? PAS.advancedSearch({ q: q, status: sf, product: pf, state: stf }) : policies;
+      var csv = PAS.exportRegisterCsv(rows);
+      var blob = new Blob([csv], { type: "text/csv" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "policy-register.csv";
+      a.click();
+    });
+    searchRow.appendChild(exportBtn);
     page.appendChild(searchRow);
 
     var tableContainer = ui.h("div", {});

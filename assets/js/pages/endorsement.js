@@ -44,13 +44,19 @@
         impInput.addEventListener("input", function () { extra.premiumImpact = impInput.value; });
         var f3 = ui.field({ label: "Premium impact (₹)", hint: "Positive for an increase, negative for a decrease." }, impInput);
 
-        return [f1, f2, f3];
+        extra.effectiveDate = PAS.todayISO();
+        var effInput = ui.h("input", { class: "field-input", type: "date", value: PAS.todayISO() });
+        effInput.addEventListener("input", function () { extra.effectiveDate = effInput.value; });
+        var f4 = ui.field({ label: "Effective date", hint: "Future-dated and out-of-sequence endorsements are flagged automatically." }, effInput);
+
+        return [f1, f2, f3, f4];
       },
       onSubmit: function (payload) {
-        PAS.raiseRequest(payload.policyId, "Endorsement", {
+        PAS.raiseEndorsement(payload.policyId, {
           changeType: payload.extra.changeType || "Address change",
           materiality: payload.extra.materiality || "Minor",
           premiumImpact: Number(payload.extra.premiumImpact) || 0,
+          effectiveDate: payload.extra.effectiveDate || PAS.todayISO(),
           initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note,
         });
         render();
@@ -59,11 +65,15 @@
 
     page.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted change requests, ordered newest first.", className: "label-11 block mb-9" }));
     page.appendChild(ui.dataTable({
-      columns: ["Policy", "Insured", "Requested by", { label: "Change", what: "Category of mid-term change." }, { label: "Materiality", what: "Whether this alters the underlying risk.", rule: "Material changes require re-underwriting before they can be approved." }, { label: "Premium impact", what: "Prorated delta from effective date to end of term." }, ""],
+      columns: ["Policy", "Insured", "Requested by", { label: "Change", what: "Category of mid-term change." }, { label: "Effective", what: "Business date the change applies from." }, { label: "Flags", what: "Future-dated or out-of-sequence." }, { label: "Materiality", what: "Whether this alters the underlying risk.", rule: "Material changes require re-underwriting before they can be approved." }, { label: "Premium impact", what: "Prorated delta from effective date to end of term." }, ""],
       rows: pend.map(function (t) {
         var impact = (t.h.meta && t.h.meta.premiumImpact) || 0;
         var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, (impact >= 0 ? "+" : "") + PAS.money(impact));
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(t.h.meta), t.h.meta.changeType, ui.pill(t.h.meta.materiality === "Material" ? "red" : "gray", t.h.meta.materiality), impactSpan, ui.cellOpen("Review")];
+        var flags = [];
+        if (t.h.meta && t.h.meta.futureDated) flags.push(ui.pill("blue", "Future"));
+        if (t.h.meta && t.h.meta.outOfSequence) flags.push(ui.pill("red", "OOS"));
+        var flagCell = ui.h("span", {}, flags.length ? flags : [ui.pill("gray", "—")]);
+        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(t.h.meta), t.h.meta.changeType, t.h.meta.effectiveDate || t.h.date, flagCell, ui.pill(t.h.meta.materiality === "Material" ? "red" : "gray", t.h.meta.materiality), impactSpan, ui.cellOpen("Review")];
       }),
       emptyText: "No endorsements awaiting decision.",
       onRowClick: function (i) { location.href = "endorsement-decision.html?policy=" + encodeURIComponent(pend[i].p.id) + "&txn=" + encodeURIComponent(pend[i].h.id); },

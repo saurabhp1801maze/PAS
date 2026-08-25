@@ -23,7 +23,7 @@
     ]));
 
     var tabsRow = ui.h("div", { class: "tabs" });
-    var tabDefs = [["ledger", "Transaction ledger"], ["docs", "Documents (" + ((policy.documents && policy.documents.length) || 0) + ")"], ["cover", "Cover & parties"]];
+    var tabDefs = [["ledger", "Transaction ledger"], ["docs", "Documents (" + ((policy.documents && policy.documents.length) || 0) + ")"], ["cover", "Cover & parties"], ["asof", "As-of view"], ["terms", "Term history"], ["xref", "Cross-references"]];
     tabDefs.forEach(function (td) {
       var btn = ui.h("button", { class: "tab-btn" + (tab === td[0] ? " active" : "") }, td[1]);
       btn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(policy.id) + "&tab=" + td[0]; });
@@ -53,11 +53,13 @@
       headRow.appendChild(genBtn);
       body.appendChild(headRow);
       body.appendChild(ui.dataTable({
-        columns: ["Document", { label: "Type", what: "Schedule, certificate or notice." }, { label: "Version", what: "Incremented each regeneration.", why: "Lets you prove what the customer held on any date." }, "Generated", ""],
+        columns: ["Document", { label: "Type", what: "Schedule, certificate or notice." }, { label: "Version", what: "Incremented each regeneration.", why: "Lets you prove what the customer held on any date." }, "Generated", { label: "Delivery", what: "PAS document delivery status." }, { label: "Txn", what: "Ledger row that triggered generation." }, ""],
         rows: (policy.documents || []).map(function (d) {
           var nameSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "7px", fontWeight: "600" } }, [PAS.icon("file-text", { size: 13, color: "var(--primary)" }), document.createTextNode(d.name)]);
           var dlSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "5px", color: "var(--primary)", fontSize: "12px", fontWeight: "700" } }, [PAS.icon("download", { size: 12 }), document.createTextNode("PDF")]);
-          return [nameSpan, d.type, ui.pill("gray", "v" + d.version), d.generatedAt, dlSpan];
+          var delBtn = ui.h("button", { class: "btn small" }, "Mark delivered");
+          delBtn.addEventListener("click", function (e) { e.stopPropagation(); PAS.markDocumentDelivered(policy.id, d.id); render(); });
+          return [nameSpan, d.type, ui.pill("gray", "v" + d.version), d.generatedAt, ui.pill(d.deliveryStatus === "Delivered" ? "green" : "amber", d.deliveryStatus || "Generated"), d.transactionId ? d.transactionId.slice(0, 12) : "—", delBtn];
         }),
         emptyText: "No documents yet. Issuing the policy generates the schedule and certificate.",
       }));
@@ -83,11 +85,62 @@
       var partiesPanel = ui.panel({ title: "Parties & distribution", what: "Who is insured and who placed the business." }, []);
       var pb = partiesPanel.querySelector(".panel-body");
       pb.appendChild(ui.kv({ k: "Named insured", v: policy.holder }));
+      (policy.parties && policy.parties.additionalInsureds || []).forEach(function (n, i) {
+        pb.appendChild(ui.kv({ k: "Additional insured " + (i + 1), v: n }));
+      });
       pb.appendChild(ui.kv({ k: "Producer", v: policy.producer, what: "Broker or channel." }));
+      pb.appendChild(ui.kv({ k: "ETag", v: policy.etag || PAS.getPolicyEtag(policy.id), mono: true, what: "Concurrency token for PAS API writes." }));
+      pb.appendChild(ui.kv({ k: "Auto-renew", v: policy.autoRenew ? "Yes" : "No" }));
       pb.appendChild(ui.kv({ k: "Binder", v: (policy.binder && policy.binder.number) || "—", mono: true, what: "Provisional cover reference, if bound." }));
       pb.appendChild(ui.kv({ k: "Status", v: ui.badge(policy.status) }));
+      if (policy.packageLines) {
+        pb.appendChild(ui.tipLabel({ text: "Package lines", className: "label-11 block mt-13 mb-9" }));
+        policy.packageLines.forEach(function (ln) {
+          pb.appendChild(ui.kv({ k: ln.line, v: Math.round(ln.premiumShare * 100) + "% of premium" }));
+        });
+      }
+      var dupes = PAS.findDuplicatePolicies(policy.holder, policy.product);
+      if (dupes.length > 1) pb.appendChild(ui.callout("warn", "Possible duplicate: " + dupes.length + " active policies for same insured and product."));
       grid.appendChild(partiesPanel);
       body.appendChild(grid);
+    } else if (tab === "asof") {
+      var asofInput = ui.h("input", { class: "field-input", type: "date", value: PAS.todayISO() });
+      var asofResult = ui.h("div", { class: "mt-13" });
+      body.appendChild(ui.field({ label: "View policy as-of date", hint: "Point-in-time reconstruction from the ledger." }, asofInput));
+      body.appendChild(asofResult);
+      function renderAsOf() {
+        var snap = PAS.policyAsOf(policy, asofInput.value);
+        var diff = PAS.policyDiff(policy, asofInput.value, PAS.todayISO());
+        asofResult.innerHTML = "";
+        asofResult.appendChild(ui.kpiRow([
+          { label: "Status", value: snap.status }, { label: "Premium", value: PAS.money(snap.premium) },
+          { label: "Holder", value: snap.holder }, { label: "Term", value: snap.termNumber },
+        ]));
+        if (diff.length) {
+          asofResult.appendChild(ui.tipLabel({ text: "Changes since " + asofInput.value, className: "label-11 block mt-13 mb-9" }));
+          asofResult.appendChild(ui.dataTable({
+            columns: ["Field", "As-of value", "Today"],
+            rows: diff.map(function (d) { return [d.field, String(d.before), String(d.after)]; }),
+          }));
+        }
+      }
+      asofInput.addEventListener("input", renderAsOf);
+      renderAsOf();
+    } else if (tab === "terms") {
+      body.appendChild(ui.dataTable({
+        columns: ["Term", "Effective", "Expiration", "Premium", "Status"],
+        rows: (policy.terms || []).map(function (t) {
+          return [t.termNumber, t.effectiveDate, t.expirationDate, PAS.money(t.premium), t.status || policy.status];
+        }),
+      }));
+    } else if (tab === "xref") {
+      var refs = policy.relatedPolicies || [];
+      if (!refs.length) body.appendChild(ui.h("div", { class: "faint-note" }, "No related policies (rewrite, split, merge links appear here)."));
+      else refs.forEach(function (rid) {
+        var btn = ui.h("button", { class: "btn ghost-link" }, rid);
+        btn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(rid); });
+        body.appendChild(btn);
+      });
     }
     page.appendChild(body);
 

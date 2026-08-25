@@ -37,15 +37,33 @@
     noteWrap.appendChild(ui.callout("info", "Continuity is preserved deliberately: cancelling this policy and writing a new one for \"" + (meta.newHolder || "the new insured") + "\" would break the append-only history a regulator can ask to see. A transfer keeps the same policy ID and the same ledger — this decision is simply appended to it."));
     right.push(noteWrap);
 
-    function decide(approve) {
-      return PAS.api.call("POST", "/api/v1/policies/" + p.id + "/transfers", { decision: approve ? "approved" : "rejected", newHolder: meta.newHolder },
+    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, h.id))));
+
+    function flash(action) {
+      return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };
+    }
+    function decide(approve, comment) {
+      var audit = PAS.makeAudit(approve ? "Approve" : "Decline", comment);
+      return PAS.api.call("POST", "/api/v1/policies/" + p.id + "/transfers", { decision: approve ? "approved" : "rejected", newHolder: meta.newHolder, note: comment },
         { module: "Transfer", policyId: p.id, statusCode: 200, label: (approve ? "Approve" : "Decline") + " transfer — " + p.holder, response: approve ? { txnId: h.id, status: "completed", previousHolder: p.holder, newHolder: meta.newHolder, events: ["policyTransferred"] } : { txnId: h.id, status: "rejected" } })
-        .then(function () { PAS.decideTransfer(p.id, h.id, approve, meta.newHolder); location.href = "transfer.html"; });
+        .then(function () {
+          PAS.decideTransfer(p.id, h.id, approve, meta.newHolder, audit);
+          ui.flashThenGo("transfer.html", flash(approve ? "Approve" : "Decline"));
+        });
+    }
+    function hold(action) {
+      return function (comment) {
+        PAS.recordHeldDecision(p.id, h.id, action, comment, "Transfer");
+        ui.renderToast(flash(action));
+        render();
+      };
     }
 
     page.appendChild(ui.decisionLayout(left, right, [
-      { label: "Approve transfer", tone: "primary", icon: "send", onRun: function () { return decide(true); }, disabled: !meta.newHolder, disabledReason: "No new named insured was given with this request." },
-      { label: "Decline", tone: "red", icon: "ban", onRun: function () { return decide(false); } },
+      ui.confirmable(p.id, h.id, "Approve", { label: "Approve transfer", tone: "primary", icon: "send", onRun: function (c) { return decide(true, c); }, disabled: !meta.newHolder, disabledReason: "No new named insured was given with this request." }),
+      ui.confirmable(p.id, h.id, "Decline", { label: "Decline", tone: "red", icon: "ban", onRun: function (c) { return decide(false, c); } }),
+      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
+      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("transfer-desk", page));

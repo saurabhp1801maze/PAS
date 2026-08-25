@@ -42,16 +42,33 @@
       effWrap.appendChild(row);
     });
     right.push(effWrap);
+    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, h.id))));
 
-    function act(ok) {
-      return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (ok ? "approve" : "reject"), { decision: ok ? "approved" : "rejected" },
+    function flash(action) {
+      return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };
+    }
+    function act(ok, comment) {
+      var audit = PAS.makeAudit(ok ? "Approve" : "Decline", comment);
+      return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (ok ? "approve" : "reject"), { decision: ok ? "approved" : "rejected", note: comment },
         { module: "Endorsement", policyId: p.id, statusCode: 200, label: (ok ? "Approve" : "Decline") + " endorsement — " + p.holder, response: { txnId: h.id, status: ok ? "completed" : "rejected", premiumDelta: { amount: h.meta.premiumImpact || 0, currency: "INR" }, policyVersion: p.history.length + 1 } })
-        .then(function () { PAS.decideTxn(p.id, h.id, ok); location.href = "endorsement.html"; });
+        .then(function () {
+          PAS.decideTxn(p.id, h.id, ok, audit);
+          ui.flashThenGo("endorsement.html", flash(ok ? "Approve" : "Decline"));
+        });
+    }
+    function hold(action) {
+      return function (comment) {
+        PAS.recordHeldDecision(p.id, h.id, action, comment, "Endorsement");
+        ui.renderToast(flash(action));
+        render();
+      };
     }
 
     page.appendChild(ui.decisionLayout(left, right, [
-      { label: "Approve & apply", tone: "green", icon: "check-circle-2", onRun: function () { return act(true); } },
-      { label: "Decline", tone: "red", icon: "ban", onRun: function () { return act(false); } },
+      ui.confirmable(p.id, h.id, "Approve", { label: "Approve & apply", tone: "green", icon: "check-circle-2", onRun: function (c) { return act(true, c); } }),
+      ui.confirmable(p.id, h.id, "Decline", { label: "Decline", tone: "red", icon: "ban", onRun: function (c) { return act(false, c); } }),
+      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
+      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("endorsement-desk", page));

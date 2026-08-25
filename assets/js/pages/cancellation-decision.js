@@ -74,17 +74,35 @@
       noticePeriodWrap.appendChild(ui.kv({ k: "Provided", v: q.noticeProvided + " days", what: "Between today and the effective date." }));
       right.push(noticePeriodWrap);
 
-      function decide(approve) {
+      right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, h.id))));
+
+      function flash(action) {
+        return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Approve" ? "red" : action === "Decline" ? "amber" : "blue" };
+      }
+      function decide(approve, comment) {
+        var audit = PAS.makeAudit(approve ? "Approve" : "Decline", comment);
         return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (approve ? "approve" : "reject"),
-          { decision: approve ? "approved" : "rejected", effectiveDate: effDate, premiumMethod: q.type, refund: { amount: Math.round(q.refund), currency: "INR" } },
+          { decision: approve ? "approved" : "rejected", effectiveDate: effDate, premiumMethod: q.type, refund: { amount: Math.round(q.refund), currency: "INR" }, note: comment },
           { module: "Cancellation", policyId: p.id, statusCode: 200, label: (approve ? "Approve" : "Decline") + " cancellation — " + p.holder, response: approve ? { txnId: h.id, status: "completed", premiumMethod: q.type, refundAmount: Math.round(q.refund), events: ["policyCancelled"] } : { txnId: h.id, status: "rejected" } })
-          .then(function () { PAS.decideCancellation(p.id, h.id, approve, effDate, q); location.href = "cancellation.html"; });
+          .then(function () {
+            PAS.decideCancellation(p.id, h.id, approve, effDate, q, audit);
+            ui.flashThenGo("cancellation.html", flash(approve ? "Approve" : "Decline"));
+          });
+      }
+      function hold(action) {
+        return function (comment) {
+          PAS.recordHeldDecision(p.id, h.id, action, comment, "Cancellation");
+          ui.renderToast(flash(action));
+          buildContent();
+        };
       }
 
       layoutContainer.innerHTML = "";
       layoutContainer.appendChild(ui.decisionLayout(left, right, [
-        { label: "Approve cancellation", tone: "red", icon: "x-circle", onRun: function () { return decide(true); } },
-        { label: "Decline request", icon: "ban", onRun: function () { return decide(false); } },
+        ui.confirmable(p.id, h.id, "Approve", { label: "Approve cancellation", tone: "red", icon: "x-circle", onRun: function (c) { return decide(true, c); } }),
+        ui.confirmable(p.id, h.id, "Decline", { label: "Decline request", icon: "ban", onRun: function (c) { return decide(false, c); } }),
+        ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
+        ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
       ]));
     }
     buildContent();

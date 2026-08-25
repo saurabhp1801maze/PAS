@@ -157,5 +157,31 @@ book.forEach(function (p) {
 });
 check("every seeded cancellation's stored type matches what deriveCancelType would produce today", typeMismatches.length === 0, typeMismatches.join(", "));
 
+console.log("\n=== decision audit trail ===");
+var mem = {};
+stub.sessionStorage = {
+  getItem: function (k) { return Object.prototype.hasOwnProperty.call(mem, k) ? mem[k] : null; },
+  setItem: function (k, v) { mem[k] = String(v); },
+  removeItem: function (k) { delete mem[k]; },
+};
+PAS.resetDemoData = function () { /* don't navigate in tests */ try { stub.sessionStorage.removeItem("pas.policies.v1"); } catch (e) {} };
+var seeded = PAS.seedPolicies();
+stub.sessionStorage.setItem("pas.policies.v1", JSON.stringify(seeded));
+var kar = PAS.getPolicy("POL-2026-02233");
+var pendCx = kar.history.find(function (h) { return h.type === "Cancellation" && h.status === "Pending"; });
+var note = PAS.recordHeldDecision(kar.id, pendCx.id, "Escalate", "Need senior review of the refund basis before we commit.", "Cancellation");
+var stillPend = note.history.find(function (h) { return h.id === pendCx.id; });
+check("escalate leaves the held cancellation pending", stillPend.status === "Pending");
+check("escalate stamps user + action + comment on the held row",
+  stillPend.meta.lastDecision.user === "Rahul Verma" &&
+  stillPend.meta.lastDecision.action === "Escalate" &&
+  /senior review/.test(stillPend.meta.lastDecision.comment));
+check("trail helper returns the same audit row", PAS.decisionTrailFor(note, pendCx.id).length === 1);
+var decided = PAS.decideCancellation(kar.id, pendCx.id, false, PAS.todayISO(), PAS.cancelQuote(kar, pendCx.meta.reason, pendCx.meta.initiatedBy, PAS.todayISO()), PAS.makeAudit("Decline", "Notice period not satisfied — decline and re-serve."));
+var rejected = decided.history.find(function (h) { return h.id === pendCx.id; });
+check("decline records the confirming actor, not a placeholder", rejected.approvedBy === "Rahul Verma");
+check("decline comment is on the ledger row", /re-serve/.test(rejected.detail));
+check("decision history keeps escalate then decline", rejected.meta.decisionHistory.length === 2 && rejected.meta.decisionHistory[1].action === "Decline");
+
 console.log(fails === 0 ? "\nALL CHECKS PASSED\n" : "\n" + fails + " CHECK(S) FAILED\n");
 process.exit(fails === 0 ? 0 : 1);

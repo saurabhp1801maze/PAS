@@ -78,29 +78,37 @@
     derivWrap.appendChild(totalRow);
     right.push(derivWrap);
 
-    var noteArea = ui.h("textarea", { class: "field-input", placeholder: "Rationale for the decision…" });
-    var noteWrap = ui.h("div", { class: "mt-14" });
-    noteWrap.appendChild(ui.field({ label: "Decision note", hint: "Recorded permanently. Required to decline." }, noteArea));
-    right.push(noteWrap);
+    var held = p.history.find(function (x) { return x.type === "Underwriting" && x.status === "Pending"; });
+    var txnNo = held ? held.id : "—";
+    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, held && held.id))));
 
-    function act(outcome) {
-      var note = noteArea.value;
+    function flash(action) {
+      return { title: action + " recorded", detail: p.id + " · " + txnNo, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };
+    }
+    function act(outcome, comment) {
+      var audit = PAS.makeAudit(outcome, comment);
       return PAS.api.call("POST", "/api/v1/submissions/" + p.id + "/underwriting-decision",
-        { score: score, decision: outcome.toLowerCase(), tier: dec.tier, note: note || undefined },
+        { score: score, decision: outcome.toLowerCase(), tier: dec.tier, note: comment },
         { module: "Underwriting", policyId: p.id, statusCode: 200, label: outcome + " — " + p.holder, response: { decisionId: PAS.uid("UWD"), outcome: outcome.toLowerCase(), authorityTier: dec.tier, nextState: outcome === "Approve" ? "bound" : outcome === "Decline" ? "declined" : "referred" } })
-        .then(function () { PAS.decide(p.id, outcome, { score: score, tier: dec.tier, note: note }); location.href = "underwriting.html"; });
+        .then(function () {
+          PAS.decide(p.id, outcome, { score: score, tier: dec.tier, note: comment, audit: audit });
+          ui.flashThenGo("underwriting.html", flash(outcome));
+        });
     }
-    function actionsFor(noteVal) {
-      return [
-        { label: "Approve & bind", tone: "green", icon: "shield-check", onRun: function () { return act("Approve"); } },
-        { label: "Decline", tone: "red", icon: "ban", onRun: function () { return act("Decline"); }, disabled: !noteVal.trim(), disabledReason: "A decline must carry a written reason — it is disclosable to the applicant." },
-        { label: "Request more info", icon: "corner-up-left", onRun: function () { return act("Refer back"); } },
-      ];
+    function hold(action) {
+      return function (comment) {
+        PAS.recordHeldDecision(p.id, held && held.id, action, comment, "Underwriting");
+        ui.renderToast(flash(action));
+        render();
+      };
     }
 
-    var layoutEl = ui.decisionLayout(left, right, actionsFor(""));
-    noteArea.addEventListener("input", function () { layoutEl.actionBar.updateActions(actionsFor(noteArea.value)); });
-    page.appendChild(layoutEl);
+    page.appendChild(ui.decisionLayout(left, right, [
+      ui.confirmable(p.id, txnNo, "Approve", { label: "Approve & bind", tone: "green", icon: "shield-check", onRun: function (c) { return act("Approve", c); } }),
+      ui.confirmable(p.id, txnNo, "Decline", { label: "Decline", tone: "red", icon: "ban", onRun: function (c) { return act("Decline", c); } }),
+      ui.confirmable(p.id, txnNo, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
+      ui.confirmable(p.id, txnNo, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
+    ]));
 
     root.appendChild(ui.screen("uw-desk", page));
   }

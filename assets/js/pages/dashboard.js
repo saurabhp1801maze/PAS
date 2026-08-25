@@ -484,9 +484,10 @@
     var cancelPanel = ui.panel({ title: "Cancelled policy requests", what: "Open cancellation requests awaiting decision, top " + CANCEL_ROWS + " by refund amount.", why: "The biggest refund exposure among requests still awaiting a decision.", right: openLink("cancellation.html", "Open") }, []);
     var cancelBody = cancelPanel.querySelector(".panel-body");
     threeCol.appendChild(cancelPanel);
-    var waitingPanel = ui.panel({ title: "Oldest waiting", what: "Work that has sat longest without a decision, oldest first.", why: "Ageing, not volume, is what breaks an SLA." }, []);
-    var waitingBody = waitingPanel.querySelector(".panel-body");
-    threeCol.appendChild(waitingPanel);
+    var ENDORSE_ROWS = 5;
+    var endorsePanel = ui.panel({ title: "Endorsement requests", what: "Open endorsement requests that increase premium, top " + ENDORSE_ROWS + " by increase.", why: "The biggest premium increases still awaiting a decision.", right: openLink("endorsement.html", "Open") }, []);
+    var endorseBody = endorsePanel.querySelector(".panel-body");
+    threeCol.appendChild(endorsePanel);
     page.appendChild(threeCol);
 
     function buildSnapshotPanels() {
@@ -561,19 +562,24 @@
         }
       }
 
-      var waitingItems = referred.map(function (p) { return { p: p, age: PAS.daysBetween(p.submittedOn, PAS.todayISO()) }; })
-        .concat(bound.map(function (p) { return { p: p, age: PAS.daysBetween(p.binder.boundOn, PAS.todayISO()) }; }))
-        .sort(function (a, b) { return b.age - a.age; });
-      waitingBody.innerHTML = "";
-      if (waitingItems.length === 0) waitingBody.appendChild(ui.h("div", { class: "faint-note" }, "Nothing waiting."));
-      waitingItems.forEach(function (x) {
-        var row = ui.h("div", { class: "waiting-row" });
-        row.appendChild(PAS.icon("clock", { size: 11, color: "var(--text-faint)" }));
-        row.appendChild(ui.h("span", { class: "waiting-name" }, x.p.holder));
-        row.appendChild(ui.h("span", { class: "waiting-age" }, x.age + "d"));
-        row.appendChild(ui.badge(x.p.status));
-        waitingBody.appendChild(row);
-      });
+      /* Open endorsement requests, ranked by how much they'd raise premium — a decrease or a
+         no-impact change (e.g. a plain address update) isn't what this panel is for, so only
+         real increases are listed. */
+      var pendingEndorsements = PAS.pendingOf(policies, "Endorsement").map(function (t) {
+        return { p: t.p, impact: Math.round((t.h.meta && t.h.meta.premiumImpact) || 0) };
+      }).filter(function (x) { return x.impact > 0; }).sort(function (a, b) { return b.impact - a.impact; });
+      endorseBody.innerHTML = "";
+      if (pendingEndorsements.length === 0) endorseBody.appendChild(ui.h("div", { class: "faint-note" }, "No open endorsement requests increasing premium."));
+      else {
+        var maxImpact = Math.max.apply(null, pendingEndorsements.map(function (x) { return x.impact; }).concat([1]));
+        pendingEndorsements.slice(0, ENDORSE_ROWS).forEach(function (x) {
+          endorseBody.appendChild(ui.hbar({ label: x.p.holder, value: x.impact, max: maxImpact, note: "+" + PAS.money(x.impact), tone: x.impact === maxImpact ? "red" : "amber" }));
+        });
+        if (pendingEndorsements.length > ENDORSE_ROWS) {
+          endorseBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + ENDORSE_ROWS + " of " + pendingEndorsements.length + " open requests increasing premium."));
+          endorseBody.appendChild(openLink("endorsement.html", "View more"));
+        }
+      }
     }
 
     /* Expand/collapse state per card, kept outside buildTopEntities so it survives every rebuild

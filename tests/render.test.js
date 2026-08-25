@@ -364,7 +364,7 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
       if (txt.indexOf(needle) === -1) { fails++; console.log("  FAIL  " + role + ' dashboard missing "' + needle + '"'); }
     });
     /* Must NOT contain the operational-only panels — those belong to the Underwriter view only. */
-    ["Renewal pipeline", "Cancelled policy requests", "Oldest waiting"].forEach(function (banned) {
+    ["Renewal pipeline", "Cancelled policy requests", "Endorsement requests"].forEach(function (banned) {
       if (txt.indexOf(banned) !== -1) { fails++; console.log("  FAIL  " + role + ' dashboard leaked operational panel "' + banned + '"'); }
     });
     console.log("  PASS  " + role + " dashboard: portfolio KPIs, state/broker/LOB breakdowns, honest Claims & reserves gap, no operational panels");

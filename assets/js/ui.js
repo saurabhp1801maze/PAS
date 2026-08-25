@@ -104,16 +104,29 @@
   function codeBlock(data, small) { return h("pre", { class: "code-block" + (small ? " small" : "") }, JSON.stringify(data, null, 2)); }
 
   /* ================= data table ================= */
+  /* opts.sortable: array of booleans parallel to opts.columns — true makes that header clickable.
+     opts.sortState: { col, dir } | null — which column (index) is currently sorted and which way,
+     purely for drawing the ▲/▼ indicator; the actual sort happens at the call site (it owns the
+     real field values, this component only ever sees pre-rendered cells) and re-renders with a
+     new sortState. opts.onSort(colIndex) fires on header click. */
   function dataTable(opts) {
     var wrap = h("div", { class: "table-wrap" });
     var scroll = h("div", { class: "table-scroll" });
     var table = h("table", { class: "data-table" });
     var thead = h("thead");
     var headRow = h("tr");
-    opts.columns.forEach(function (c) {
+    opts.columns.forEach(function (c, i) {
       var th = h("th");
-      if (typeof c === "string") th.textContent = c;
+      var sortable = opts.sortable && opts.sortable[i];
+      if (typeof c === "string") th.appendChild(document.createTextNode(c));
       else th.appendChild(tooltip({ what: c.what, why: c.why, rule: c.rule, tip: c.tip }, [document.createTextNode(c.label), infoDot(10)]));
+      if (sortable) {
+        var active = opts.sortState && opts.sortState.col === i;
+        th.classList.add("th-sortable");
+        if (active) th.classList.add("th-sorted");
+        th.appendChild(h("span", { class: "th-sort-arrow" }, active ? (opts.sortState.dir === "asc" ? "▲" : "▼") : "↕"));
+        th.addEventListener("click", function () { opts.onSort(i); });
+      }
       headRow.appendChild(th);
     });
     thead.appendChild(headRow);

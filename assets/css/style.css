@@ -226,6 +226,11 @@ textarea.field-input { min-height: 54px; resize: vertical; }
 table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 table.data-table thead tr { background: var(--surface-alt); }
 table.data-table th { text-align: left; padding: 9px 13px; font-size: 10px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; border-bottom: 1px solid var(--border); }
+table.data-table th.th-sortable { cursor: pointer; user-select: none; }
+table.data-table th.th-sortable:hover { color: var(--text); }
+table.data-table th.th-sorted { color: var(--primary); }
+.th-sort-arrow { display: inline-block; margin-left: 4px; font-size: 9px; opacity: .55; }
+table.data-table th.th-sorted .th-sort-arrow { opacity: 1; }
 table.data-table td { padding: 10px 13px; color: var(--text); vertical-align: middle; white-space: nowrap; }
 table.data-table td.wrap { white-space: normal; }
 table.data-table tr.has-row-click { cursor: pointer; }

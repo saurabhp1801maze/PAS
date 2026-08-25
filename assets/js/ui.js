@@ -475,21 +475,69 @@
   }
   function decisionTrail(rows) {
     var wrap = h("div", { class: "decision-trail" });
-    wrap.appendChild(tipLabel({ text: "Decision history", what: "Every confirmation on this file: who acted, what they chose, and the comment they gave.", why: "Required for audit — a decision without a named actor and a written reason is not a decision.", className: "label-11 block mb-9" }));
+    var head = h("div", { class: "decision-trail-title-row" });
+    head.appendChild(PAS.icon("git-branch", { size: 14, color: "var(--primary)" }));
+    head.appendChild(tipLabel({
+      text: "Decision history",
+      what: "Every comment left on Approve, Decline, Escalate, Request more information, and the original request.",
+      why: "Comments are the audit trail — who said what, and when.",
+      className: "decision-trail-title",
+    }));
+    if (rows && rows.length) {
+      head.appendChild(h("span", { class: "decision-trail-count" }, rows.length + (rows.length === 1 ? " comment" : " comments")));
+    }
+    wrap.appendChild(head);
+
     if (!rows || rows.length === 0) {
-      wrap.appendChild(h("div", { class: "faint-note" }, "No confirmed decisions on this request yet."));
+      var empty = h("div", { class: "decision-trail-empty" });
+      empty.appendChild(PAS.icon("edit-3", { size: 16, color: "var(--text-faint)" }));
+      empty.appendChild(h("div", {}, "No comments yet"));
+      empty.appendChild(h("div", { class: "decision-trail-empty-hint" }, "When you Approve, Decline, Escalate, or Request more information, your comment appears here."));
+      wrap.appendChild(empty);
       return wrap;
     }
+
+    var list = h("div", { class: "decision-trail-list" });
     rows.slice().reverse().forEach(function (a) {
-      var row = h("div", { class: "decision-trail-row" });
-      var head = h("div", { class: "decision-trail-head" });
-      head.appendChild(h("span", { class: "decision-trail-user" }, a.user));
-      head.appendChild(pill(a.action === "Decline" ? "red" : a.action === "Approve" || a.action === "Issue" ? "green" : "amber", a.action));
-      head.appendChild(h("span", { class: "decision-trail-at" }, a.at ? new Date(a.at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""));
-      row.appendChild(head);
-      row.appendChild(h("div", { class: "decision-trail-comment" }, a.comment || "—"));
-      wrap.appendChild(row);
+      var tone = a.action === "Decline" ? "red"
+        : (a.action === "Approve" || a.action === "Issue") ? "green"
+        : a.action === "Escalate" ? "amber"
+        : a.action === "Request More Information" ? "blue"
+        : a.action === "Request" ? "violet"
+        : "indigo";
+      var iconName = a.action === "Decline" ? "ban"
+        : (a.action === "Approve" || a.action === "Issue") ? "check-circle-2"
+        : a.action === "Escalate" ? "arrow-up-right"
+        : a.action === "Request More Information" ? "corner-up-left"
+        : a.action === "Request" ? "inbox"
+        : "edit-3";
+
+      var card = h("div", { class: "decision-trail-card", "data-tone": tone });
+      var top = h("div", { class: "decision-trail-card-top" });
+      var avatar = h("div", { class: "decision-trail-avatar", "data-tone": tone });
+      avatar.appendChild(PAS.icon(iconName, { size: 13 }));
+      top.appendChild(avatar);
+      var meta = h("div", { class: "decision-trail-meta" });
+      meta.appendChild(h("div", { class: "decision-trail-user" }, a.user || "Unknown"));
+      meta.appendChild(h("div", { class: "decision-trail-at" }, a.at
+        ? new Date(a.at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+        : "—"));
+      top.appendChild(meta);
+      top.appendChild(pill(tone, a.action));
+      card.appendChild(top);
+
+      var quote = h("div", { class: "decision-trail-quote" });
+      quote.appendChild(h("div", { class: "decision-trail-quote-label" }, "Comment"));
+      quote.appendChild(h("div", { class: "decision-trail-comment" }, a.comment || "—"));
+      card.appendChild(quote);
+      list.appendChild(card);
     });
+    wrap.appendChild(list);
+    return wrap;
+  }
+  function decisionTrailSide(rows) {
+    var wrap = h("div", { class: "decision-trail-side" });
+    wrap.appendChild(decisionTrail(rows));
     return wrap;
   }
   function flashThenGo(href, note) {
@@ -758,7 +806,7 @@
     codeBlock: codeBlock, dataTable: dataTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
     backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow,
     callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
-    decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
+    decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, decisionTrailSide: decisionTrailSide, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
     renderToast: renderToast, notifRow: notifRow, lifecycleStage: lifecycleStage,
     apiLifecycle: apiLifecycle, screen: screen, TONE_HEX: TONE_HEX,
   };

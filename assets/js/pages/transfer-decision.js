@@ -37,7 +37,7 @@
     noteWrap.appendChild(ui.callout("info", "Continuity is preserved deliberately: cancelling this policy and writing a new one for \"" + (meta.newHolder || "the new insured") + "\" would break the append-only history a regulator can ask to see. A transfer keeps the same policy ID and the same ledger — this decision is simply appended to it."));
     right.push(noteWrap);
 
-    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, h.id))));
+    right.push(ui.decisionTrailSide(PAS.decisionTrailFor(p, h.id)));
 
     function flash(action) {
       return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };

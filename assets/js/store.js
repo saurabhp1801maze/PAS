@@ -848,7 +848,7 @@
   PAS.NAV = [
     { label: "Workspace", items: [["dashboard", "Dashboard", "layout-dashboard", "index.html"], ["approvals", "Pending approvals", "inbox", "approvals.html"]] },
     { label: "Decision desks", items: [
-      ["uw-desk", "Underwriting", "clipboard-check", "underwriting.html"],
+      ["uw-desk", "Issue Policy", "clipboard-check", "underwriting.html"],
       ["issue-desk", "Issue", "stamp", "issue.html"],
       ["endorsement-desk", "Endorsements", "edit-3", "endorsement.html"],
       ["cancellation-desk", "Cancellation", "x-circle", "cancellation.html"],
@@ -1042,14 +1042,44 @@
     return next;
   }
   PAS.decisionTrailFor = function (p, txnId) {
-    if (txnId) {
-      var held = p.history.find(function (h) { return h.id === txnId; });
-      return (held && held.meta && held.meta.decisionHistory) || [];
+    var rows = [];
+    var held = txnId ? p.history.find(function (h) { return h.id === txnId; }) : null;
+    var typeFilter = held ? held.type : null;
+
+    if (held && held.meta && held.meta.requestNote) {
+      rows.push({
+        at: held.recordedAt || (held.meta.submittedOn ? held.meta.submittedOn + "T12:00:00.000Z" : null),
+        user: held.meta.initiatedBy || held.user || "Requester",
+        action: "Request",
+        comment: held.meta.requestNote,
+      });
     }
-    return p.history.reduce(function (acc, h) {
-      if (h.meta && h.meta.noteOnly && h.meta.audit) acc.push(h.meta.audit);
-      return acc;
-    }, []);
+
+    function pushUnique(a) {
+      if (!a || !a.comment) return;
+      var dup = rows.some(function (r) {
+        return r.action === a.action && r.comment === a.comment && r.at === a.at;
+      });
+      if (!dup) rows.push(a);
+    }
+
+    if (held && held.meta && held.meta.decisionHistory) {
+      held.meta.decisionHistory.forEach(pushUnique);
+    }
+
+    (p.history || []).forEach(function (h) {
+      if (typeFilter && h.type !== typeFilter) return;
+      if (h.meta && h.meta.decisionHistory) h.meta.decisionHistory.forEach(pushUnique);
+      if (h.meta && h.meta.noteOnly && h.meta.audit) pushUnique(h.meta.audit);
+      if (h.meta && h.meta.audit && !h.meta.noteOnly) pushUnique(h.meta.audit);
+    });
+
+    rows.sort(function (a, b) {
+      var ta = a.at ? new Date(a.at).getTime() : 0;
+      var tb = b.at ? new Date(b.at).getTime() : 0;
+      return ta - tb;
+    });
+    return rows;
   };
   /* Escalate / Request More Information: stamp the held row, append a completed note, leave status Pending. */
   PAS.recordHeldDecision = function (id, txnId, action, comment, typeHint) {

@@ -62,7 +62,7 @@
     });
     right.push(effWrap);
     if (!canIssue) right.push(ui.h("div", { class: "mt-12" }, ui.callout("bad", "Issue is blocked. Cover stays provisional under the binder until every gate clears.")));
-    right.push(ui.h("div", { class: "mt-14" }, ui.decisionTrail(PAS.decisionTrailFor(p, null))));
+    right.push(ui.decisionTrailSide(PAS.decisionTrailFor(p, null)));
 
     function flash(action) {
       return { title: action + " recorded", detail: p.id, tone: action === "Issue" ? "green" : "blue" };

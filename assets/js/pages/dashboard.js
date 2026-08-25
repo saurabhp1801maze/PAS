@@ -477,13 +477,13 @@
     /* Capped so a growing book can't push the panel's height past its neighbors — each list is
        already sorted by what makes it most actionable, so the cap drops the least urgent items,
        never the most. */
-    var RENEWAL_ROWS = 5, BOUND_ROWS = 5;
+    var RENEWAL_ROWS = 5, CANCEL_ROWS = 5;
     var renewalPanel = ui.panel({ title: "Renewal pipeline", what: "In-force policies by closeness to expiry, top " + RENEWAL_ROWS + " most urgent.", why: "Notices must be served " + PAS.RENEWAL_LEAD_DAYS + " days ahead.", right: openLink("renewal.html", "Open") }, []);
     var renewalBody = renewalPanel.querySelector(".panel-body");
     threeCol.appendChild(renewalPanel);
-    var boundPanel = ui.panel({ title: "Bound policies", what: "Every bound policy's issue readiness, blocked ones first, top " + BOUND_ROWS + ".", why: "Cover is already live under every binder here — a blocked one is unpriced exposure with no clock stopped; a ready one just needs the Issue click.", right: openLink("issue.html", "Open") }, []);
-    var boundBody = boundPanel.querySelector(".panel-body");
-    threeCol.appendChild(boundPanel);
+    var cancelPanel = ui.panel({ title: "Cancelled policy requests", what: "Open cancellation requests awaiting decision, top " + CANCEL_ROWS + " by refund amount.", why: "The biggest refund exposure among requests still awaiting a decision.", right: openLink("cancellation.html", "Open") }, []);
+    var cancelBody = cancelPanel.querySelector(".panel-body");
+    threeCol.appendChild(cancelPanel);
     var waitingPanel = ui.panel({ title: "Oldest waiting", what: "Work that has sat longest without a decision, oldest first.", why: "Ageing, not volume, is what breaks an SLA." }, []);
     var waitingBody = waitingPanel.querySelector(".panel-body");
     threeCol.appendChild(waitingPanel);
@@ -537,41 +537,29 @@
         renewalBody.appendChild(openLink("renewal.html", "View more"));
       }
 
-      /* Every bound policy, not just the blocked ones. Blocked policies sort first, soonest-
-         expiring binder first within that group — that's the real deadline the panel is warning
-         about — then ready-to-issue ones after, so the panel always shows the full bound book,
-         not a fragment of it. */
-      var boundSorted = bound.slice().sort(function (a, b) {
-        var aBlocked = ((a.binder && a.binder.subjectivities) || []).some(function (s) { return !s.met; });
-        var bBlocked = ((b.binder && b.binder.subjectivities) || []).some(function (s) { return !s.met; });
-        if (aBlocked !== bBlocked) return aBlocked ? -1 : 1;
-        return PAS.daysBetween(PAS.todayISO(), a.binder.expiryDate) - PAS.daysBetween(PAS.todayISO(), b.binder.expiryDate);
-      });
-      boundBody.innerHTML = "";
-      if (boundSorted.length === 0) boundBody.appendChild(ui.h("div", { class: "faint-note" }, "Nothing bound."));
-      boundSorted.slice(0, BOUND_ROWS).forEach(function (p) {
-        var unmet = ((p.binder && p.binder.subjectivities) || []).filter(function (s) { return !s.met; });
-        var row = ui.h("div", { class: "blocked-row" });
-        var headRow = ui.h("div", { class: "blocked-row-head" });
-        var nameWrap = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "6px" } });
-        nameWrap.appendChild(PAS.icon(unmet.length ? "alert-triangle" : "check-circle-2", { size: 12, color: unmet.length ? "var(--red)" : "var(--green)" }));
-        nameWrap.appendChild(ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--text)" } }, p.holder));
-        headRow.appendChild(nameWrap);
-        headRow.appendChild(ui.h("span", { style: { fontSize: "11.5px", color: "var(--text-faint)" } }, PAS.moneyShort(p.premium)));
-        row.appendChild(headRow);
-        if (unmet.length) {
-          unmet.forEach(function (s) {
-            var sub = ui.h("div", { class: "blocked-sub" });
-            sub.appendChild(PAS.icon("alert-triangle", { size: 11 }));
-            sub.appendChild(document.createTextNode(s.label));
-            row.appendChild(sub);
-          });
-        } else {
-          row.appendChild(ui.h("div", { class: "blocked-sub ready" }, "Ready to issue"));
+      /* Open cancellation requests, ranked by refund amount — biggest exposure first. Same live
+         quote (reason + initiatedBy + effective date → cancelQuote) the Cancellation desk itself
+         shows for these same rows, so the two screens can never disagree. */
+      var pendingCancellations = PAS.pendingOf(policies, "Cancellation").map(function (t) {
+        var meta = t.h.meta || {};
+        var reason = meta.reason || "Insured Request";
+        var initiatedBy = meta.initiatedBy || "Insured";
+        var effDate = t.h.date || PAS.todayISO();
+        var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate);
+        return { p: t.p, reason: reason, refund: Math.round(quote.refund) };
+      }).sort(function (a, b) { return b.refund - a.refund; });
+      cancelBody.innerHTML = "";
+      if (pendingCancellations.length === 0) cancelBody.appendChild(ui.h("div", { class: "faint-note" }, "No open cancellation requests."));
+      else {
+        var maxRefund = Math.max.apply(null, pendingCancellations.map(function (x) { return x.refund; }).concat([1]));
+        pendingCancellations.slice(0, CANCEL_ROWS).forEach(function (x) {
+          cancelBody.appendChild(ui.hbar({ label: x.p.holder, value: x.refund, max: maxRefund, note: PAS.money(x.refund) + " · " + x.reason, tone: x.refund === maxRefund ? "red" : "amber" }));
+        });
+        if (pendingCancellations.length > CANCEL_ROWS) {
+          cancelBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + CANCEL_ROWS + " of " + pendingCancellations.length + " open requests."));
+          cancelBody.appendChild(openLink("cancellation.html", "View more"));
         }
-        boundBody.appendChild(row);
-      });
-      if (boundSorted.length > BOUND_ROWS) boundBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + BOUND_ROWS + " of " + boundSorted.length + " bound policies."));
+      }
 
       var waitingItems = referred.map(function (p) { return { p: p, age: PAS.daysBetween(p.submittedOn, PAS.todayISO()) }; })
         .concat(bound.map(function (p) { return { p: p, age: PAS.daysBetween(p.binder.boundOn, PAS.todayISO()) }; }))

@@ -195,7 +195,7 @@ console.log("\n  content spot-checks");
   ["api-reference", ["Idempotency-Key", "policyCancelled", "412", "at-least-once"]],
   ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected carriers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
-  ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Retention", "Reinstated", "Cancelled", "Awaiting decision", "Monthly", "Yearly", "New business issued", "Bound policies"]],
+  ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Retention", "Reinstated", "Cancelled", "Awaiting decision", "Monthly", "Yearly", "New business issued", "Cancelled policy requests"]],
   ["cancellation", ["Auto-cancelled (non-payment)", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason"]],
 ].forEach(function (c) {
   var txt = renderText(c[0]);
@@ -304,11 +304,11 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   /* Renewal pipeline is capped at 5, most-urgent-first, with a "showing N of M" note and a
      "View more" link to renewal.html only when the list is actually longer than the cap. */
   var panels = dom.querySelectorAll(".panel");
-  var renewalPanel, boundPanel;
+  var renewalPanel, cancelPanel;
   panels.forEach(function (p) {
     var t = p.querySelector(".panel-title").textContent;
     if (t.indexOf("Renewal pipeline") === 0) renewalPanel = p;
-    if (t.indexOf("Bound policies") === 0) boundPanel = p;
+    if (t.indexOf("Cancelled policy requests") === 0) cancelPanel = p;
   });
   var activeCount = policies.filter(function (p) { return p.status === "Active"; }).length;
   var renewalRows = renewalPanel.querySelectorAll(".hbar").length;
@@ -317,22 +317,28 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   else if (activeCount > 5 && renewalPanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Renewal pipeline exceeds the cap but is missing its "View more" link'); }
   else console.log("  PASS  Renewal pipeline capped at " + renewalRows + " rows (book has " + activeCount + " active policies), with a View more link to renewal.html");
 
-  /* "Bound policies" replaced "Blocked from issuing": a strictly-blocked list tops out at however
-     many policies actually have an unmet subjectivity, which in this book is at most a handful —
-     nowhere near enough rows to be useful. The panel now lists every bound policy (blocked ones
-     flagged red and sorted first, ready ones green after), capped at 5, so it always shows the
-     real bound book rather than a thin slice of it. */
-  var boundCount = policies.filter(function (p) { return p.status === "Bound"; }).length;
-  var blockedCount = policies.filter(function (p) { return p.status === "Bound" && ((p.binder && p.binder.subjectivities) || []).some(function (s) { return !s.met; }); }).length;
-  var boundRows = boundPanel.querySelectorAll(".blocked-row").length;
-  var expectedRows = Math.min(boundCount, 5);
-  if (boundRows > 5) { fails++; console.log("  FAIL  Bound policies shows " + boundRows + " rows, expected at most 5"); }
-  else if (boundRows !== expectedRows) { fails++; console.log("  FAIL  Bound policies shows " + boundRows + " rows, expected " + expectedRows + " (min of the book's " + boundCount + " bound policies and the cap of 5)"); }
-  else if (boundCount > blockedCount && boundRows <= blockedCount) { fails++; console.log("  FAIL  Bound policies still only shows the " + blockedCount + " strictly-blocked ones (" + boundRows + " rows) — it should list all " + boundCount + " bound policies"); }
-  else console.log("  PASS  Bound policies shows all " + boundRows + " bound policies (" + blockedCount + " blocked + " + (boundRows - blockedCount) + " ready), not just the " + blockedCount + " strictly blocked");
-  var readyLabels = boundPanel.querySelectorAll(".blocked-sub").filter(function (el) { return el.classList.contains("ready"); }).length;
-  if (boundCount - blockedCount > 0 && readyLabels === 0) { fails++; console.log('  FAIL  no "Ready to issue" rows rendered despite ready bound policies existing'); }
-  else if (boundCount - blockedCount > 0) console.log("  PASS  " + readyLabels + ' "Ready to issue" row(s) rendered for the non-blocked bound policies');
+  /* "Cancelled policy requests" replaced "Bound policies": open cancellation requests (not yet
+     decided), ranked by their live refund quote — the same cancelQuote the Cancellation desk
+     itself shows for these same rows, so the two screens can never disagree — biggest exposure
+     first, capped at 5 with a "View more" link to cancellation.html only when there are more. */
+  var pendingCx = PAS.pendingOf(policies, "Cancellation").map(function (t) {
+    var meta = t.h.meta || {};
+    var reason = meta.reason || "Insured Request";
+    var initiatedBy = meta.initiatedBy || "Insured";
+    var effDate = t.h.date || PAS.todayISO();
+    return Math.round(PAS.cancelQuote(t.p, reason, initiatedBy, effDate).refund);
+  }).sort(function (a, b) { return b - a; });
+  var cancelRows = cancelPanel.querySelectorAll(".hbar").length;
+  var expectedCancelRows = Math.min(pendingCx.length, 5);
+  if (cancelRows > 5) { fails++; console.log("  FAIL  Cancelled policy requests shows " + cancelRows + " rows, expected at most 5"); }
+  else if (cancelRows !== expectedCancelRows) { fails++; console.log("  FAIL  Cancelled policy requests shows " + cancelRows + " rows, expected " + expectedCancelRows + " (min of the book's " + pendingCx.length + " open requests and the cap of 5)"); }
+  else console.log("  PASS  Cancelled policy requests shows " + cancelRows + " of " + pendingCx.length + " open requests, ranked by refund amount");
+  if (pendingCx.length > 0) {
+    var topRefundText = PAS.money(pendingCx[0]);
+    if (cancelPanel.textContent.indexOf(topRefundText) === -1) { fails++; console.log('  FAIL  Cancelled policy requests missing its top-ranked real refund amount "' + topRefundText + '"'); }
+    else console.log("  PASS  top-ranked cancellation request shows its real refund amount (" + topRefundText + ")");
+  }
+  if (pendingCx.length > 5 && cancelPanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Cancelled policy requests exceeds the cap but is missing its "View more" link'); }
 })();
 
 /* Role-based dashboard: the same URL, four genuinely different renders. Underwriter is the
@@ -341,7 +347,7 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
 console.log("\n  role-based dashboards (default = Underwriter, no role stored)");
 (function () {
   var underwriterTxt = renderText("dashboard", "", null);
-  ["Portfolio Dashboard", "Renewal pipeline", "Bound policies"].forEach(function (needle) {
+  ["Portfolio Dashboard", "Renewal pipeline", "Cancelled policy requests"].forEach(function (needle) {
     if (underwriterTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  default (no role set) dashboard missing "' + needle + '" — should default to Underwriter'); }
   });
   console.log("  PASS  no role stored defaults to the Underwriter operational dashboard");
@@ -358,7 +364,7 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
       if (txt.indexOf(needle) === -1) { fails++; console.log("  FAIL  " + role + ' dashboard missing "' + needle + '"'); }
     });
     /* Must NOT contain the operational-only panels — those belong to the Underwriter view only. */
-    ["Renewal pipeline", "Bound policies", "Oldest waiting"].forEach(function (banned) {
+    ["Renewal pipeline", "Cancelled policy requests", "Oldest waiting"].forEach(function (banned) {
       if (txt.indexOf(banned) !== -1) { fails++; console.log("  FAIL  " + role + ' dashboard leaked operational panel "' + banned + '"'); }
     });
     console.log("  PASS  " + role + " dashboard: portfolio KPIs, state/broker/LOB breakdowns, honest Claims & reserves gap, no operational panels");
@@ -417,7 +423,7 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
   ["My Policies", "Marcus Whitfield", "Your coverage", "Your documents", "Recent activity"].forEach(function (needle) {
     if (customerTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Customer portal missing "' + needle + '"'); }
   });
-  ["Portfolio Dashboard", "In-force premium", "Bound policies", "Renewal pipeline", "Apex Insurance Brokers", "Meridian Assurance Co."].forEach(function (banned) {
+  ["Portfolio Dashboard", "In-force premium", "Cancelled policy requests", "Renewal pipeline", "Apex Insurance Brokers", "Meridian Assurance Co."].forEach(function (banned) {
     if (customerTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  Customer portal leaked internal/other-role content "' + banned + '"'); }
   });
   var customerDom = renderDom("dashboard", "", "Customer");

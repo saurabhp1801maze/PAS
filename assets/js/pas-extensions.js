@@ -315,7 +315,9 @@
     var hours = PAS.SLA_HOURS[txn.meta && txn.meta.reason] || PAS.SLA_HOURS[txn.meta && txn.meta.materiality] || PAS.SLA_HOURS.default;
     var recorded = new Date(txn.recordedAt || txn.date).getTime();
     var deadline = recorded + hours * 3600000;
-    var remaining = Math.round((deadline - Date.now()) / 3600000);
+    /* Demo clock — wall-clock Date.now() would mark every seeded pending txn breached years early. */
+    var nowMs = new Date(PAS.todayISO() + "T12:00:00").getTime();
+    var remaining = Math.round((deadline - nowMs) / 3600000);
     return { hours: hours, deadline: new Date(deadline).toISOString(), remainingHours: remaining, breached: remaining < 0 };
   };
 

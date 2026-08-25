@@ -339,6 +339,32 @@
   PAS.PRODUCT_CARRIER = PRODUCT_CARRIER;
   PAS.CARRIERS = ["Meridian Assurance Co.", "Apex General Insurance", "Horizon Life & Health"];
 
+  /* ---------- MGA facilities: a third, genuinely independent dimension ----------
+     Broker (`producer`) is who placed the business; Carrier is whose paper it's written on.
+     MGA is the wholesale facility with the binding authority in between — distinct from both,
+     and assigned by the risk's own state region (a real wholesale facility's appetite is
+     usually regional), so it doesn't just re-derive the Broker or Carrier filter under another
+     name. Every state in the seed book falls into exactly one region below; unmapped states
+     fall back to the first facility rather than throwing. */
+  var STATE_REGION = {
+    Maine: "Northeast", Massachusetts: "Northeast", "New Jersey": "Northeast", "New York": "Northeast",
+    Pennsylvania: "Northeast", Vermont: "Northeast", Connecticut: "Northeast", "New Hampshire": "Northeast", "Rhode Island": "Northeast",
+    Illinois: "Midwest", Indiana: "Midwest", Michigan: "Midwest", Minnesota: "Midwest", Missouri: "Midwest",
+    Ohio: "Midwest", Wisconsin: "Midwest", Iowa: "Midwest", Kansas: "Midwest", Nebraska: "Midwest", "North Dakota": "Midwest", "South Dakota": "Midwest",
+    Alabama: "South", Florida: "South", Georgia: "South", Kentucky: "South", Louisiana: "South",
+    "North Carolina": "South", "South Carolina": "South", Tennessee: "South", Texas: "South", Virginia: "South",
+    Arkansas: "South", Mississippi: "South", Oklahoma: "South", "West Virginia": "South", Delaware: "South", Maryland: "South",
+    Arizona: "West", California: "West", Colorado: "West", Nevada: "West", Oregon: "West", Utah: "West", Washington: "West",
+    Idaho: "West", Montana: "West", Wyoming: "West", "New Mexico": "West", Alaska: "West", Hawaii: "West",
+  };
+  var REGION_MGA = {
+    Northeast: "Cornerstone MGA Partners", Midwest: "Heartland Underwriting Agency",
+    South: "Palmetto Risk Managers", West: "Summit Peak MGA Group",
+  };
+  PAS.MGAS = ["Cornerstone MGA Partners", "Heartland Underwriting Agency", "Palmetto Risk Managers", "Summit Peak MGA Group"];
+  function mgaForState(state) { return REGION_MGA[STATE_REGION[state]] || PAS.MGAS[0]; }
+  PAS.mgaForState = mgaForState;
+
   /* ---------- configurable terms & conditions, per product ----------
      Illustrative standard clauses per product line — real insurance clause *categories*, generic
      placeholder text (not any real insurer's actual policy wording). What makes this genuinely
@@ -516,7 +542,7 @@
   }
   function seedPolicies() {
     var list = fetchSeedRecords();
-    list.forEach(function (p) { p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; });
+    list.forEach(function (p) { p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; p.mga = mgaForState(p.state); });
     return list;
   }
   PAS.seedPolicies = seedPolicies;

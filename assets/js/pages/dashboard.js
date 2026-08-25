@@ -24,11 +24,13 @@
   function inYear(dateStr, y) { return !!dateStr && dateStr.slice(0, 4) === String(y); }
   var MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  /* Trailing N month keys ("YYYY-MM"), oldest first, ending at the current month. Built off a
-     real Date object (not string math) so a window that crosses a year boundary rolls correctly. */
-  function trailingMonths(n) {
+  /* Trailing N month keys ("YYYY-MM"), oldest first, ending at the given month offset from today
+     (0 = current month, -1 = last month, ...). Built off a real Date object (not string math) so
+     a window that crosses a year boundary rolls correctly. */
+  function trailingMonths(n, endOffset) {
+    var off = endOffset || 0;
     var today = new Date(PAS.todayISO() + "T00:00:00Z");
-    var y = today.getUTCFullYear(), m = today.getUTCMonth();
+    var y = today.getUTCFullYear(), m = today.getUTCMonth() + off;
     var out = [];
     for (var i = n - 1; i >= 0; i--) {
       var d = new Date(Date.UTC(y, m - i, 1));
@@ -36,31 +38,39 @@
     }
     return out;
   }
-  function trailingYears(n) {
-    var curY = Number(PAS.todayISO().slice(0, 4));
+  function monthKeyOffset(offset) { return trailingMonths(1, offset)[0]; }
+  function trailingYears(n, endOffset) {
+    var curY = Number(PAS.todayISO().slice(0, 4)) + (endOffset || 0);
     var out = [];
     for (var i = n - 1; i >= 0; i--) out.push(curY - i);
     return out;
   }
+  function yearOffset(offset) { return Number(PAS.todayISO().slice(0, 4)) + (offset || 0); }
 
   /* Quarter keys are "YYYY-Qn". Built off the real UTC month, same reasoning as trailingMonths —
      a window that crosses a year boundary (Q4 -> Q1) has to roll the year too. */
   function quarterKeyOf(y, monthIdx0) { return y + "-Q" + (Math.floor(monthIdx0 / 3) + 1); }
-  function curQuarterKey() {
-    var today = new Date(PAS.todayISO() + "T00:00:00Z");
-    return quarterKeyOf(today.getUTCFullYear(), today.getUTCMonth());
-  }
   function inQuarter(dateStr, qKey) {
     if (!dateStr) return false;
     var d = new Date(dateStr + "T00:00:00Z");
     return quarterKeyOf(d.getUTCFullYear(), d.getUTCMonth()) === qKey;
   }
-  function trailingQuarters(n) {
+  /* Quarter index arithmetic (year*4 + quarter0) so offsets roll cleanly across year boundaries
+     in both directions, including negative modulo when stepping back past Q1. */
+  function quarterIndexOffset(offset) {
     var today = new Date(PAS.todayISO() + "T00:00:00Z");
-    var qIndex = today.getUTCFullYear() * 4 + Math.floor(today.getUTCMonth() / 3);
+    return today.getUTCFullYear() * 4 + Math.floor(today.getUTCMonth() / 3) + (offset || 0);
+  }
+  function quarterKeyOffset(offset) {
+    var idx = quarterIndexOffset(offset);
+    var y = Math.floor(idx / 4), q = ((idx % 4) + 4) % 4;
+    return y + "-Q" + (q + 1);
+  }
+  function trailingQuarters(n, endOffset) {
+    var qIndex = quarterIndexOffset(endOffset);
     var out = [];
     for (var i = n - 1; i >= 0; i--) {
-      var idx = qIndex - i, y = Math.floor(idx / 4), q = idx % 4;
+      var idx = qIndex - i, y = Math.floor(idx / 4), q = ((idx % 4) + 4) % 4;
       out.push(y + "-Q" + (q + 1));
     }
     return out;
@@ -82,9 +92,11 @@
      their own book only, scoped by the real `producer` field already on every policy. */
   function renderUnderwriterDashboard(page, allPolicies) {
     var period = "month"; /* default: current month, per the toggle's spec */
-    var curMonth = PAS.todayISO().slice(0, 7);
-    var curYear = Number(PAS.todayISO().slice(0, 4));
-    var curQuarter = curQuarterKey();
+    /* How many periods back from today the selected month/quarter/year is — 0 = current,
+       -1 = last, -2 = two back, etc. Navigated with the ◀/▶ arrows next to the toggle; reset to
+       0 whenever the period *type* changes, since an offset from one type doesn't mean anything
+       in another. Custom range is a separate control (see rangeRow below), not a fifth offset. */
+    var periodOffset = 0;
     /* Custom range defaults to the trailing 30 days so switching into it isn't an empty page. */
     var customFrom = PAS.addDays(PAS.todayISO(), -30);
     var customTo = PAS.todayISO();
@@ -93,41 +105,47 @@
        button label in ui.multiSelect uses, so an untouched filter and an explicitly-cleared one
        look and behave identically. Product doubles as this app's line-of-business dimension —
        there's no separate lineOfBusiness field, the MGA/Carrier dashboard's own "LOB" panels
-       already group by `product` directly. */
-    var lobFilter = [], stateFilter = [], userFilter = [];
+       already group by `product` directly. Broker/MGA/Carrier are three genuinely independent
+       policy attributes (who placed it, which wholesale facility bound it, whose paper it's
+       written on) — replacing the old single "touched by" User filter, which mixed together
+       every transaction actor regardless of role. */
+    var lobFilter = [], stateFilter = [], brokerFilter = [], mgaFilter = [], carrierFilter = [];
     var lobOptions = Array.from(new Set(allPolicies.map(function (p) { return p.product; }))).sort();
     var stateOptions = Array.from(new Set(allPolicies.map(function (p) { return p.state; }).filter(Boolean))).sort();
-    var userOptions = Array.from(new Set(PAS.allTxns(allPolicies).map(function (t) { return t.h.user; }))).sort();
+    var brokerOptions = Array.from(new Set(allPolicies.map(function (p) { return p.producer; }).filter(Boolean))).sort();
+    var mgaOptions = Array.from(new Set(allPolicies.map(function (p) { return p.mga; }).filter(Boolean))).sort();
+    var carrierOptions = Array.from(new Set(allPolicies.map(function (p) { return p.carrier; }).filter(Boolean))).sort();
 
     function matchesMulti(selected, value) { return selected.length === 0 || selected.indexOf(value) !== -1; }
     function filterNote() {
       var parts = [];
       if (lobFilter.length) parts.push(lobFilter.join("/"));
       if (stateFilter.length) parts.push(stateFilter.join("/"));
-      if (userFilter.length) parts.push("touched by " + userFilter.join("/"));
+      if (brokerFilter.length) parts.push("broker " + brokerFilter.join("/"));
+      if (mgaFilter.length) parts.push("MGA " + mgaFilter.join("/"));
+      if (carrierFilter.length) parts.push("carrier " + carrierFilter.join("/"));
       return parts.length ? " (" + parts.join("; ") + ")" : "";
     }
-    /* Product and state are policy attributes, so they scope which policies exist in every view.
-       User is a transaction-actor attribute — no policy is "owned" by one user — so it scopes
-       policies down to ones at least one selected user has touched. */
+    /* Every filter here — product, state, broker, MGA, carrier — is a real attribute already on
+       the policy record, so scoping is a plain field match, no transaction-history walk needed. */
     function scopedPolicies() {
       return allPolicies.filter(function (p) {
         return matchesMulti(lobFilter, p.product) && matchesMulti(stateFilter, p.state)
-          && (userFilter.length === 0 || p.history.some(function (h) { return userFilter.indexOf(h.user) !== -1; }));
+          && matchesMulti(brokerFilter, p.producer) && matchesMulti(mgaFilter, p.mga) && matchesMulti(carrierFilter, p.carrier);
       });
     }
     /* Single source of truth for "is this ledger date inside the selected period" — used by the
        KPI cards and both trend charts so they can never disagree. */
     function periodMatches(dateStr) {
-      if (period === "month") return inMonth(dateStr, curMonth);
-      if (period === "quarter") return inQuarter(dateStr, curQuarter);
-      if (period === "year") return inYear(dateStr, curYear);
+      if (period === "month") return inMonth(dateStr, monthKeyOffset(periodOffset));
+      if (period === "quarter") return inQuarter(dateStr, quarterKeyOffset(periodOffset));
+      if (period === "year") return inYear(dateStr, yearOffset(periodOffset));
       return !!dateStr && dateStr >= customFrom && dateStr <= customTo; /* custom range, inclusive */
     }
     function periodNoteText() {
-      if (period === "month") return "in " + MONTH_NAMES[Number(curMonth.slice(5, 7)) - 1] + " " + curMonth.slice(0, 4);
-      if (period === "quarter") return "in " + curQuarter;
-      if (period === "year") return "in " + curYear;
+      if (period === "month") { var mk = monthKeyOffset(periodOffset); return "in " + MONTH_NAMES[Number(mk.slice(5, 7)) - 1] + " " + mk.slice(0, 4); }
+      if (period === "quarter") return "in " + quarterKeyOffset(periodOffset);
+      if (period === "year") return "in " + yearOffset(periodOffset);
       return "from " + customFrom + " to " + customTo;
     }
 
@@ -153,16 +171,50 @@
     stateGroup.appendChild(ui.multiSelect({ options: stateOptions, selected: stateFilter, allLabel: "All states", onChange: function (sel) { stateFilter = sel; buildAll(); } }));
     filterBlock.appendChild(stateGroup);
 
-    var userGroup = ui.h("div", {});
-    userGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "User"));
-    userGroup.appendChild(ui.multiSelect({ options: userOptions, selected: userFilter, allLabel: "All users", onChange: function (sel) { userFilter = sel; buildAll(); } }));
-    filterBlock.appendChild(userGroup);
+    var brokerGroup = ui.h("div", {});
+    brokerGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Broker"));
+    brokerGroup.appendChild(ui.multiSelect({ options: brokerOptions, selected: brokerFilter, allLabel: "All brokers", onChange: function (sel) { brokerFilter = sel; buildAll(); } }));
+    filterBlock.appendChild(brokerGroup);
+
+    var mgaGroup = ui.h("div", {});
+    mgaGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "MGA"));
+    mgaGroup.appendChild(ui.multiSelect({ options: mgaOptions, selected: mgaFilter, allLabel: "All MGAs", onChange: function (sel) { mgaFilter = sel; buildAll(); } }));
+    filterBlock.appendChild(mgaGroup);
+
+    var carrierGroup = ui.h("div", {});
+    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Carrier"));
+    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All carriers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
+    filterBlock.appendChild(carrierGroup);
 
     var toggleRow = ui.h("div", { class: "period-toggle-row" });
     toggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Portfolio KPIs"));
+    var toggleAndNav = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "10px" } });
     var toggle = ui.h("div", { class: "period-toggle" });
-    toggleRow.appendChild(toggle);
+    toggleAndNav.appendChild(toggle);
+    /* ◀ current-period-label ▶ — steps periodOffset back/forward one unit of whatever period is
+       selected (a month, a quarter, a year). Forward is disabled at offset 0: this book has no
+       data past today, so "next" would only ever land on an empty period. Hidden entirely in
+       custom-range mode, where the date pair below is the only control. */
+    var navWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
+    var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period" }, "◀");
+    var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--text)", minWidth: "108px", textAlign: "center" } });
+    var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period" }, "▶");
+    navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
+    toggleAndNav.appendChild(navWrap);
+    toggleRow.appendChild(toggleAndNav);
+    prevBtn.addEventListener("click", function () { periodOffset -= 1; buildAll(); });
+    nextBtn.addEventListener("click", function () { if (periodOffset < 0) { periodOffset += 1; buildAll(); } });
     page.appendChild(toggleRow);
+
+    /* Custom range is a deliberately separate control, not a fifth chip in the toggle above —
+       switching it on replaces the Monthly/Quarterly/Yearly selection entirely rather than
+       sitting alongside it as another option of the same kind. */
+    var customToggleRow = ui.h("div", { class: "period-toggle-row" });
+    customToggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Or a custom range"));
+    var customBtn = ui.h("button", { class: "chip" }, "Custom range");
+    customToggleRow.appendChild(customBtn);
+    customBtn.addEventListener("click", function () { period = period === "custom" ? "month" : "custom"; periodOffset = 0; buildAll(); });
+    page.appendChild(customToggleRow);
 
     /* Only visible when period === "custom" — a plain date pair, inclusive on both ends. */
     var rangeRow = ui.h("div", { class: "period-toggle-row" });
@@ -192,12 +244,18 @@
 
     function renderToggle() {
       toggle.innerHTML = "";
-      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"], ["custom", "Custom range"]].forEach(function (opt) {
+      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"]].forEach(function (opt) {
         var btn = ui.h("button", { class: "chip" + (period === opt[0] ? " active" : "") }, opt[1]);
-        btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; buildAll(); } });
+        btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; periodOffset = 0; buildAll(); } });
         toggle.appendChild(btn);
       });
+      customBtn.className = "chip" + (period === "custom" ? " active" : "");
+      navWrap.style.display = period === "custom" ? "none" : "flex";
       rangeRow.style.display = period === "custom" ? "" : "none";
+      if (period !== "custom") {
+        navLabel.textContent = periodNoteText().replace(/^in /, "");
+        nextBtn.disabled = periodOffset >= 0;
+      }
     }
 
     function buildKpis() {
@@ -209,7 +267,7 @@
 
       function countTxns(type, status) {
         return txnsOfType(policies, type, status).filter(function (x) {
-          return periodMatches(x.h.date) && matchesMulti(userFilter, x.h.user);
+          return periodMatches(x.h.date);
         }).length;
       }
       var renewed = countTxns("Renewal", "Completed");
@@ -240,15 +298,15 @@
        the KPI cards above. */
     function bucketData(seriesList) {
       var policies = scopedPolicies();
-      var keys = period === "month" ? trailingMonths(6) : period === "quarter" ? trailingQuarters(6)
-        : period === "year" ? trailingYears(4) : ["custom"]; /* one bucket: the selected range itself */
+      var keys = period === "month" ? trailingMonths(6, periodOffset) : period === "quarter" ? trailingQuarters(6, periodOffset)
+        : period === "year" ? trailingYears(4, periodOffset) : ["custom"]; /* one bucket: the selected range itself */
       var matches = period === "month" ? inMonth : period === "quarter" ? inQuarter
         : period === "year" ? inYear : function (dateStr) { return periodMatches(dateStr); };
       return keys.map(function (key) {
         var row = { key: key };
         seriesList.forEach(function (s) {
           row[s.type] = txnsOfType(policies, s.type, "Completed").filter(function (x) {
-            return matches(x.h.date, key) && matchesMulti(userFilter, x.h.user);
+            return matches(x.h.date, key);
           }).length;
         });
         return row;

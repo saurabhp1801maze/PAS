@@ -462,13 +462,13 @@
        the card past its neighbors; expanding one doesn't collapse the others. */
     var TOP_ENTITY_ROWS = 3;
     var topGrid = ui.h("div", { class: "three-col-grid" });
-    var topBrokerPanel = ui.panel({ title: "Top brokers", what: "In-force premium per broker, largest first.", why: "Which producers the book actually depends on." }, []);
+    var topBrokerPanel = ui.panel({ title: "Top brokers", what: "In-force premium per broker, largest first.", why: "Which producers the book actually depends on.", right: openLink("brokers.html", "Open") }, []);
     var topBrokerBody = topBrokerPanel.querySelector(".panel-body");
     topGrid.appendChild(topBrokerPanel);
-    var topMgaPanel = ui.panel({ title: "Top MGAs", what: "In-force premium per MGA, largest first.", why: "Which wholesale facilities are carrying the most bound risk." }, []);
+    var topMgaPanel = ui.panel({ title: "Top MGAs", what: "In-force premium per MGA, largest first.", why: "Which wholesale facilities are carrying the most bound risk.", right: openLink("mgas.html", "Open") }, []);
     var topMgaBody = topMgaPanel.querySelector(".panel-body");
     topGrid.appendChild(topMgaPanel);
-    var topCarrierPanel = ui.panel({ title: "Top carriers", what: "In-force premium per carrier, largest first.", why: "Concentration on one carrier's paper is a placement risk." }, []);
+    var topCarrierPanel = ui.panel({ title: "Top carriers", what: "In-force premium per carrier, largest first.", why: "Concentration on one carrier's paper is a placement risk.", right: openLink("carriers.html", "Open") }, []);
     var topCarrierBody = topCarrierPanel.querySelector(".panel-body");
     topGrid.appendChild(topCarrierPanel);
     page.appendChild(topGrid);

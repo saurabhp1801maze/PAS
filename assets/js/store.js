@@ -1004,6 +1004,17 @@
     return policies.reduce(function (acc, p) { p.history.forEach(function (h) { acc.push({ p: p, h: h }); }); return acc; }, [])
       .sort(function (a, b) { return a.h.recordedAt < b.h.recordedAt ? 1 : -1; });
   };
+  /* Real wall-clock, not the frozen demo "today" — recordedAt on a live-triggered auto-issue is
+     always `new Date().toISOString()` (see pushTxn), so comparing against real Date.now() is what
+     makes "issued in the last 24 hours" actually light up the moment the pipeline runs, rather
+     than depending on how far the demo calendar has drifted from the real one. */
+  PAS.autoIssuedSince = function (policies, sinceMs) {
+    return policies.reduce(function (acc, p) {
+      p.history.filter(function (h) { return h.type === "Issuance" && h.meta && h.meta.automated && new Date(h.recordedAt).getTime() >= sinceMs; })
+        .forEach(function (h) { acc.push({ p: p, h: h }); });
+      return acc;
+    }, []).sort(function (a, b) { return a.h.recordedAt < b.h.recordedAt ? 1 : -1; });
+  };
 
   /* ================= mutations (ported 1:1 from the React app's state updaters) ================= */
   /* Issue is automated: nothing waits on a manual click any more. `issueGatesPass` is the exact
@@ -1020,6 +1031,12 @@
     return ((p.binder.subjectivities || []).filter(function (s) { return !s.met; })).length === 0;
   }
   PAS.issueGatesPass = issueGatesPass;
+  /* A policy can clear every issue gate and still not auto-issue — premium above this line
+     needs a human to actually look at the file before the contract goes out the door. Same
+     $500K line the endorsement desk already uses for mandatory Carrier-level approval, so
+     "large enough that automation alone isn't enough" means one consistent thing app-wide. */
+  PAS.AUTO_ISSUE_PREMIUM_LIMIT = 500000;
+  PAS.requiresManualIssue = function (p) { return (p.premium || 0) > PAS.AUTO_ISSUE_PREMIUM_LIMIT; };
   function doIssue(p, automated) {
     var t = pushTxn(p, {
       date: todayISO(), type: "Issuance",
@@ -1051,7 +1068,7 @@
       var t = pushTxn(withCompleted, { date: todayISO(), type: "Underwriting", title: "Underwriting: " + outcome, detail: audit.comment || ("Decided by underwriter. Score " + meta.score + ", " + meta.tier + "."), user: audit.user, meta: Object.assign({}, meta, { audit: audit }) });
       if (outcome === "Approve") {
         var bound = Object.assign({}, t, { status: "Bound", binder: { number: uid("BN"), boundOn: todayISO(), expiryDate: addDays(todayISO(), 30), subjectivities: [{ label: "Signed proposal form", met: true }] } });
-        return issueGatesPass(bound) ? doIssue(bound, true) : bound;
+        return (issueGatesPass(bound) && !PAS.requiresManualIssue(bound)) ? doIssue(bound, true) : bound;
       }
       if (outcome === "Decline") return Object.assign({}, t, { status: "Declined" });
       return t;
@@ -1072,7 +1089,7 @@
   PAS.toggleSubjectivity = function (id, i) {
     return patch(id, function (p) {
       var toggled = Object.assign({}, p, { binder: Object.assign({}, p.binder, { subjectivities: p.binder.subjectivities.map(function (s, j) { return j === i ? Object.assign({}, s, { met: !s.met }) : s; }) }) });
-      return issueGatesPass(toggled) ? doIssue(toggled, true) : toggled;
+      return (issueGatesPass(toggled) && !PAS.requiresManualIssue(toggled)) ? doIssue(toggled, true) : toggled;
     });
   };
   /* Cancellation, Reinstatement, Renewal and Endorsement are never started by ops directly —

@@ -15,7 +15,7 @@
     root.innerHTML = "";
     var policy = PAS.getPolicy(sp.get("policy"));
     if (!policy) { root.appendChild(ui.h("div", { class: "faint-note" }, "Policy not found.")); return; }
-    var tab = sp.get("tab") || "ledger";
+    var tab = sp.get("tab") || "cover";
 
     var page = ui.h("div", {});
     page.appendChild(ui.backLink("Policy register", function () { location.href = "registry.html"; }));
@@ -32,7 +32,7 @@
     var fleet = PAS.vehicleFleetFor(policy);
 
     var tabsRow = ui.h("div", { class: "tabs" });
-    var tabDefs = [["ledger", "Transaction ledger"], ["docs", "Documents (" + ((policy.documents && policy.documents.length) || 0) + ")"], ["cover", "Cover & parties"], ["claims", "Claims & risk (" + ((policy.claims && policy.claims.length) || 0) + ")"], ["endorsements", "Endorsements (" + endorsements.length + ")"]];
+    var tabDefs = [["cover", "Cover & parties"], ["ledger", "Transaction ledger"], ["docs", "Documents (" + ((policy.documents && policy.documents.length) || 0) + ")"], ["claims", "Claims & risk (" + ((policy.claims && policy.claims.length) || 0) + ")"], ["endorsements", "Endorsements (" + endorsements.length + ")"]];
     if (fleet) tabDefs.push(["fleet", (fleet.isFleet ? "Fleet" : "Vehicle") + " (" + fleet.vehicles.length + ")"]);
     tabDefs.push(["asof", "As-of view"], ["terms", "Term history"], ["xref", "Cross-references"]);
     tabDefs.forEach(function (td) {

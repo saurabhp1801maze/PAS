@@ -28,8 +28,13 @@
       { label: "Documents", value: (policy.documents && policy.documents.length) || 0, tip: "Stored document versions." },
     ]));
 
+    var endorsements = policy.history.filter(function (h) { return h.type === "Endorsement"; }).sort(function (a, b) { return b.seq - a.seq; });
+    var fleet = PAS.vehicleFleetFor(policy);
+
     var tabsRow = ui.h("div", { class: "tabs" });
-    var tabDefs = [["ledger", "Transaction ledger"], ["docs", "Documents (" + ((policy.documents && policy.documents.length) || 0) + ")"], ["cover", "Cover & parties"], ["claims", "Claims & risk (" + ((policy.claims && policy.claims.length) || 0) + ")"], ["asof", "As-of view"], ["terms", "Term history"], ["xref", "Cross-references"]];
+    var tabDefs = [["ledger", "Transaction ledger"], ["docs", "Documents (" + ((policy.documents && policy.documents.length) || 0) + ")"], ["cover", "Cover & parties"], ["claims", "Claims & risk (" + ((policy.claims && policy.claims.length) || 0) + ")"], ["endorsements", "Endorsements (" + endorsements.length + ")"]];
+    if (fleet) tabDefs.push(["fleet", (fleet.isFleet ? "Fleet" : "Vehicle") + " (" + fleet.vehicles.length + ")"]);
+    tabDefs.push(["asof", "As-of view"], ["terms", "Term history"], ["xref", "Cross-references"]);
     tabDefs.forEach(function (td) {
       var btn = ui.h("button", { class: "tab-btn" + (tab === td[0] ? " active" : "") }, td[1]);
       btn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(policy.id) + "&tab=" + td[0]; });
@@ -78,7 +83,7 @@
       cb.appendChild(ui.kv({ k: "Premium", v: PAS.money(policy.premium) }));
       cb.appendChild(ui.kv({ k: "Term number", v: policy.termNumber, what: "How many times this policy has renewed." }));
       cb.appendChild(ui.kv({ k: "State", v: policy.state || "—", what: "Jurisdiction this risk is written in." }));
-      cb.appendChild(ui.kv({ k: "Submitted", v: policy.submittedOn || "—", what: "When this record first entered the book." }));
+      cb.appendChild(ui.kv({ k: "Submitted", v: policy.submittedOn || policy.effectiveDate || "—", what: "When this record first entered the book.", why: policy.submittedOn ? "" : "Not separately recorded for this record — falls back to its effective date." }));
       if (policy.status === "Active") {
         var loyalty = PAS.loyaltyScore(policy);
         cb.appendChild(ui.kv({ k: "Loyalty tier", v: ui.pill(loyalty.tone, loyalty.tier + " · " + loyalty.score + " pts"), what: "Computed from renewal count, claims and cancellation history.", why: "Same formula the Loyalty page uses — nothing here is a stored points balance." }));
@@ -161,6 +166,36 @@
         columns: ["When", "User", "Action", "Detail"],
         rows: policyAudit.map(function (a) { return [(a.at || "").slice(0, 19), a.user, a.action, a.detail || "—"]; }),
         emptyText: "No admin-level writes recorded against this record yet.",
+      }));
+    } else if (tab === "endorsements") {
+      body.appendChild(ui.tipLabel({ text: "Endorsement trail", what: "Every mid-term change request raised against this policy, in order.", why: "The Transaction ledger mixes every event type together — this is just the endorsements.", className: "label-11 block mb-9" }));
+      body.appendChild(ui.dataTable({
+        columns: ["Date", "Status", "Change type", "Materiality", "Premium impact", "Requested by", "Detail"],
+        rows: endorsements.map(function (h) {
+          var impact = (h.meta && h.meta.premiumImpact) || 0;
+          var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, impact ? (impact >= 0 ? "+" : "") + PAS.money(impact) : "—");
+          return [h.date, ui.txnStatusBadge(h.status), (h.meta && h.meta.changeType) || "—",
+            h.meta && h.meta.materiality ? ui.pill(h.meta.materiality === "Material" ? "red" : "gray", h.meta.materiality) : "—",
+            impactSpan, h.meta ? ui.initiatorPill(h.meta) : "—",
+            ui.h("span", { style: { fontSize: "12px", color: "var(--text-soft)" } }, h.detail)];
+        }),
+        onRowClick: function (i) { location.href = "endorsement-decision.html?policy=" + encodeURIComponent(policy.id) + "&txn=" + encodeURIComponent(endorsements[i].id); },
+        emptyText: "No endorsements have been requested on this policy.",
+      }));
+    } else if (tab === "fleet") {
+      body.appendChild(ui.kpiRow([
+        { label: fleet.isFleet ? "Vehicles" : "Vehicle", value: fleet.vehicles.length, tip: "Units on this policy." },
+        { label: "Drivers", value: fleet.drivers.length, tip: "Named drivers on this policy." },
+      ]));
+      body.appendChild(ui.tipLabel({ text: (fleet.isFleet ? "Fleet" : "Vehicle") + " roster", what: "Every vehicle/trailer scheduled on this policy.", why: "Derived deterministically from the policy's own id and premium — the same way MGA assignment is — since the seed book carries premium and sum insured but not a separately-authored roster for every auto policy.", className: "label-11 block mb-9" }));
+      body.appendChild(ui.dataTable({
+        columns: ["Unit", "Type", "Make / Model", "Year", { label: "VIN", what: "Vehicle identification number." }],
+        rows: fleet.vehicles.map(function (v) { return [v.unit, v.type, v.make + " " + v.model, String(v.year), ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11px" } }, v.vin)]; }),
+      }));
+      body.appendChild(ui.tipLabel({ text: "Drivers", what: "Every named driver on this policy.", className: "label-11 block mt-18 mb-9" }));
+      body.appendChild(ui.dataTable({
+        columns: ["Name", "Role", "License class", "License state", "Years licensed"],
+        rows: fleet.drivers.map(function (d) { return [d.name, d.role, d.licenseClass, d.licenseState, String(d.yearsLicensed)]; }),
       }));
     } else if (tab === "asof") {
       var asofInput = ui.h("input", { class: "field-input", type: "date", value: PAS.todayISO() });

@@ -526,6 +526,73 @@
   }
   PAS.coverageBreakdown = coverageBreakdown;
 
+  var STATE_ABBR = {
+    Alabama: "AL", Alaska: "AK", Arizona: "AZ", Arkansas: "AR", California: "CA", Colorado: "CO",
+    Connecticut: "CT", Delaware: "DE", Florida: "FL", Georgia: "GA", Hawaii: "HI", Idaho: "ID",
+    Illinois: "IL", Indiana: "IN", Iowa: "IA", Kansas: "KS", Kentucky: "KY", Louisiana: "LA",
+    Maine: "ME", Maryland: "MD", Massachusetts: "MA", Michigan: "MI", Minnesota: "MN", Mississippi: "MS",
+    Missouri: "MO", Montana: "MT", Nebraska: "NE", Nevada: "NV", "New Hampshire": "NH", "New Jersey": "NJ",
+    "New Mexico": "NM", "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", Ohio: "OH",
+    Oklahoma: "OK", Oregon: "OR", Pennsylvania: "PA", "Rhode Island": "RI", "South Carolina": "SC",
+    "South Dakota": "SD", Tennessee: "TN", Texas: "TX", Utah: "UT", Vermont: "VT", Virginia: "VA",
+    Washington: "WA", "West Virginia": "WV", Wisconsin: "WI", Wyoming: "WY", "District of Columbia": "DC",
+  };
+  PAS.STATE_ABBR = STATE_ABBR;
+  PAS.stateAbbr = function (state) { return STATE_ABBR[state] || (state || "—"); };
+
+  /* ---------- fleet roster: the vehicles and drivers actually on an auto policy ----------
+     The seed book carries premium and sum insured for every Comprehensive Auto policy, not a
+     hand-authored vehicle/driver roster for all ~190 of them — so this derives one the same way
+     mgaForPolicy derives an MGA assignment: deterministically, from the policy's own id and
+     premium (hash32-seeded), not stored data. Same policy always yields the same roster; nothing
+     here is randomized per render. Premium is the only real signal for fleet size in this model,
+     so it's what decides vehicle/driver count — a $2,780 personal policy gets one car and its
+     named insured as the driver, a $150K fleet policy gets a multi-truck roster with named
+     drivers, the same shape a commercial auto submission would actually carry. */
+  var TRUCK_MAKES = [["Freightliner", "Cascadia"], ["Peterbilt", "579"], ["Kenworth", "T680"], ["Volvo", "VNL"], ["International", "LT"], ["Mack", "Anthem"]];
+  var TRAILER_MAKES = [["Great Dane", "Everest"], ["Wabash", "DuraPlate"], ["Utility", "4000D-X"], ["Stoughton", "Z-Plate"]];
+  var CAR_MAKES = [["Toyota", "Camry"], ["Honda", "Accord"], ["Ford", "F-150"], ["Chevrolet", "Silverado"], ["Nissan", "Altima"], ["Subaru", "Outback"]];
+  var DRIVER_FIRST = ["James", "Maria", "Robert", "Linda", "Michael", "Susan", "David", "Karen", "John", "Patricia", "Carlos", "Angela", "Kevin", "Nicole", "Brian", "Stephanie", "Eric", "Rachel", "Tyler", "Monica"];
+  var DRIVER_LAST = ["Turner", "Reyes", "Bennett", "Coleman", "Foster", "Nguyen", "Patel", "Ramirez", "Douglas", "Fisher", "Whitfield", "Hayes", "Sutton", "Barron", "Mercer", "Ortiz"];
+  function vin17(seed) {
+    var chars = "0123456789ABCDEFGHJKLMNPRSTUVWXYZ", out = "";
+    for (var i = 0; i < 17; i++) { out += chars[seed % chars.length]; seed = (seed * 31 + i) >>> 0; }
+    return out;
+  }
+  PAS.vehicleFleetFor = function (policy) {
+    if (!policy || policy.product !== "Comprehensive Auto") return null;
+    var h = hash32(policy.id);
+    var isFleet = (policy.premium || 0) >= 20000;
+    var vehicleCount = isFleet ? Math.max(2, Math.min(12, Math.round(policy.premium / 22000))) : 1;
+    var makePool = isFleet ? TRUCK_MAKES : CAR_MAKES;
+    var vehicles = [];
+    for (var i = 0; i < vehicleCount; i++) {
+      var vseed = hash32(policy.id + "-veh-" + i);
+      var mk = makePool[vseed % makePool.length];
+      vehicles.push({ unit: (isFleet ? "Truck " : "Vehicle ") + (i + 1), type: isFleet ? "Tractor unit" : "Passenger vehicle", make: mk[0], model: mk[1], year: 2020 + (vseed % 7), vin: vin17(vseed) });
+    }
+    if (isFleet) {
+      var trailerCount = Math.max(1, Math.round(vehicleCount / 2));
+      for (var t = 0; t < trailerCount; t++) {
+        var tseed = hash32(policy.id + "-trl-" + t);
+        var tm = TRAILER_MAKES[tseed % TRAILER_MAKES.length];
+        vehicles.push({ unit: "Trailer " + (t + 1), type: "Dry van trailer", make: tm[0], model: tm[1], year: 2019 + (tseed % 8), vin: vin17(tseed) });
+      }
+    }
+    var drivers = [];
+    if (isFleet) {
+      var driverCount = Math.max(vehicleCount, Math.min(14, vehicleCount + (h % 3)));
+      for (var d = 0; d < driverCount; d++) {
+        var dseed = hash32(policy.id + "-drv-" + d);
+        var name = DRIVER_FIRST[dseed % DRIVER_FIRST.length] + " " + DRIVER_LAST[hash32(policy.id + "-drvl-" + d) % DRIVER_LAST.length];
+        drivers.push({ name: name, role: d === 0 ? "Lead driver" : "Driver", licenseClass: "CDL-A", licenseState: PAS.stateAbbr(policy.state), yearsLicensed: 2 + (dseed % 15) });
+      }
+    } else {
+      drivers.push({ name: policy.holder, role: "Named insured", licenseClass: "Class C", licenseState: PAS.stateAbbr(policy.state), yearsLicensed: 5 + (h % 20) });
+    }
+    return { isFleet: isFleet, vehicles: vehicles, drivers: drivers };
+  };
+
   /* ---------- loyalty: configurable criteria, computed from real ledger data ----------
      Same shape as the underwriting risk model — a weights table an admin could tune, plus a pure
      function that shows its derivation line by line rather than asserting a tier. Every input is

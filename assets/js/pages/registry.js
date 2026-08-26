@@ -3,6 +3,8 @@
   "use strict";
   var PAS = window.PAS, ui = PAS.ui;
 
+  var STATUS_BUCKETS = PAS.STATUS_BUCKETS, BUCKET_TONE = PAS.BUCKET_TONE, statusBucket = PAS.statusBucket;
+
   function render() {
     var policies = PAS.getPolicies();
     var q = "", sf = "All", pf = "All", stf = "All";
@@ -18,7 +20,7 @@
       { label: "Total records", value: policies.length, tip: "Submissions plus policies." },
       { label: "In force", value: policies.filter(function (p) { return p.status === "Active"; }).length, tone: "green", tip: "Issued, not cancelled or expired." },
       { label: "Pre-issue", value: policies.filter(function (p) { return ["Referred", "Bound"].indexOf(p.status) !== -1; }).length, tone: "amber", tip: "Submissions and bound-not-issued." },
-      { label: "Closed", value: policies.filter(function (p) { return ["Cancelled", "Expired", "Non-renewed"].indexOf(p.status) !== -1; }).length, tip: "No longer on risk." },
+      { label: "Closed", value: policies.filter(function (p) { return ["Cancelled", "Expired", "Non-renewed", "Declined"].indexOf(p.status) !== -1; }).length, tip: "No longer on risk." },
     ]));
 
     var toolbar = ui.h("div", { class: "register-toolbar" });
@@ -36,7 +38,7 @@
 
     var filters = ui.h("div", { class: "register-filters" });
     var statusSelect = ui.h("select", { class: "register-select", title: "Status" });
-    ["All", "Referred", "Bound", "Active", "Cancelled", "Expired", "Non-renewed"].forEach(function (s) {
+    ["All"].concat(STATUS_BUCKETS).forEach(function (s) {
       statusSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All statuses" : s));
     });
     filters.appendChild(statusSelect);
@@ -49,6 +51,39 @@
     states.forEach(function (s) { stateSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All states" : s)); });
     filters.appendChild(stateSelect);
     toolbar.appendChild(filters);
+
+    function match(p) {
+      return (sf === "All" || statusBucket(p.status) === sf)
+        && (pf === "All" || p.product === pf)
+        && (stf === "All" || p.state === stf)
+        && (p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
+    }
+
+    /* `record` and `insured` are locked visible — without an identifying column the table would
+       be useless to click into, so they're not offered in the Columns picker at all. */
+    var registryTable = ui.sortableTable({
+      storageKey: "pas.registry.columns.v1",
+      defaultVisible: ["record", "insured", "product", "status", "premium", "term", "docs"],
+      columns: [
+        { key: "record", label: "Record", locked: true, sortValue: function (p) { return p.id; }, cell: function (p) { return ui.cellId(p.id); } },
+        { key: "insured", label: "Insured", locked: true, sortValue: function (p) { return (p.holder || "").toLowerCase(); }, cell: function (p) { return ui.cellName(p.holder); } },
+        { key: "product", label: "Product", sortValue: function (p) { return p.product || ""; }, cell: function (p) { return p.product; } },
+        { key: "status", label: "Status", what: "Position in the lifecycle state machine.", why: "Status decides which actions are legal on this record.", sortValue: function (p) { return statusBucket(p.status); }, cell: function (p) { var b = statusBucket(p.status); return ui.pill(BUCKET_TONE[b], b); } },
+        { key: "premium", label: "Premium", what: "Annual written premium.", sortValue: function (p) { return p.premium || 0; }, cell: function (p) { return PAS.money(p.premium); } },
+        { key: "term", label: "Term", what: "Effective and expiry dates of the current term.", sortValue: function (p) { return p.effectiveDate || ""; }, cell: function (p) { return p.effectiveDate + " → " + p.expirationDate; } },
+        { key: "docs", label: "Docs", what: "Generated document versions held.", sortValue: function (p) { return (p.documents && p.documents.length) || 0; }, cell: function (p) { var n = (p.documents && p.documents.length) || 0; return ui.pill(n ? "gray" : "amber", String(n)); } },
+        { key: "broker", label: "Broker", sortValue: function (p) { return p.producer || ""; }, cell: function (p) { return p.producer || "—"; } },
+        { key: "mga", label: "MGA", sortValue: function (p) { return p.mga || ""; }, cell: function (p) { return p.mga || "—"; } },
+        { key: "carrier", label: "Carrier", sortValue: function (p) { return p.carrier || ""; }, cell: function (p) { return p.carrier || "—"; } },
+        { key: "state", label: "State", sortValue: function (p) { return p.state || ""; }, cell: function (p) { return p.state || "—"; } },
+        { key: "submitted", label: "Submitted", what: "When this record first entered the book.", sortValue: function (p) { return p.submittedOn || ""; }, cell: function (p) { return p.submittedOn || "—"; } },
+      ],
+      trailingColumn: { cell: function () { return ui.cellOpen("Open"); } },
+      rows: function () { return policies.filter(match); },
+      onRowClick: function (p) { location.href = "policy-detail.html?policy=" + encodeURIComponent(p.id); },
+      emptyText: "No matching records.",
+    });
+    toolbar.appendChild(registryTable.columnsControl);
 
     var exportBtn = ui.h("button", { class: "btn register-export", type: "button" }, [
       PAS.icon("download", { size: 13 }),
@@ -69,34 +104,21 @@
     toolbar.appendChild(exportBtn);
     page.appendChild(toolbar);
 
-    var tableContainer = ui.h("div", {});
-    page.appendChild(tableContainer);
+    var noteEl = ui.h("div", { class: "faint-note mb-9" });
+    page.appendChild(noteEl);
+    page.appendChild(registryTable.tableWrap);
 
-    function match(p) {
-      return (sf === "All" || p.status === sf)
-        && (pf === "All" || p.product === pf)
-        && (stf === "All" || p.state === stf)
-        && (p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
+    function refresh() {
+      var filtered = policies.filter(match);
+      noteEl.textContent = (sf !== "All" || pf !== "All" || stf !== "All" || q)
+        ? "Showing " + filtered.length + " of " + policies.length + " records." : "";
+      registryTable.rebuild();
     }
-
-    function buildTable() {
-      var rows = policies.filter(match);
-      tableContainer.innerHTML = "";
-      if (sf !== "All" || pf !== "All" || stf !== "All" || q) {
-        tableContainer.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Showing " + rows.length + " of " + policies.length + " records."));
-      }
-      tableContainer.appendChild(ui.dataTable({
-        columns: ["Record", "Insured", "Product", { label: "Status", what: "Position in the lifecycle state machine.", why: "Status decides which actions are legal on this record." }, { label: "Premium", what: "Annual written premium." }, { label: "Term", what: "Effective and expiry dates of the current term." }, { label: "Docs", what: "Generated document versions held." }, ""],
-        rows: rows.map(function (p) { return [ui.cellId(p.id), ui.cellName(p.holder), p.product, ui.badge(p.status), PAS.money(p.premium), p.effectiveDate + " → " + p.expirationDate, ui.pill((p.documents && p.documents.length) ? "gray" : "amber", String((p.documents && p.documents.length) || 0)), ui.cellOpen("Open")]; }),
-        onRowClick: function (i) { location.href = "policy-detail.html?policy=" + encodeURIComponent(rows[i].id); },
-        emptyText: "No matching records.",
-      }));
-    }
-    searchInput.addEventListener("input", function () { q = searchInput.value; buildTable(); });
-    statusSelect.addEventListener("change", function () { sf = statusSelect.value; buildTable(); });
-    productSelect.addEventListener("change", function () { pf = productSelect.value; buildTable(); });
-    stateSelect.addEventListener("change", function () { stf = stateSelect.value; buildTable(); });
-    buildTable();
+    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
+    statusSelect.addEventListener("change", function () { sf = statusSelect.value; refresh(); });
+    productSelect.addEventListener("change", function () { pf = productSelect.value; refresh(); });
+    stateSelect.addEventListener("change", function () { stf = stateSelect.value; refresh(); });
+    refresh();
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

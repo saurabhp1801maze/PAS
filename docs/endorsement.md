@@ -103,12 +103,12 @@ computed "Premium after" figure. The fix (in `src/App.jsx`, the `decideTxn` func
 
 - Adds `held.meta.premiumImpact` to `p.premium` when an endorsement is approved.
 - Rewrites the transaction's detail text to state the outcome — falling back to *appending* the
-  outcome (`"Approved and applied. Premium adjusted +₹4,200."`) when the original detail doesn't
+  outcome (`"Approved and applied. Premium adjusted +$240."`) when the original detail doesn't
   contain the literal word `"HELD"`, instead of the previous regex silently no-op'ing for anything
   raised through the live "Log a request" form (which never generates that word).
-- Verified end-to-end with a headless-browser run: approving Meera Shankar's "Add driver" request
-  (POL-2025-09112, `premiumImpact: 4200`) now moves the policy's stored premium from ₹48,200 to
-  ₹52,400, visible in the Policy Register, the policy detail ledger, and the dashboard's
+- Verified end-to-end with a headless-browser run: approving Melissa Shaw's "Add driver" request
+  (POL-2025-09112, `premiumImpact: 240`) now moves the policy's stored premium from $2,780 to
+  $3,020, visible in the Policy Register, the policy detail ledger, and the dashboard's
   gross-written-premium roll-up.
 
 ## Database tables used
@@ -142,14 +142,14 @@ Change requests awaiting a decision. Backs the "Requests awaiting decision" tabl
   {
     "transactionId": "TXN-...",
     "policyId": "POL-2025-09112",
-    "holder": "Meera Shankar",
+    "holder": "Melissa Shaw",
     "changeType": "Add/remove driver",
     "materiality": "Material",
-    "premiumImpact": 4200,
+    "premiumImpact": 240,
     "initiatedBy": "Broker/Producer",
     "channel": "Broker portal",
     "submittedOn": "2026-08-18",
-    "requestNote": "Please add Rohit Verma as a named driver from next week."
+    "requestNote": "Please add Ryan Cole as a named driver from next week."
   }
 ]
 ```
@@ -171,7 +171,7 @@ today, which this closes.)
   "premiumImpact": 4200,
   "initiatedBy": "Broker/Producer",
   "channel": "Broker portal",
-  "requestNote": "Please add Rohit Verma as a named driver from next week."
+  "requestNote": "Please add Ryan Cole as a named driver from next week."
 }
 // 201 response
 { "transactionId": "TXN-...", "status": "pending" }

@@ -63,22 +63,31 @@ self-initiated by ops on the spot — this is what this prototype's `RequestOrig
 `INITIATORS` / "held transaction" model is encoding. Held (pending) means the policy is
 untouched until someone with authority reviews the full context and approves or declines.
 
-## India (IRDAI) regulatory context
+## United States regulatory context
 
-This prototype's premium formatting (`₹`), authority-limit language and default dates are India
-(IRDAI-regulated) flavored, so a few IRDAI-specific practices are relevant background even where
-the exact statutory notice period is left to product design:
+This prototype's premium formatting (`$`) and default constants are US-flavored. Unlike India's
+single IRDAI regulator, US insurance is regulated **state by state** — each state's Department of
+Insurance (DOI) sets its own statute, so any single number below is a defensible default, not a
+nationwide rule. The prototype's constants track the **NAIC model act** conventions most states'
+statutes are actually built from:
 
-- **Grace period at expiry.** A policy terminates at the end of its term but can be renewed within
-  a product-specific grace period without a break in continuity of benefits — though coverage is
-  *not* in force during the grace period itself.
-- **No-Claim Bonus (NCB) continuity (motor).** NCB carries over if renewal happens within 90 days
-  of expiry, even though cover itself lapsed.
-- **Portability notice window (health).** A policyholder porting to a new insurer must apply at
-  least 45 days before, but not more than 60 days before, the renewal date.
-- **Renewal notice is a best-effort obligation, not a hard mandate** — insurers are expected to
-  "endeavor" to notify, rather than being bound to a fixed statutory lead time the way several
-  US states require (30–60 days) for non-renewal specifically.
+- **Cancellation notice is tiered by reason and how long the policy has been in force**, per the
+  NAIC model: at least **10 days** for nonpayment of premium, at least **30 days** for other
+  reasons within the policy's first 60 days on risk, and at least **45 days** once the policy has
+  been in force beyond 60 days or is a renewal term. `CANCEL_REASONS` mirrors this: `Non-Payment`
+  carries a 10-day notice, `Underwriting` (an insurer-side exit after the initial underwriting
+  window) carries 45, and the `Other` catch-all sits at 30.
+- **Non-renewal notice** — declining to offer a new term at expiry, distinct from cancelling a
+  term already in force — is commonly at least **45 days** before expiration under the model act,
+  which is why `RENEWAL_LEAD_DAYS = 45` here; several states require more (60–75 days is common
+  for homeowners in catastrophe-exposed states), a few require as little as 30.
+- **No single national producer license.** A broker is licensed per state but is issued one
+  **National Producer Number (NPN)** by the National Insurance Producer Registry (NIPR), unchanged
+  across every state they're licensed in — the identifier carriers and regulators actually use to
+  track a producer nationally.
+- **Fraud/material misrepresentation is the one reason nearly every state lets an insurer cancel
+  immediately, notice period aside** — consistent with `Fraud` carrying a 0-day notice requirement
+  here.
 
 ## Vendor & standards landscape (for reference)
 
@@ -201,7 +210,7 @@ old one, so every past term stays queryable exactly as it was priced.
 | `term_number` | int | 1, 2, 3… increments on renewal |
 | `effective_date` / `expiration_date` | date | |
 | `premium` | decimal | Annual premium *for this term* |
-| `sum_insured` | text/decimal | Kept as entered — some products use a formatted limit string, others a bare IDV |
+| `sum_insured` | text/decimal | Kept as entered — some products use a formatted limit string, others a bare ACV |
 | `status` | enum | Mirrors `policies.current_status` at the time this was the live term |
 
 **`binders`** / **`subjectivities`** — provisional-cover bridge between Bind and Issue.
@@ -333,9 +342,9 @@ markdown — see `domain-model.html`, `data-model.html`, `api-reference.html`, `
 - [Guidewire — Insurance Policy Administration System (PolicyCenter)](https://www.guidewire.com/products/core-products/insurancesuite/policycenter-insurance-policy-administration)
 - [Duck Creek Policy — Policy Management Software](https://www.duckcreek.com/product/policy-management-software/)
 - [ACORD Data Standards](https://www.acord.org/standards-architecture/acord-data-standards)
-- [IRDAI (Health Insurance) Regulations, 2016](https://www.indiacode.nic.in/ViewFileUploaded?path=AC_CEN_2_33_00044_193804_1523351752525%2Fregulationindividualfile%2F&file=irdai_%28health_insurance%29_regulations%2C_2016.pdf)
-- [IRDAI Guidelines Explained: Simplifying India's Insurance Regulations](https://www.nivabupa.com/health-insurance-articles/irdai-guidelines-explained-india-insurance-regulations.html)
-- [IRDAI Guidelines for Bike Insurance Renewal in India](https://www.policybazaar.com/motor-insurance/two-wheeler-insurance/articles/irdai-rules-for-bike-insurance-renewal-in-india/)
+- [NAIC — Model Laws, Regulations, Guidelines and Other Resources](https://content.naic.org/sites/default/files/model-law-880.pdf)
+- [LegalClarity — Insurance Cancellation vs. Non-Renewal: Key Legal Differences](https://legalclarity.org/insurance-cancellation-vs-non-renewal-key-legal-differences/)
+- [NIPR — National Producer Number (NPN) lookup](https://nipr.com/licensing-center/look-up-a-national-producer-number)
 - [Microservices.io — Pattern: Transactional outbox](https://microservices.io/patterns/data/transactional-outbox.html)
 - [AWS Prescriptive Guidance — Transactional outbox pattern](https://docs.aws.amazon.com/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html)
 - [Confluent — Designing Event-Driven Microservices: The Transactional Outbox Pattern](https://developer.confluent.io/courses/microservices/the-transactional-outbox-pattern/)

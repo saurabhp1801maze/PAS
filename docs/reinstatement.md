@@ -49,8 +49,8 @@ beyond the 45-day window" are different messages for a different underlying prob
 
 ### Worked example
 
-Divya Krishnan, Comprehensive Auto, cancelled 2026-08-05 for non-payment (refund ₹0), reinstatement
-requested 2026-08-19 claiming ₹33,000 outstanding:
+Olivia Sanders, Comprehensive Auto, cancelled 2026-08-05 for non-payment (refund $628), reinstatement
+requested 2026-08-19 claiming $1,450 outstanding:
 
 ```
 daysSince = daysBetween(2026-08-05, 2026-08-20) = 15

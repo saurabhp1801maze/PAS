@@ -146,20 +146,20 @@ needsReview    = reason === "Fraud"  ||  !noticeOk
 
 ### Worked example
 
-Karan Malhotra, Term Life, premium ₹15,600, effective 2026-02-01, expiring 2027-02-01, cancellation
+Marcus Whitfield, Term Life, premium $2,400, effective 2026-02-01, expiring 2027-02-01, cancellation
 requested for reason "Insured Request", Initiated By "Broker/Producer", effective 2026-08-19:
 
 ```
-Total term        365 days
-Remaining          166 days
-Unearned    15,600 × 166/365  =  7,095
-Penalty (10%)      7,095 × 0.10  =    709
-Refund                            =  6,385
+Total term       365 days
+Remaining         166 days
+Unearned    2,400 × 166/365  =  1,092
+Penalty (10%)     1,092 × 0.10  =    109
+Refund                            =    982
 ```
 
 Type derives to Short-Rate: the reason's default is Short-Rate, and Broker/Producer is not
 insurer-side, so nothing downgrades it. Had this same request come in Initiated By "Carrier"
-instead, Type would derive to Pro-Rata and the refund would be the full ₹7,095 unearned — the
+instead, Type would derive to Pro-Rata and the refund would be the full $1,092 unearned — the
 penalty only exists to recover acquisition cost on a voluntary exit, not on one the insurer itself
 initiated for the same stated reason.
 
@@ -167,10 +167,11 @@ initiated for the same stated reason.
 
 The 10% penalty is taken **off unearned premium**, not off annual premium and not off a
 short-period retention scale. That choice makes the penalty shrink toward zero as the policy runs
-out — the opposite of every real short-rate convention, where retention *increases* the longer
-cover was in force, typically reaching 100% well before term end (the India Motor Tariff
-short-period scale reaches full retention at 8 months on risk). See the audit's F-04 for the full
-comparison table. It has not yet been fixed; it needs a product-scoped rate table (see
+out — the opposite of every real US short-rate table, where the *earned* percentage is
+front-loaded well beyond straight pro-rata: a standard short-rate table can treat a cancellation
+in the first 10 days of a 365-day term as having earned 10% of the annual premium, even though
+only about 2.7% of the term has actually elapsed. See the audit's F-04 for the full comparison
+table. It has not yet been fixed; it needs a product-scoped rate table (see
 [common.md](./common.md)'s "Where this prototype stands today"), not a one-line change.
 
 ## What's implemented, and what's a gap
@@ -214,3 +215,8 @@ reason, initiated-by, refund breakdown and notice check, per
 
 See [api-reference.html](../api-reference.html) in the app for the generated, always-current
 version of this table.
+
+## Sources
+
+- [IRMI — Short-Rate Cancellation](https://www.irmi.com/term/insurance-definitions/short-rate-cancellation)
+- [NAIC — Model Laws, Regulations, Guidelines and Other Resources](https://content.naic.org/sites/default/files/model-law-880.pdf)

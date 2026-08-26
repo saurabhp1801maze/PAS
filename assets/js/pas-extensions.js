@@ -357,7 +357,7 @@
     var policy = PAS.ensurePolicyStructure({
       id: id, holder: data.holder, product: data.product, status: "Bound",
       effectiveDate: data.effectiveDate || todayISO(), expirationDate: data.expirationDate || addYears(todayISO(), 1),
-      premium: data.premium, producer: data.producer || "Direct", state: data.state || "Maharashtra",
+      premium: data.premium, producer: data.producer || "Direct", state: data.state || "Illinois",
       sumInsured: data.sumInsured || "—", carrier: data.carrier || PAS.CARRIERS[0],
       binder: { number: uid("BN"), boundOn: todayISO(), expiryDate: addDays(todayISO(), 30), subjectivities: data.subjectivities || [{ label: "Signed proposal form", met: false }] },
       documents: [], history: [{ id: uid("TXN"), seq: 1, date: todayISO(), recordedAt: new Date().toISOString(), status: "Completed", user: "UW Module", type: "Bind", title: "Bound by underwriting module", detail: "Received from external UW module via PAS inbound API.", meta: { source: "underwriting-module" } }],

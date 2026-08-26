@@ -24,11 +24,13 @@
   function inYear(dateStr, y) { return !!dateStr && dateStr.slice(0, 4) === String(y); }
   var MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-  /* Trailing N month keys ("YYYY-MM"), oldest first, ending at the current month. Built off a
-     real Date object (not string math) so a window that crosses a year boundary rolls correctly. */
-  function trailingMonths(n) {
+  /* Trailing N month keys ("YYYY-MM"), oldest first, ending at the given month offset from today
+     (0 = current month, -1 = last month, ...). Built off a real Date object (not string math) so
+     a window that crosses a year boundary rolls correctly. */
+  function trailingMonths(n, endOffset) {
+    var off = endOffset || 0;
     var today = new Date(PAS.todayISO() + "T00:00:00Z");
-    var y = today.getUTCFullYear(), m = today.getUTCMonth();
+    var y = today.getUTCFullYear(), m = today.getUTCMonth() + off;
     var out = [];
     for (var i = n - 1; i >= 0; i--) {
       var d = new Date(Date.UTC(y, m - i, 1));
@@ -36,10 +38,41 @@
     }
     return out;
   }
-  function trailingYears(n) {
-    var curY = Number(PAS.todayISO().slice(0, 4));
+  function monthKeyOffset(offset) { return trailingMonths(1, offset)[0]; }
+  function trailingYears(n, endOffset) {
+    var curY = Number(PAS.todayISO().slice(0, 4)) + (endOffset || 0);
     var out = [];
     for (var i = n - 1; i >= 0; i--) out.push(curY - i);
+    return out;
+  }
+  function yearOffset(offset) { return Number(PAS.todayISO().slice(0, 4)) + (offset || 0); }
+
+  /* Quarter keys are "YYYY-Qn". Built off the real UTC month, same reasoning as trailingMonths —
+     a window that crosses a year boundary (Q4 -> Q1) has to roll the year too. */
+  function quarterKeyOf(y, monthIdx0) { return y + "-Q" + (Math.floor(monthIdx0 / 3) + 1); }
+  function inQuarter(dateStr, qKey) {
+    if (!dateStr) return false;
+    var d = new Date(dateStr + "T00:00:00Z");
+    return quarterKeyOf(d.getUTCFullYear(), d.getUTCMonth()) === qKey;
+  }
+  /* Quarter index arithmetic (year*4 + quarter0) so offsets roll cleanly across year boundaries
+     in both directions, including negative modulo when stepping back past Q1. */
+  function quarterIndexOffset(offset) {
+    var today = new Date(PAS.todayISO() + "T00:00:00Z");
+    return today.getUTCFullYear() * 4 + Math.floor(today.getUTCMonth() / 3) + (offset || 0);
+  }
+  function quarterKeyOffset(offset) {
+    var idx = quarterIndexOffset(offset);
+    var y = Math.floor(idx / 4), q = ((idx % 4) + 4) % 4;
+    return y + "-Q" + (q + 1);
+  }
+  function trailingQuarters(n, endOffset) {
+    var qIndex = quarterIndexOffset(endOffset);
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) {
+      var idx = qIndex - i, y = Math.floor(idx / 4), q = ((idx % 4) + 4) % 4;
+      out.push(y + "-Q" + (q + 1));
+    }
     return out;
   }
 
@@ -57,28 +90,155 @@
      changed. Underwriter keeps the full operational dashboard below unchanged; MGA and Carrier
      share a read-only portfolio-analytics view (renderPortfolioDashboard); Broker/Producer gets
      their own book only, scoped by the real `producer` field already on every policy. */
-  function renderUnderwriterDashboard(page, policies) {
+  function renderUnderwriterDashboard(page, allPolicies) {
     var period = "month"; /* default: current month, per the toggle's spec */
-    var curMonth = PAS.todayISO().slice(0, 7);
-    var curYear = Number(PAS.todayISO().slice(0, 4));
+    /* How many periods back from today the selected month/quarter/year is — 0 = current,
+       -1 = last, -2 = two back, etc. Navigated with the ◀/▶ arrows next to the toggle; reset to
+       0 whenever the period *type* changes, since an offset from one type doesn't mean anything
+       in another. Custom range is a separate control (see rangeRow below), not a fifth offset. */
+    var periodOffset = 0;
+    /* Custom range defaults to the trailing 30 days so switching into it isn't an empty page. */
+    var customFrom = PAS.addDays(PAS.todayISO(), -30);
+    var customTo = PAS.todayISO();
 
-    /* ---------- snapshot metrics: not period-scoped, the book has no past-state history ---------- */
-    var active = policies.filter(function (p) { return p.status === "Active"; });
-    var bound = policies.filter(function (p) { return p.status === "Bound"; });
-    var pending = PAS.allTxns(policies).map(function (t) { return t.h; }).filter(function (h) { return h.status === "Pending"; });
-    var awaitingDecision = pending.length + bound.length; /* see file header — the F-15 fix */
+    /* Multi-select filters: an empty array means "All" (no restriction) — same convention the
+       button label in ui.multiSelect uses, so an untouched filter and an explicitly-cleared one
+       look and behave identically. Product doubles as this app's line-of-business dimension —
+       there's no separate lineOfBusiness field, the MGA/Carrier dashboard's own "LOB" panels
+       already group by `product` directly. Broker/MGA/Carrier are three genuinely independent
+       policy attributes (who placed it, which wholesale facility bound it, whose paper it's
+       written on) — replacing the old single "touched by" User filter, which mixed together
+       every transaction actor regardless of role. */
+    var lobFilter = [], stateFilter = [], brokerFilter = [], mgaFilter = [], carrierFilter = [];
+    var lobOptions = Array.from(new Set(allPolicies.map(function (p) { return p.product; }))).sort();
+    var stateOptions = Array.from(new Set(allPolicies.map(function (p) { return p.state; }).filter(Boolean))).sort();
+    /* Broker and MGA options carry their type (Individual vs Organization — "Direct" isn't a
+       producer at all, so it gets no type suffix) alongside the plain name, so the filter panel
+       shows which kind of entity each one is. `value` stays the plain name so matching against
+       `p.producer`/`p.mga` (both plain strings) needs no other changes. */
+    function typedLabel(name, typeMap) {
+      var t = typeMap[name];
+      return (t && t !== "Direct") ? name + " (" + t + ")" : name;
+    }
+    var brokerOptions = Array.from(new Set(allPolicies.map(function (p) { return p.producer; }).filter(Boolean))).sort()
+      .map(function (name) { return { value: name, label: typedLabel(name, PAS.BROKER_TYPE) }; });
+    var mgaOptions = Array.from(new Set(allPolicies.map(function (p) { return p.mga; }).filter(Boolean))).sort()
+      .map(function (name) { return { value: name, label: typedLabel(name, PAS.MGA_TYPE) }; });
+    var carrierOptions = Array.from(new Set(allPolicies.map(function (p) { return p.carrier; }).filter(Boolean))).sort();
+
+    function matchesMulti(selected, value) { return selected.length === 0 || selected.indexOf(value) !== -1; }
+    function filterNote() {
+      var parts = [];
+      if (lobFilter.length) parts.push(lobFilter.join("/"));
+      if (stateFilter.length) parts.push(stateFilter.join("/"));
+      if (brokerFilter.length) parts.push("broker " + brokerFilter.join("/"));
+      if (mgaFilter.length) parts.push("MGA " + mgaFilter.join("/"));
+      if (carrierFilter.length) parts.push("carrier " + carrierFilter.join("/"));
+      return parts.length ? " (" + parts.join("; ") + ")" : "";
+    }
+    /* Every filter here — product, state, broker, MGA, carrier — is a real attribute already on
+       the policy record, so scoping is a plain field match, no transaction-history walk needed. */
+    function scopedPolicies() {
+      return allPolicies.filter(function (p) {
+        return matchesMulti(lobFilter, p.product) && matchesMulti(stateFilter, p.state)
+          && matchesMulti(brokerFilter, p.producer) && matchesMulti(mgaFilter, p.mga) && matchesMulti(carrierFilter, p.carrier);
+      });
+    }
+    /* Single source of truth for "is this ledger date inside the selected period" — used by the
+       KPI cards and both trend charts so they can never disagree. */
+    function periodMatches(dateStr) {
+      if (period === "month") return inMonth(dateStr, monthKeyOffset(periodOffset));
+      if (period === "quarter") return inQuarter(dateStr, quarterKeyOffset(periodOffset));
+      if (period === "year") return inYear(dateStr, yearOffset(periodOffset));
+      return !!dateStr && dateStr >= customFrom && dateStr <= customTo; /* custom range, inclusive */
+    }
+    function periodNoteText() {
+      if (period === "month") { var mk = monthKeyOffset(periodOffset); return "in " + MONTH_NAMES[Number(mk.slice(5, 7)) - 1] + " " + mk.slice(0, 4); }
+      if (period === "quarter") return "in " + quarterKeyOffset(periodOffset);
+      if (period === "year") return "in " + yearOffset(periodOffset);
+      return "from " + customFrom + " to " + customTo;
+    }
 
     page.appendChild(ui.pageHeader({
       icon: "layout-dashboard", tone: "indigo", title: "Portfolio Dashboard",
-      sub: "Live position of the book, filtered by period",
-      what: "Portfolio KPIs computed live from the book for the selected period.", why: "A PAS is judged on what it tells you to do next.",
+      sub: "Live position of the book, filtered by period, line of business, state and user",
+      what: "Portfolio KPIs computed live from the book for the selected period and scope.", why: "A PAS is judged on what it tells you to do next.",
     }));
+
+    /* One wrapping row, every filter a same-shaped group (label above control) — the pattern
+       already used by the register/workbench filter bars, so the dashboard doesn't invent its
+       own layout. */
+    var filterBlock = ui.h("div", { class: "filter-block" });
+    page.appendChild(filterBlock);
+
+    var lobGroup = ui.h("div", {});
+    lobGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Line of business"));
+    lobGroup.appendChild(ui.multiSelect({ options: lobOptions, selected: lobFilter, allLabel: "All lines", onChange: function (sel) { lobFilter = sel; buildAll(); } }));
+    filterBlock.appendChild(lobGroup);
+
+    var stateGroup = ui.h("div", {});
+    stateGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "State"));
+    stateGroup.appendChild(ui.multiSelect({ options: stateOptions, selected: stateFilter, allLabel: "All states", onChange: function (sel) { stateFilter = sel; buildAll(); } }));
+    filterBlock.appendChild(stateGroup);
+
+    var brokerGroup = ui.h("div", {});
+    brokerGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Broker"));
+    brokerGroup.appendChild(ui.multiSelect({ options: brokerOptions, selected: brokerFilter, allLabel: "All brokers", onChange: function (sel) { brokerFilter = sel; buildAll(); } }));
+    filterBlock.appendChild(brokerGroup);
+
+    var mgaGroup = ui.h("div", {});
+    mgaGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "MGA"));
+    mgaGroup.appendChild(ui.multiSelect({ options: mgaOptions, selected: mgaFilter, allLabel: "All MGAs", onChange: function (sel) { mgaFilter = sel; buildAll(); } }));
+    filterBlock.appendChild(mgaGroup);
+
+    var carrierGroup = ui.h("div", {});
+    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Carrier"));
+    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All carriers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
+    filterBlock.appendChild(carrierGroup);
 
     var toggleRow = ui.h("div", { class: "period-toggle-row" });
     toggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Portfolio KPIs"));
+    var toggleAndNav = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "10px" } });
     var toggle = ui.h("div", { class: "period-toggle" });
-    toggleRow.appendChild(toggle);
+    toggleAndNav.appendChild(toggle);
+    /* ◀ current-period-label ▶ — steps periodOffset back/forward one unit of whatever period is
+       selected (a month, a quarter, a year). Forward is disabled at offset 0: this book has no
+       data past today, so "next" would only ever land on an empty period. Hidden entirely in
+       custom-range mode, where the date pair below is the only control. */
+    var navWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
+    var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period" }, "◀");
+    var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--text)", minWidth: "108px", textAlign: "center" } });
+    var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period" }, "▶");
+    navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
+    toggleAndNav.appendChild(navWrap);
+    toggleRow.appendChild(toggleAndNav);
+    prevBtn.addEventListener("click", function () { periodOffset -= 1; buildAll(); });
+    nextBtn.addEventListener("click", function () { if (periodOffset < 0) { periodOffset += 1; buildAll(); } });
     page.appendChild(toggleRow);
+
+    /* Custom range is a deliberately separate control, not a fifth chip in the toggle above —
+       switching it on replaces the Monthly/Quarterly/Yearly selection entirely rather than
+       sitting alongside it as another option of the same kind. */
+    var customToggleRow = ui.h("div", { class: "period-toggle-row" });
+    customToggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Or a custom range"));
+    var customBtn = ui.h("button", { class: "chip" }, "Custom range");
+    customToggleRow.appendChild(customBtn);
+    customBtn.addEventListener("click", function () { period = period === "custom" ? "month" : "custom"; periodOffset = 0; buildAll(); });
+    page.appendChild(customToggleRow);
+
+    /* Only visible when period === "custom" — a plain date pair, inclusive on both ends. */
+    var rangeRow = ui.h("div", { class: "period-toggle-row" });
+    rangeRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Date range"));
+    var rangeWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
+    var fromInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customFrom });
+    var toInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customTo });
+    rangeWrap.appendChild(fromInput);
+    rangeWrap.appendChild(ui.h("span", { style: { color: "var(--text-faint)", fontSize: "12px" } }, "to"));
+    rangeWrap.appendChild(toInput);
+    rangeRow.appendChild(rangeWrap);
+    page.appendChild(rangeRow);
+    fromInput.addEventListener("change", function () { if (fromInput.value) customFrom = fromInput.value; buildAll(); });
+    toInput.addEventListener("change", function () { if (toInput.value) customTo = toInput.value; buildAll(); });
 
     var kpiContainer = ui.h("div", {});
     page.appendChild(kpiContainer);
@@ -94,45 +254,52 @@
 
     function renderToggle() {
       toggle.innerHTML = "";
-      [["month", "Monthly"], ["year", "Yearly"]].forEach(function (opt) {
+      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"]].forEach(function (opt) {
         var btn = ui.h("button", { class: "chip" + (period === opt[0] ? " active" : "") }, opt[1]);
-        btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; buildAll(); } });
+        btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; periodOffset = 0; buildAll(); } });
         toggle.appendChild(btn);
       });
+      customBtn.className = "chip" + (period === "custom" ? " active" : "");
+      navWrap.style.display = period === "custom" ? "none" : "flex";
+      rangeRow.style.display = period === "custom" ? "" : "none";
+      if (period !== "custom") {
+        navLabel.textContent = periodNoteText().replace(/^in /, "");
+        nextBtn.disabled = periodOffset >= 0;
+      }
     }
 
     function buildKpis() {
-      var renewed, cancelled, reinstated, expiring, decidedRenewals, retentionLabel, retentionTone, periodNote;
-      if (period === "month") {
-        renewed = txnsOfType(policies, "Renewal", "Completed").filter(function (x) { return inMonth(x.h.date, curMonth); }).length;
-        cancelled = txnsOfType(policies, "Cancellation", "Completed").filter(function (x) { return inMonth(x.h.date, curMonth); }).length;
-        reinstated = txnsOfType(policies, "Reinstatement", "Completed").filter(function (x) { return inMonth(x.h.date, curMonth); }).length;
-        expiring = active.filter(function (p) { return inMonth(p.expirationDate, curMonth); }).length;
-        var declinedM = txnsOfType(policies, "Renewal", "Rejected").filter(function (x) { return inMonth(x.h.date, curMonth); }).length;
-        decidedRenewals = renewed + declinedM;
-        periodNote = "in " + MONTH_NAMES[Number(curMonth.slice(5, 7)) - 1] + " " + curMonth.slice(0, 4);
-      } else {
-        renewed = txnsOfType(policies, "Renewal", "Completed").filter(function (x) { return inYear(x.h.date, curYear); }).length;
-        cancelled = txnsOfType(policies, "Cancellation", "Completed").filter(function (x) { return inYear(x.h.date, curYear); }).length;
-        reinstated = txnsOfType(policies, "Reinstatement", "Completed").filter(function (x) { return inYear(x.h.date, curYear); }).length;
-        expiring = active.filter(function (p) { return inYear(p.expirationDate, curYear); }).length;
-        var declinedY = txnsOfType(policies, "Renewal", "Rejected").filter(function (x) { return inYear(x.h.date, curYear); }).length;
-        decidedRenewals = renewed + declinedY;
-        periodNote = "in " + curYear;
+      var policies = scopedPolicies();
+      var active = policies.filter(function (p) { return p.status === "Active"; });
+      var bound = policies.filter(function (p) { return p.status === "Bound"; });
+      var pending = PAS.allTxns(policies).map(function (t) { return t.h; }).filter(function (h) { return h.status === "Pending"; });
+      var awaitingDecision = pending.length + bound.length; /* see file header — the F-15 fix */
+
+      function countTxns(type, status) {
+        return txnsOfType(policies, type, status).filter(function (x) {
+          return periodMatches(x.h.date);
+        }).length;
       }
-      if (decidedRenewals === 0) { retentionLabel = "—"; retentionTone = "gray"; }
-      else { var pct = Math.round((renewed / decidedRenewals) * 100); retentionLabel = pct + "%"; retentionTone = pct >= 90 ? "green" : pct >= 70 ? "amber" : "red"; }
+      var renewed = countTxns("Renewal", "Completed");
+      var cancelled = countTxns("Cancellation", "Completed");
+      var reinstated = countTxns("Reinstatement", "Completed");
+      var expiring = active.filter(function (p) { return periodMatches(p.expirationDate); }).length;
+      var periodNote = periodNoteText();
+      /* Not period-scoped, same reasoning as Awaiting decision below — it's the live count of
+         requests sitting in the Endorsement desk's queue right now, not a completed-this-period
+         figure. */
+      var endorsementPending = PAS.pendingOf(policies, "Endorsement").length;
 
       kpiContainer.innerHTML = "";
       kpiContainer.appendChild(ui.kpiRow([
-        { label: "Total policies", value: policies.length, tip: "Every record in the register.", why: "Portfolio size — not period-scoped, the book has no past-state snapshots to filter this against." },
-        { label: "Active policies", value: active.length, tone: "green", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
-        { label: "Renewed", value: renewed, tone: "blue", tip: "Renewals completed " + periodNote + "." },
-        { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", tip: "Active policies whose term ends " + periodNote + "." },
-        { label: "Retention", value: retentionLabel, tone: retentionTone, tip: decidedRenewals === 0 ? ("No renewals decided " + periodNote + ".") : ("Completed ÷ (completed + declined) " + periodNote + " — " + renewed + " completed, " + (decidedRenewals - renewed) + " declined.") },
-        { label: "Reinstated", value: reinstated, tone: reinstated > 0 ? "green" : "gray", tip: "Reinstatements completed " + periodNote + "." },
-        { label: "Cancelled", value: cancelled, tone: cancelled > 0 ? "red" : "gray", tip: "Cancellations completed " + periodNote + "." },
-        { label: "Awaiting decision", value: awaitingDecision, tone: "red", tip: "Pending transactions (" + pending.length + ") plus bound policies awaiting issue (" + bound.length + ") — counted once each.", why: "Operational queue, not period-scoped: it's what needs action right now, regardless of which period you're viewing." },
+        { label: "Total policies", value: policies.length, href: "registry.html", tip: "Every record in the register" + filterNote() + ".", why: "Portfolio size — not period-scoped, the book has no past-state snapshots to filter this against." },
+        { label: "Active policies", value: active.length, tone: "green", href: "registry.html", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
+        { label: "Renewed", value: renewed, tone: "blue", href: "renewal.html", tip: "Renewals completed " + periodNote + "." },
+        { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: "Active policies whose term ends " + periodNote + "." },
+        { label: "Endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html", tip: "Endorsement requests awaiting decision, right now.", why: "Operational queue, not period-scoped — same reasoning as Awaiting decision." },
+        { label: "Reinstated", value: reinstated, tone: reinstated > 0 ? "green" : "gray", href: "reinstatement.html", tip: "Reinstatements completed " + periodNote + "." },
+        { label: "Cancelled", value: cancelled, tone: cancelled > 0 ? "red" : "gray", href: "cancellation.html", tip: "Cancellations completed " + periodNote + "." },
+        { label: "Awaiting decision", value: awaitingDecision, tone: "red", href: "approvals.html", tip: "Pending transactions (" + pending.length + ") plus bound policies awaiting issue (" + bound.length + ") — counted once each.", why: "Operational queue, not period-scoped: it's what needs action right now, regardless of which period you're viewing." },
       ], true));
     }
 
@@ -140,18 +307,33 @@
        window and the same real ledger dates, so they can never disagree with each other or with
        the KPI cards above. */
     function bucketData(seriesList) {
-      var keys = period === "month" ? trailingMonths(6) : trailingYears(4);
-      var matches = period === "month" ? inMonth : inYear;
+      var policies = scopedPolicies();
+      var keys = period === "month" ? trailingMonths(6, periodOffset) : period === "quarter" ? trailingQuarters(6, periodOffset)
+        : period === "year" ? trailingYears(4, periodOffset) : ["custom"]; /* one bucket: the selected range itself */
+      var matches = period === "month" ? inMonth : period === "quarter" ? inQuarter
+        : period === "year" ? inYear : function (dateStr) { return periodMatches(dateStr); };
       return keys.map(function (key) {
         var row = { key: key };
         seriesList.forEach(function (s) {
-          row[s.type] = txnsOfType(policies, s.type, "Completed").filter(function (x) { return matches(x.h.date, key); }).length;
+          row[s.type] = txnsOfType(policies, s.type, "Completed").filter(function (x) {
+            return matches(x.h.date, key);
+          }).length;
         });
         return row;
       });
     }
-    function periodLabel(key) { return period === "month" ? (MONTH_NAMES[Number(key.slice(5, 7)) - 1] + " '" + key.slice(2, 4)) : key; }
-    function windowNote() { return period === "month" ? "Trailing 6 months, completed transactions by their effective date." : "Trailing 4 years, completed transactions by their effective date."; }
+    function periodLabel(key) {
+      if (period === "month") return MONTH_NAMES[Number(key.slice(5, 7)) - 1] + " '" + key.slice(2, 4);
+      if (period === "quarter") return "Q" + key.slice(6) + " '" + key.slice(2, 4);
+      if (period === "year") return key;
+      return customFrom + " – " + customTo;
+    }
+    function windowNote() {
+      if (period === "month") return "Trailing 6 months, completed transactions by their effective date.";
+      if (period === "quarter") return "Trailing 6 quarters, completed transactions by their effective date.";
+      if (period === "year") return "Trailing 4 years, completed transactions by their effective date.";
+      return "From " + customFrom + " to " + customTo + ", completed transactions by their effective date.";
+    }
 
     /* Left panel — a bar chart, for comparing the three series against each other within the same
        period. Direct-labeled (every bar carries its value): with only 3 short series and a small
@@ -257,119 +439,181 @@
       renderTrendGraph(issuanceBody, ISSUANCE_SERIES);
     }
 
-    function buildAll() { renderToggle(); buildKpis(); buildChart(); }
-    buildAll();
-
-    var products = Array.from(new Set(policies.map(function (p) { return p.product; })));
-    var byProduct = products.map(function (pr) {
-      return {
-        pr: pr,
-        v: sum(policies.filter(function (p) { return p.product === pr && p.status === "Active"; }), function (p) { return p.premium; }),
-        n: policies.filter(function (p) { return p.product === pr; }).length,
-      };
-    }).sort(function (a, b) { return b.v - a.v; });
-    var maxP = Math.max.apply(null, byProduct.map(function (x) { return x.v; }).concat([1]));
-
-    var twoCol = ui.h("div", { class: "two-col-grid" });
-    var prodPanel = ui.panel({ title: "Written premium by product", what: "In-force premium per product line, largest first.", why: "Concentration in one line is a portfolio risk an underwriting manager watches." }, []);
-    var prodBody = prodPanel.querySelector(".panel-body");
-    byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " pol", tone: x.v === maxP ? "indigo" : "blue" })); });
-    twoCol.appendChild(prodPanel);
-
-    var cancelled = policies.filter(function (p) { return p.status === "Cancelled"; });
-    var referred = policies.filter(function (p) { return p.status === "Referred"; });
-    var compPanel = ui.panel({ title: "Book composition", what: "Every record by lifecycle status.", why: "Bound-not-issued and cancelled are the two counts that signal operational drag." }, []);
-    compPanel.querySelector(".panel-body").appendChild(ui.donut({
-      total: policies.length, centerValue: policies.length, centerLabel: "records", segments: [
-        { label: "Active", value: active.length, tone: "green" },
-        { label: "Bound", value: bound.length, tone: "amber" },
-        { label: "Referred", value: referred.length, tone: "violet" },
-        { label: "Cancelled", value: cancelled.length, tone: "red" },
-        { label: "Expired", value: policies.filter(function (p) { return p.status === "Expired"; }).length, tone: "gray" },
-      ],
-    }));
-    twoCol.appendChild(compPanel);
-    page.appendChild(twoCol);
-
     function openLink(href, text) {
       var a = ui.h("button", { class: "btn ghost-link" }, text + " →");
       a.addEventListener("click", function () { location.href = href; });
       return a;
     }
 
-    var threeCol = ui.h("div", { class: "three-col-grid" });
+    /* ---------- snapshot panels: skeletons built once, bodies rebuilt whenever a filter changes.
+       Not period-scoped, same reasoning as the KPI header comment. ---------- */
+    var twoCol = ui.h("div", { class: "two-col-grid" });
+    var prodPanel = ui.panel({ title: "Written premium by product", what: "In-force premium per product line, largest first.", why: "Concentration in one line is a portfolio risk an underwriting manager watches." }, []);
+    var prodBody = prodPanel.querySelector(".panel-body");
+    twoCol.appendChild(prodPanel);
+    var compPanel = ui.panel({ title: "Policy composition", what: "Every record by lifecycle status.", why: "Bound-not-issued and cancelled are the two counts that signal operational drag." }, []);
+    var compBody = compPanel.querySelector(".panel-body");
+    twoCol.appendChild(compPanel);
+    page.appendChild(twoCol);
 
+    /* Top 3 by in-force premium for each of the three distribution dimensions this dashboard
+       now filters by — Broker, MGA, Carrier. Each is capped at 3 with a "See N others" toggle
+       rather than always listing every one, so a long tail of low-volume producers can't push
+       the card past its neighbors; expanding one doesn't collapse the others. */
+    var TOP_ENTITY_ROWS = 3;
+    var topGrid = ui.h("div", { class: "three-col-grid" });
+    var topBrokerPanel = ui.panel({ title: "Top brokers", what: "In-force premium per broker, largest first.", why: "Which producers the book actually depends on.", right: openLink("brokers.html", "Open") }, []);
+    var topBrokerBody = topBrokerPanel.querySelector(".panel-body");
+    topGrid.appendChild(topBrokerPanel);
+    var topMgaPanel = ui.panel({ title: "Top MGAs", what: "In-force premium per MGA, largest first.", why: "Which wholesale facilities are carrying the most bound risk.", right: openLink("mgas.html", "Open") }, []);
+    var topMgaBody = topMgaPanel.querySelector(".panel-body");
+    topGrid.appendChild(topMgaPanel);
+    var topCarrierPanel = ui.panel({ title: "Top carriers", what: "In-force premium per carrier, largest first.", why: "Concentration on one carrier's paper is a placement risk.", right: openLink("carriers.html", "Open") }, []);
+    var topCarrierBody = topCarrierPanel.querySelector(".panel-body");
+    topGrid.appendChild(topCarrierPanel);
+    page.appendChild(topGrid);
+
+    var threeCol = ui.h("div", { class: "three-col-grid" });
     /* Capped so a growing book can't push the panel's height past its neighbors — each list is
        already sorted by what makes it most actionable, so the cap drops the least urgent items,
        never the most. */
-    var RENEWAL_ROWS = 10, BOUND_ROWS = 5;
-
-    var renewalSorted = active.slice().sort(function (a, b) { return PAS.daysBetween(PAS.todayISO(), a.expirationDate) - PAS.daysBetween(PAS.todayISO(), b.expirationDate); });
+    var RENEWAL_ROWS = 5, CANCEL_ROWS = 5;
     var renewalPanel = ui.panel({ title: "Renewal pipeline", what: "In-force policies by closeness to expiry, top " + RENEWAL_ROWS + " most urgent.", why: "Notices must be served " + PAS.RENEWAL_LEAD_DAYS + " days ahead.", right: openLink("renewal.html", "Open") }, []);
     var renewalBody = renewalPanel.querySelector(".panel-body");
-    renewalSorted.slice(0, RENEWAL_ROWS).forEach(function (p) {
-      var rc = PAS.renewalCompliance(p);
-      renewalBody.appendChild(ui.hbar({ label: p.holder, value: Math.max(0, 365 - rc.daysToExpiry), max: 365, note: rc.daysToExpiry + "d left", tone: rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red" }));
-    });
-    if (renewalSorted.length > RENEWAL_ROWS) renewalBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing the " + RENEWAL_ROWS + " closest to expiry, of " + renewalSorted.length + " in force."));
     threeCol.appendChild(renewalPanel);
-
-    /* Every bound policy, not just the blocked ones — a "blocked only" list tops out at however
-       many are actually blocked (this book has at most 4 bound policies in total, so it could
-       never reach a useful row count on its own). Blocked policies sort first, soonest-expiring
-       binder first within that group — that's the real deadline the panel is warning about — then
-       ready-to-issue ones after, so the panel always shows the full bound book, not a fragment
-       of it. */
-    var boundSorted = bound.slice().sort(function (a, b) {
-      var aBlocked = ((a.binder && a.binder.subjectivities) || []).some(function (s) { return !s.met; });
-      var bBlocked = ((b.binder && b.binder.subjectivities) || []).some(function (s) { return !s.met; });
-      if (aBlocked !== bBlocked) return aBlocked ? -1 : 1;
-      return PAS.daysBetween(PAS.todayISO(), a.binder.expiryDate) - PAS.daysBetween(PAS.todayISO(), b.binder.expiryDate);
-    });
-    var boundPanel = ui.panel({ title: "Bound policies", what: "Every bound policy's issue readiness, blocked ones first, top " + BOUND_ROWS + ".", why: "Cover is already live under every binder here — a blocked one is unpriced exposure with no clock stopped; a ready one just needs the Issue click.", right: openLink("issue.html", "Open") }, []);
-    var boundBody = boundPanel.querySelector(".panel-body");
-    if (boundSorted.length === 0) boundBody.appendChild(ui.h("div", { class: "faint-note" }, "Nothing bound."));
-    boundSorted.slice(0, BOUND_ROWS).forEach(function (p) {
-      var unmet = ((p.binder && p.binder.subjectivities) || []).filter(function (s) { return !s.met; });
-      var row = ui.h("div", { class: "blocked-row" });
-      var headRow = ui.h("div", { class: "blocked-row-head" });
-      var nameWrap = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "6px" } });
-      nameWrap.appendChild(PAS.icon(unmet.length ? "alert-triangle" : "check-circle-2", { size: 12, color: unmet.length ? "var(--red)" : "var(--green)" }));
-      nameWrap.appendChild(ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--text)" } }, p.holder));
-      headRow.appendChild(nameWrap);
-      headRow.appendChild(ui.h("span", { style: { fontSize: "11.5px", color: "var(--text-faint)" } }, PAS.moneyShort(p.premium)));
-      row.appendChild(headRow);
-      if (unmet.length) {
-        unmet.forEach(function (s) {
-          var sub = ui.h("div", { class: "blocked-sub" });
-          sub.appendChild(PAS.icon("alert-triangle", { size: 11 }));
-          sub.appendChild(document.createTextNode(s.label));
-          row.appendChild(sub);
-        });
-      } else {
-        row.appendChild(ui.h("div", { class: "blocked-sub ready" }, "Ready to issue"));
-      }
-      boundBody.appendChild(row);
-    });
-    if (boundSorted.length > BOUND_ROWS) boundBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + BOUND_ROWS + " of " + boundSorted.length + " bound policies."));
-    threeCol.appendChild(boundPanel);
-
-    var waitingItems = referred.map(function (p) { return { p: p, age: PAS.daysBetween(p.submittedOn, PAS.todayISO()) }; })
-      .concat(bound.map(function (p) { return { p: p, age: PAS.daysBetween(p.binder.boundOn, PAS.todayISO()) }; }))
-      .sort(function (a, b) { return b.age - a.age; });
-    var waitingPanel = ui.panel({ title: "Oldest waiting", what: "Work that has sat longest without a decision, oldest first.", why: "Ageing, not volume, is what breaks an SLA." }, []);
-    var waitingBody = waitingPanel.querySelector(".panel-body");
-    if (waitingItems.length === 0) waitingBody.appendChild(ui.h("div", { class: "faint-note" }, "Nothing waiting."));
-    waitingItems.forEach(function (x) {
-      var row = ui.h("div", { class: "waiting-row" });
-      row.appendChild(PAS.icon("clock", { size: 11, color: "var(--text-faint)" }));
-      row.appendChild(ui.h("span", { class: "waiting-name" }, x.p.holder));
-      row.appendChild(ui.h("span", { class: "waiting-age" }, x.age + "d"));
-      row.appendChild(ui.badge(x.p.status));
-      waitingBody.appendChild(row);
-    });
-    threeCol.appendChild(waitingPanel);
+    var cancelPanel = ui.panel({ title: "Cancelled policy requests", what: "Open cancellation requests awaiting decision, top " + CANCEL_ROWS + " by refund amount.", why: "The biggest refund exposure among requests still awaiting a decision.", right: openLink("cancellation.html", "Open") }, []);
+    var cancelBody = cancelPanel.querySelector(".panel-body");
+    threeCol.appendChild(cancelPanel);
+    var ENDORSE_ROWS = 5;
+    var endorsePanel = ui.panel({ title: "Endorsement requests", what: "Open endorsement requests that increase premium, top " + ENDORSE_ROWS + " by increase.", why: "The biggest premium increases still awaiting a decision.", right: openLink("endorsement.html", "Open") }, []);
+    var endorseBody = endorsePanel.querySelector(".panel-body");
+    threeCol.appendChild(endorsePanel);
     page.appendChild(threeCol);
+
+    function buildSnapshotPanels() {
+      var policies = scopedPolicies();
+      var active = policies.filter(function (p) { return p.status === "Active"; });
+      var bound = policies.filter(function (p) { return p.status === "Bound"; });
+      var cancelled = policies.filter(function (p) { return p.status === "Cancelled"; });
+      var referred = policies.filter(function (p) { return p.status === "Referred"; });
+
+      var products = Array.from(new Set(policies.map(function (p) { return p.product; })));
+      var byProduct = products.map(function (pr) {
+        return {
+          pr: pr,
+          v: sum(policies.filter(function (p) { return p.product === pr && p.status === "Active"; }), function (p) { return p.premium; }),
+          n: policies.filter(function (p) { return p.product === pr; }).length,
+        };
+      }).sort(function (a, b) { return b.v - a.v; });
+      var maxP = Math.max.apply(null, byProduct.map(function (x) { return x.v; }).concat([1]));
+      prodBody.innerHTML = "";
+      byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " pol", tone: x.v === maxP ? "indigo" : "blue" })); });
+
+      compBody.innerHTML = "";
+      /* Every one of the seven real statuses a policy can carry, not just the five most common —
+         the donut's arcs are sized against `total`, so leaving any status out understates every
+         slice by however many records the missing status holds. */
+      var declined = policies.filter(function (p) { return p.status === "Declined"; });
+      var nonRenewed = policies.filter(function (p) { return p.status === "Non-renewed"; });
+      compBody.appendChild(ui.donut({
+        total: policies.length, centerValue: policies.length, centerLabel: "records", segments: [
+          { label: "Active", value: active.length, tone: "green" },
+          { label: "Bound", value: bound.length, tone: "amber" },
+          { label: "Referred", value: referred.length, tone: "violet" },
+          { label: "Cancelled", value: cancelled.length, tone: "red" },
+          { label: "Expired", value: policies.filter(function (p) { return p.status === "Expired"; }).length, tone: "gray" },
+          { label: "Declined", value: declined.length, tone: "blue" },
+          { label: "Non-renewed", value: nonRenewed.length, tone: "indigo" },
+        ],
+      }));
+
+      var renewalSorted = active.slice().sort(function (a, b) { return PAS.daysBetween(PAS.todayISO(), a.expirationDate) - PAS.daysBetween(PAS.todayISO(), b.expirationDate); });
+      renewalBody.innerHTML = "";
+      renewalSorted.slice(0, RENEWAL_ROWS).forEach(function (p) {
+        var rc = PAS.renewalCompliance(p);
+        renewalBody.appendChild(ui.hbar({ label: p.holder, value: Math.max(0, 365 - rc.daysToExpiry), max: 365, note: rc.daysToExpiry + "d left", tone: rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red" }));
+      });
+      if (renewalSorted.length > RENEWAL_ROWS) {
+        renewalBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing the " + RENEWAL_ROWS + " closest to expiry, of " + renewalSorted.length + " in force."));
+        renewalBody.appendChild(openLink("renewal.html", "View more"));
+      }
+
+      /* Open cancellation requests, ranked by refund amount — biggest exposure first. Same live
+         quote (reason + initiatedBy + effective date → cancelQuote) the Cancellation desk itself
+         shows for these same rows, so the two screens can never disagree. */
+      var pendingCancellations = PAS.pendingOf(policies, "Cancellation").map(function (t) {
+        var meta = t.h.meta || {};
+        var reason = meta.reason || "Insured Request";
+        var initiatedBy = meta.initiatedBy || "Insured";
+        var effDate = t.h.date || PAS.todayISO();
+        var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate);
+        return { p: t.p, reason: reason, refund: Math.round(quote.refund) };
+      }).sort(function (a, b) { return b.refund - a.refund; });
+      cancelBody.innerHTML = "";
+      if (pendingCancellations.length === 0) cancelBody.appendChild(ui.h("div", { class: "faint-note" }, "No open cancellation requests."));
+      else {
+        var maxRefund = Math.max.apply(null, pendingCancellations.map(function (x) { return x.refund; }).concat([1]));
+        pendingCancellations.slice(0, CANCEL_ROWS).forEach(function (x) {
+          cancelBody.appendChild(ui.hbar({ label: x.p.holder, value: x.refund, max: maxRefund, note: PAS.money(x.refund) + " · " + x.reason, tone: x.refund === maxRefund ? "red" : "amber" }));
+        });
+        if (pendingCancellations.length > CANCEL_ROWS) {
+          cancelBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + CANCEL_ROWS + " of " + pendingCancellations.length + " open requests."));
+          cancelBody.appendChild(openLink("cancellation.html", "View more"));
+        }
+      }
+
+      /* Open endorsement requests, ranked by how much they'd raise premium — a decrease or a
+         no-impact change (e.g. a plain address update) isn't what this panel is for, so only
+         real increases are listed. */
+      var pendingEndorsements = PAS.pendingOf(policies, "Endorsement").map(function (t) {
+        return { p: t.p, impact: Math.round((t.h.meta && t.h.meta.premiumImpact) || 0) };
+      }).filter(function (x) { return x.impact > 0; }).sort(function (a, b) { return b.impact - a.impact; });
+      endorseBody.innerHTML = "";
+      if (pendingEndorsements.length === 0) endorseBody.appendChild(ui.h("div", { class: "faint-note" }, "No open endorsement requests increasing premium."));
+      else {
+        var maxImpact = Math.max.apply(null, pendingEndorsements.map(function (x) { return x.impact; }).concat([1]));
+        pendingEndorsements.slice(0, ENDORSE_ROWS).forEach(function (x) {
+          endorseBody.appendChild(ui.hbar({ label: x.p.holder, value: x.impact, max: maxImpact, note: "+" + PAS.money(x.impact), tone: x.impact === maxImpact ? "red" : "amber" }));
+        });
+        if (pendingEndorsements.length > ENDORSE_ROWS) {
+          endorseBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + ENDORSE_ROWS + " of " + pendingEndorsements.length + " open requests increasing premium."));
+          endorseBody.appendChild(openLink("endorsement.html", "View more"));
+        }
+      }
+    }
+
+    /* Expand/collapse state per card, kept outside buildTopEntities so it survives every rebuild
+       (a filter change or period switch) rather than resetting to collapsed each time. */
+    var brokerState = { expanded: false }, mgaState = { expanded: false }, carrierState = { expanded: false };
+    function buildRankedList(body, list, field, state) {
+      var keys = Array.from(new Set(list.map(function (p) { return p[field]; }).filter(Boolean)));
+      var rows = keys.map(function (k) {
+        return {
+          k: k,
+          v: sum(list.filter(function (p) { return p[field] === k && p.status === "Active"; }), function (p) { return p.premium; }),
+          n: list.filter(function (p) { return p[field] === k; }).length,
+        };
+      }).sort(function (a, b) { return b.v - a.v; });
+      var max = Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1]));
+      body.innerHTML = "";
+      if (rows.length === 0) { body.appendChild(ui.h("div", { class: "faint-note" }, "No records in this filter.")); return; }
+      var shown = state.expanded ? rows : rows.slice(0, TOP_ENTITY_ROWS);
+      shown.forEach(function (r) { body.appendChild(ui.hbar({ label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " pol", tone: r.v === max ? "indigo" : "blue" })); });
+      if (rows.length > TOP_ENTITY_ROWS) {
+        var btn = ui.h("button", { class: "btn ghost-link mt-6" }, state.expanded ? "Show top " + TOP_ENTITY_ROWS + " only" : "See " + (rows.length - TOP_ENTITY_ROWS) + " others");
+        btn.addEventListener("click", function () { state.expanded = !state.expanded; buildTopEntities(); });
+        body.appendChild(btn);
+      }
+    }
+    function buildTopEntities() {
+      var policies = scopedPolicies();
+      buildRankedList(topBrokerBody, policies, "producer", brokerState);
+      buildRankedList(topMgaBody, policies, "mga", mgaState);
+      buildRankedList(topCarrierBody, policies, "carrier", carrierState);
+    }
+
+    function buildAll() { renderToggle(); buildKpis(); buildChart(); buildSnapshotPanels(); buildTopEntities(); }
+    buildAll();
   }
 
   /* Shared by MGA and Carrier: both are portfolio-wide, read-only, no decision buttons anywhere.
@@ -420,13 +664,11 @@
       { label: "Open reserves", value: PAS.moneyShort(portfolioReserves), tone: portfolioReserves > 0 ? "amber" : "gray", tip: "Sum of reserved amounts on claims still open — the carrier's current exposure to unsettled loss." },
     ], true));
 
-    /* Filters: state and LOB, applied to every chart below — not just decoration, `apply()`
-       rebuilds every panel body against the filtered set. */
-    var filterRow = ui.h("div", { class: "period-toggle-row" });
-    filterRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Filter"));
-    var filterChips = ui.h("div", { class: "period-toggle" });
-    filterRow.appendChild(filterChips);
-    page.appendChild(filterRow);
+    /* Filters: state and LOB, both multi-select (empty selection = "All"), applied to every chart
+       below — not just decoration, `renderCharts()` rebuilds every panel body against the
+       filtered set. */
+    var filterBlock = ui.h("div", { class: "filter-block" });
+    page.appendChild(filterBlock);
 
     var stateGrid = ui.h("div", { class: "two-col-grid" });
     var statePanel = ui.panel({ title: "Premium by state", what: "In-force premium per state, largest first.", why: "State-level concentration matters for regulatory exposure and catastrophe accumulation." }, []);
@@ -446,18 +688,22 @@
     lobGrid.appendChild(claimsPanel);
     page.appendChild(lobGrid);
 
-    var filterState = "All", filterProduct = "All";
+    var filterState = [], filterProduct = [];
+    function matchesMulti(selected, value) { return selected.length === 0 || selected.indexOf(value) !== -1; }
     function renderCharts() {
       var scoped = policies.filter(function (p) {
-        return (filterState === "All" || p.state === filterState) && (filterProduct === "All" || p.product === filterProduct);
+        return matchesMulti(filterState, p.state) && matchesMulti(filterProduct, p.product);
       });
       var scopedActive = scoped.filter(function (p) { return p.status === "Active"; });
 
+      /* Written business, not the whole filtered scope: a policy counts here — premium AND count
+         — only once it's Active, matching the "In-force premium" convention this whole dashboard
+         already uses. A submission still in underwriting hasn't earned anyone commission yet. */
       function byField(field) {
-        var keys = Array.from(new Set(scoped.map(function (p) { return p[field]; })));
+        var keys = Array.from(new Set(scopedActive.map(function (p) { return p[field]; })));
         return keys.map(function (k) {
-          return { k: k, v: sum(scopedActive.filter(function (p) { return p[field] === k; }), function (p) { return p.premium; }),
-            n: scoped.filter(function (p) { return p[field] === k; }).length };
+          var forKey = scopedActive.filter(function (p) { return p[field] === k; });
+          return { k: k, v: sum(forKey, function (p) { return p.premium; }), n: forKey.length };
         }).sort(function (a, b) { return b.v - a.v; });
       }
       function fillPanel(body, rows) {
@@ -492,24 +738,19 @@
       }
     }
 
-    var states = ["All"].concat(Array.from(new Set(policies.map(function (p) { return p.state; }))).sort());
-    var products = ["All"].concat(Array.from(new Set(policies.map(function (p) { return p.product; }))).sort());
-    function renderFilterChips() {
-      filterChips.innerHTML = "";
-      states.forEach(function (s) {
-        var chip = ui.h("button", { class: "chip" + (filterState === s ? " active" : "") }, s === "All" ? "All states" : s);
-        chip.addEventListener("click", function () { filterState = s; renderFilterChips(); renderCharts(); });
-        filterChips.appendChild(chip);
-      });
-      var sep = ui.h("span", { style: { width: "1px", background: "var(--border)", margin: "0 2px" } });
-      filterChips.appendChild(sep);
-      products.forEach(function (pr) {
-        var chip = ui.h("button", { class: "chip" + (filterProduct === pr ? " active" : "") }, pr === "All" ? "All LOBs" : pr);
-        chip.addEventListener("click", function () { filterProduct = pr; renderFilterChips(); renderCharts(); });
-        filterChips.appendChild(chip);
-      });
-    }
-    renderFilterChips();
+    var states = Array.from(new Set(policies.map(function (p) { return p.state; }))).sort();
+    var products = Array.from(new Set(policies.map(function (p) { return p.product; }))).sort();
+
+    var stateGroup = ui.h("div", {});
+    stateGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "State"));
+    stateGroup.appendChild(ui.multiSelect({ options: states, selected: filterState, allLabel: "All states", onChange: function (sel) { filterState = sel; renderCharts(); } }));
+    filterBlock.appendChild(stateGroup);
+
+    var lobGroup = ui.h("div", {});
+    lobGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Line of business"));
+    lobGroup.appendChild(ui.multiSelect({ options: products, selected: filterProduct, allLabel: "All LOBs", onChange: function (sel) { filterProduct = sel; renderCharts(); } }));
+    filterBlock.appendChild(lobGroup);
+
     renderCharts();
   }
 

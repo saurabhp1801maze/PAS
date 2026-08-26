@@ -32,18 +32,28 @@
       },
     }));
 
-    page.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted reinstatement requests.", className: "label-11 block mb-9" }));
-    page.appendChild(ui.dataTable({
-      columns: ["Policy", "Insured", "Requested by", { label: "Cancelled on", what: "Effective date of the original cancellation." }, { label: "Days since", what: "Elapsed days — eligibility is a pure function of this." }, { label: "Eligibility", what: "Whether reinstatement is still available.", rule: "Fraud cancellations are never eligible." }, ""],
-      rows: pend.map(function (t) {
-        var el = PAS.reinstatementEligibility(t.p);
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(t.h.meta), el.cancelEv.date, el.daysSince + "d",
-          ui.pill(el.eligible ? "green" : "red", el.eligible ? "Eligible" : (el.fraud ? "Fraud — barred" : "Window closed"), el.eligible ? "check-circle-2" : "alert-triangle"),
-          ui.cellOpen("Review")];
-      }),
+    var reqHead = ui.h("div", { class: "period-toggle-row" });
+    reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted reinstatement requests.", className: "label-11" }));
+    /* Eligibility is computed once per row here rather than inside each column's sortValue/cell —
+       it's the same PAS.reinstatementEligibility call either way, just not run twice per row. */
+    var reinstatementTable = ui.sortableTable({
+      storageKey: "pas.reinstatement.columns.v1",
+      columns: [
+        { key: "policy", label: "Policy", locked: true, sortValue: function (r) { return r.t.p.id; }, cell: function (r) { return ui.cellId(r.t.p.id); } },
+        { key: "insured", label: "Insured", locked: true, sortValue: function (r) { return (r.t.p.holder || "").toLowerCase(); }, cell: function (r) { return ui.cellName(r.t.p.holder); } },
+        { key: "requestedBy", label: "Requested by", sortValue: function (r) { return (r.t.h.meta && r.t.h.meta.initiatedBy) || ""; }, cell: function (r) { return ui.initiatorPill(r.t.h.meta); } },
+        { key: "cancelledOn", label: "Cancelled on", what: "Effective date of the original cancellation.", sortValue: function (r) { return r.el.cancelEv.date; }, cell: function (r) { return r.el.cancelEv.date; } },
+        { key: "daysSince", label: "Days since", what: "Elapsed days — eligibility is a pure function of this.", sortValue: function (r) { return r.el.daysSince; }, cell: function (r) { return r.el.daysSince + "d"; } },
+        { key: "eligibility", label: "Eligibility", what: "Whether reinstatement is still available.", rule: "Fraud cancellations are never eligible.", sortValue: function (r) { return r.el.eligible ? "Eligible" : (r.el.fraud ? "Fraud" : "Window closed"); }, cell: function (r) { return ui.pill(r.el.eligible ? "green" : "red", r.el.eligible ? "Eligible" : (r.el.fraud ? "Fraud — barred" : "Window closed"), r.el.eligible ? "check-circle-2" : "alert-triangle"); } },
+      ],
+      trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
+      rows: pend.map(function (t) { return { t: t, el: PAS.reinstatementEligibility(t.p) }; }),
+      onRowClick: function (r) { location.href = "reinstatement-decision.html?policy=" + encodeURIComponent(r.t.p.id) + "&txn=" + encodeURIComponent(r.t.h.id); },
       emptyText: "No reinstatement requests awaiting decision.",
-      onRowClick: function (i) { location.href = "reinstatement-decision.html?policy=" + encodeURIComponent(pend[i].p.id) + "&txn=" + encodeURIComponent(pend[i].h.id); },
-    }));
+    });
+    reqHead.appendChild(reinstatementTable.columnsControl);
+    page.appendChild(reqHead);
+    page.appendChild(reinstatementTable.tableWrap);
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

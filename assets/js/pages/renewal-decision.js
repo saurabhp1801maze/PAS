@@ -78,7 +78,7 @@
         ? { txnId: h.id, newTermNumber: p.termNumber + 1, effectiveDate: p.expirationDate, expirationDate: PAS.addYears(p.expirationDate, 1), events: ["policyRenewed"] }
         : { txnId: h.id, status: "nonRenewed", noticeServedOn: PAS.todayISO() };
       return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (approve ? "approve" : "reject"),
-        approve ? { decision: "approved", newPremium: { amount: prem, currency: "INR" }, termNumber: p.termNumber + 1, note: comment } : { decision: "rejected", reason: "underwritingDecision", note: comment },
+        approve ? { decision: "approved", newPremium: { amount: prem, currency: "USD" }, termNumber: p.termNumber + 1, note: comment } : { decision: "rejected", reason: "underwritingDecision", note: comment },
         { module: "Renewal", policyId: p.id, statusCode: 200, label: (approve ? "Approve renewal" : "Decline renewal") + " — " + p.holder, response: response })
         .then(function () {
           PAS.decideRenewal(p.id, h.id, approve, prem, audit);

@@ -83,6 +83,11 @@
         return { k: k, v: rows.reduce(function (s, t) { return s + (Number(t.h.meta && t.h.meta.refund) || 0); }, 0), n: rows.length };
       }).sort(function (a, b) { return b.v - a.v; });
     }
+    /* The two panels below only ever show it split by type or by reason — shown plainly here too,
+       not just implied by two partial breakdowns or left inside a hover tooltip. */
+    page.appendChild(ui.h("div", { class: "label-11 mb-9" },
+      "Total refunded to date: " + PAS.money(totalRefunded) + " across " + completed.length + " completed cancellation" + (completed.length === 1 ? "" : "s") + "."));
+
     var refundGrid = ui.h("div", { class: "two-col-grid" });
     var byTypePanel = ui.panel({ title: "Refunds by type", what: "Total refunded, grouped by the decided cancellation type.", why: "Total refunded to date: " + PAS.money(totalRefunded) + " across " + completed.length + " completed cancellations." }, []);
     var byTypeBody = byTypePanel.querySelector(".panel-body");
@@ -123,31 +128,41 @@
       },
     }));
 
-    page.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted requests, ordered newest first.", className: "label-11 block mb-9" }));
-    page.appendChild(ui.dataTable({
-      columns: ["Policy", "Insured", "Requested by",
-        { label: "Reason", what: "What the requester gave as their reason.", why: "Drives the default type and the notice period." },
-        { label: "Type", what: "The derived refund basis — Reason plus Initiated By, never hand-picked." },
-        { label: "Timing", what: "Immediate if the effective date is today or past, Future/Scheduled otherwise." },
-        { label: "Submitted", what: "When the request arrived." },
-        { label: "Premium", what: "Refund due if this request is approved.", why: "Same live quote shown as Refund due on the decision screen — derived from type, term dates and effective date." },
-        ""],
-      rows: pend.map(function (t) {
-        var meta = t.h.meta || {};
-        var reason = meta.reason || "Insured Request";
-        var initiatedBy = meta.initiatedBy || "Insured";
-        var effDate = t.h.date || PAS.todayISO();
-        var atInception = effDate <= t.p.effectiveDate;
-        var type = PAS.deriveCancelType(reason, initiatedBy, atInception);
-        var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate);
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(meta), reason,
-          ui.pill(PAS.CANCEL_TYPES[type].tone, type), PAS.cancelTiming(effDate),
-          meta.submittedOn || t.h.date, PAS.money(Math.round(quote.refund)), ui.cellOpen("Review")];
-      }),
+    /* Reason/type/refund are derived once per row here (same formulas the decision screen itself
+       uses) rather than recomputed separately inside sortValue and cell for every column. */
+    var pendEnriched = pend.map(function (t) {
+      var meta = t.h.meta || {};
+      var reason = meta.reason || "Insured Request";
+      var initiatedBy = meta.initiatedBy || "Insured";
+      var effDate = t.h.date || PAS.todayISO();
+      var atInception = effDate <= t.p.effectiveDate;
+      var type = PAS.deriveCancelType(reason, initiatedBy, atInception);
+      var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate);
+      return { t: t, meta: meta, reason: reason, effDate: effDate, type: type, refund: Math.round(quote.refund) };
+    });
+    var reqHead = ui.h("div", { class: "period-toggle-row" });
+    reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted requests, ordered newest first.", className: "label-11" }));
+    var cancellationTable = ui.sortableTable({
+      storageKey: "pas.cancellation.columns.v1",
+      columns: [
+        { key: "policy", label: "Policy", locked: true, sortValue: function (r) { return r.t.p.id; }, cell: function (r) { return ui.cellId(r.t.p.id); } },
+        { key: "insured", label: "Insured", locked: true, sortValue: function (r) { return (r.t.p.holder || "").toLowerCase(); }, cell: function (r) { return ui.cellName(r.t.p.holder); } },
+        { key: "requestedBy", label: "Requested by", sortValue: function (r) { return r.meta.initiatedBy || ""; }, cell: function (r) { return ui.initiatorPill(r.meta); } },
+        { key: "reason", label: "Reason", what: "What the requester gave as their reason.", why: "Drives the default type and the notice period.", sortValue: function (r) { return r.reason; }, cell: function (r) { return r.reason; } },
+        { key: "type", label: "Type", what: "The derived refund basis — Reason plus Initiated By, never hand-picked.", sortValue: function (r) { return r.type; }, cell: function (r) { return ui.pill(PAS.CANCEL_TYPES[r.type].tone, r.type); } },
+        { key: "timing", label: "Timing", what: "Immediate if the effective date is today or past, Future/Scheduled otherwise.", sortValue: function (r) { return PAS.cancelTiming(r.effDate); }, cell: function (r) { return PAS.cancelTiming(r.effDate); } },
+        { key: "submitted", label: "Submitted", what: "When the request arrived.", sortValue: function (r) { return r.meta.submittedOn || r.t.h.date; }, cell: function (r) { return r.meta.submittedOn || r.t.h.date; } },
+        { key: "premium", label: "Premium", what: "Refund due if this request is approved.", why: "Same live quote shown as Refund due on the decision screen — derived from type, term dates and effective date.", sortValue: function (r) { return r.refund; }, cell: function (r) { return PAS.money(r.refund); } },
+      ],
+      trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
+      rows: pendEnriched,
+      onRowClick: function (r) { location.href = "cancellation-decision.html?policy=" + encodeURIComponent(r.t.p.id) + "&txn=" + encodeURIComponent(r.t.h.id); },
       emptyText: "No cancellation requests awaiting decision.",
       wrapCells: true,
-      onRowClick: function (i) { location.href = "cancellation-decision.html?policy=" + encodeURIComponent(pend[i].p.id) + "&txn=" + encodeURIComponent(pend[i].h.id); },
-    }));
+    });
+    reqHead.appendChild(cancellationTable.columnsControl);
+    page.appendChild(reqHead);
+    page.appendChild(cancellationTable.tableWrap);
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

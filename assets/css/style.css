@@ -93,6 +93,15 @@ button { font-family: inherit; }
 .toast-title.mono { font-family: var(--mono); }
 .toast-detail { font-size: 11.5px; color: var(--text-soft); margin-top: 3px; margin-left: 26px; line-height: 1.45; }
 
+.multiselect { position: relative; display: inline-block; }
+.multiselect-btn { text-align: left; position: relative; padding-right: 26px; cursor: pointer; }
+.multiselect-btn::after { content: "\25BE"; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--text-faint); font-size: 11px; }
+.multiselect-panel { position: absolute; top: calc(100% + 6px); left: 0; min-width: 100%; width: max-content; max-width: 280px; max-height: 280px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 11px; box-shadow: 0 12px 34px rgba(10,12,30,.2); z-index: 9998; padding: 10px 12px; }
+.multiselect-actions { display: flex; gap: 12px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+.multiselect-actions .btn { padding: 0; font-size: 11px; }
+.multiselect-list .checkbox-row { margin-bottom: 6px; font-size: 12.5px; white-space: nowrap; }
+.multiselect-list .checkbox-row:last-child { margin-bottom: 0; }
+
 .notif-panel { position: absolute; top: 44px; right: 22px; width: 330px; max-height: 420px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 11px; box-shadow: 0 12px 34px rgba(10,12,30,.2); z-index: 9998; }
 .notif-head { display: flex; align-items: center; padding: 11px 13px; border-bottom: 1px solid var(--border); }
 .notif-head-title { font-size: 12.5px; font-weight: 800; color: var(--text); flex: 1; }
@@ -170,6 +179,8 @@ textarea.field-input { min-height: 54px; resize: vertical; }
 .kpi-row.wrap { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 720px) { .kpi-row.wrap { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 13px; min-width: 0; }
+.kpi-card.clickable { cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+.kpi-card.clickable:hover, .kpi-card.clickable:focus-visible { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); outline: none; }
 .kpi-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi-value-row { display: flex; align-items: baseline; gap: 5px; margin-top: 3px; }
 .kpi-value { font-size: 18px; font-weight: 800; color: var(--text); white-space: nowrap; }
@@ -215,6 +226,11 @@ textarea.field-input { min-height: 54px; resize: vertical; }
 table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 table.data-table thead tr { background: var(--surface-alt); }
 table.data-table th { text-align: left; padding: 9px 13px; font-size: 10px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; border-bottom: 1px solid var(--border); }
+table.data-table th.th-sortable { cursor: pointer; user-select: none; }
+table.data-table th.th-sortable:hover { color: var(--text); }
+table.data-table th.th-sorted { color: var(--primary); }
+.th-sort-arrow { display: inline-block; margin-left: 4px; font-size: 9px; opacity: .55; }
+table.data-table th.th-sorted .th-sort-arrow { opacity: 1; }
 table.data-table td { padding: 10px 13px; color: var(--text); vertical-align: middle; white-space: nowrap; }
 table.data-table td.wrap { white-space: normal; }
 table.data-table tr.has-row-click { cursor: pointer; }

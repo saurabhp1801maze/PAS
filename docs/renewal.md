@@ -53,27 +53,28 @@ created   policy lapses at expiry
 
 ## Notice-period practice
 
-- **US state law pattern** (useful as an outside reference point, not what this prototype
-  targets): insurers must generally give **30–60 days' advance written notice** of non-renewal
-  specifically, stating the actual underwriting reason.
-- **IRDAI (India) pattern**, which is what this prototype's `RENEWAL_LEAD_DAYS = 45` and "notice
-  window" language are modeling: insurers are expected to *endeavor* to notify ahead of expiry
-  rather than being bound to one fixed statutory number across all products; the harder edges are
-  around **continuity**, not the notice itself — a grace period lets a lapsed policy be renewed
-  without a coverage-continuity break (though cover is not in force during the gap), and motor NCB
-  specifically survives a lapse of up to 90 days.
-- Either way, the number that matters operationally is a **lead time before expiry**, used to (a)
-  flag policies that need a notice chased and (b) flag a compliance exception once a renewal is
-  decided *after* that window has already closed.
+- **US state law pattern**, which is what this prototype's `RENEWAL_LEAD_DAYS = 45` is modeling:
+  the NAIC model act calls for at least **45 days' advance written notice** of non-renewal,
+  stating the actual underwriting reason — most states set a floor somewhere in the **30–60 day**
+  range, and a handful of catastrophe-exposed states (homeowners especially) go as high as 75.
+  There is no single national number; each state's Department of Insurance sets its own statute,
+  so 45 is a representative middle value, not a claim about any specific state.
+- Because notice requirements are state-specific and this prototype has one book with no
+  per-state override, `RENEWAL_LEAD_DAYS` applies uniformly regardless of `policy.state` — a real
+  system would look the lead time up per state (and per line, since homeowners/property lines
+  often carry longer minimums than auto).
+- The number that matters operationally is a **lead time before expiry**, used to (a) flag
+  policies that need a notice chased and (b) flag a compliance exception once a renewal is decided
+  *after* that window has already closed.
 
 ## Re-underwriting & re-rating factors
 
 The renewal decision is a fresh underwriting decision on an existing risk, not a rubber stamp:
 
 - **Loss ratio** (claims paid ÷ premium earned) is the single biggest factor underwriters weigh —
-  a loss ratio that's run persistently high (this prototype's Bharat Steel Works seed record cites
-  "140% over two terms") is exactly the kind of thing that pushes a renewal toward decline or a
-  large increase rather than a routine roll-forward.
+  a loss ratio that's run persistently high (this prototype's Ironwood Steel Works seed record
+  cites "140% over two terms") is exactly the kind of thing that pushes a renewal toward decline
+  or a large increase rather than a routine roll-forward.
 - **Claims frequency/severity** and **endorsement frequency** during the expiring term (frequent
   mid-term changes can itself signal an unstable risk).
 - **Market-level rate movement** — carriers also raise renewal rates portfolio-wide when their
@@ -161,7 +162,7 @@ confirmation yet").
 [
   {
     "policyId": "POL-2024-00187",
-    "holder": "Priya Deshmukh",
+    "holder": "Priya Desmond",
     "expirationDate": "2026-08-20",
     "daysToExpiry": 0,
     "hasConfirmedRequest": true,
@@ -227,8 +228,10 @@ Publishes `policyRenewed` → **Billing, Documents** on approval, or `policyNonR
   something real now, but the three-step multiplier below it (`score < 60 ? 1.12 : score > 85 ?
   0.97 : 1.05`) is still a cliff, not a curve, and still ignores loss ratio directly even though
   the desk's own "Claims & change history" panel displays exactly the counts a real re-rating step
-  would consume. Also still missing: India Motor's No-Claim Bonus slab, which is now at least
-  computable — `claimFreeYears` is tracked per policy — but not yet applied to price.
+  would consume. Also still missing: a claims-free discount tier — California, for one, mandates
+  by statute (Ins. Code §1861.02, "Good Driver Discount") that a qualifying good driver pay a rate
+  at least 20% below a comparable non-good-driver's, which is now at least computable —
+  `claimFreeYears` is tracked per policy — but not yet applied to price.
 - **No automatic-renewal path** — every renewal in this prototype requires an explicit confirmed
   request; there's no modeled equivalent of an auto-renewal product where the system itself
   initiates the term rollover absent an opt-out.
@@ -245,5 +248,5 @@ Publishes `policyRenewed` → **Billing, Documents** on approval, or `policyNonR
 - [Mercury Insurance — Home Insurance Non-Renewal Notice](https://www.mercuryinsurance.com/resources/home/received-home-insurance-non-renewal-notice-here-is-what-to-do.html)
 - [RiskCube — What is Loss Ratio?](https://riskcube.com/glossary/loss-ratio/)
 - [Thornburg Insurance Agency — How Loss Ratio Affects Premiums](https://www.thornburgagency.com/blog/how-does-my-insurance-companys-loss-ratio-affect-business-insurance-premiums/)
-- [PolicyBazaar — IRDAI Guidelines for Bike Insurance Renewal in India](https://www.policybazaar.com/motor-insurance/two-wheeler-insurance/articles/irdai-rules-for-bike-insurance-renewal-in-india/)
-- [Niva Bupa — IRDAI Guidelines Explained](https://www.nivabupa.com/health-insurance-articles/irdai-guidelines-explained-india-insurance-regulations.html)
+- [NAIC — Model Laws, Regulations, Guidelines and Other Resources](https://content.naic.org/sites/default/files/model-law-880.pdf)
+- [Cal. Code Regs. Tit. 10, § 2632.12 — Good Driver Discount](https://www.law.cornell.edu/regulations/california/10-CCR-2632.12)

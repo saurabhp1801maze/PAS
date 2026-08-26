@@ -104,16 +104,29 @@
   function codeBlock(data, small) { return h("pre", { class: "code-block" + (small ? " small" : "") }, JSON.stringify(data, null, 2)); }
 
   /* ================= data table ================= */
+  /* opts.sortable: array of booleans parallel to opts.columns — true makes that header clickable.
+     opts.sortState: { col, dir } | null — which column (index) is currently sorted and which way,
+     purely for drawing the ▲/▼ indicator; the actual sort happens at the call site (it owns the
+     real field values, this component only ever sees pre-rendered cells) and re-renders with a
+     new sortState. opts.onSort(colIndex) fires on header click. */
   function dataTable(opts) {
     var wrap = h("div", { class: "table-wrap" });
     var scroll = h("div", { class: "table-scroll" });
     var table = h("table", { class: "data-table" });
     var thead = h("thead");
     var headRow = h("tr");
-    opts.columns.forEach(function (c) {
+    opts.columns.forEach(function (c, i) {
       var th = h("th");
-      if (typeof c === "string") th.textContent = c;
+      var sortable = opts.sortable && opts.sortable[i];
+      if (typeof c === "string") th.appendChild(document.createTextNode(c));
       else th.appendChild(tooltip({ what: c.what, why: c.why, rule: c.rule, tip: c.tip }, [document.createTextNode(c.label), infoDot(10)]));
+      if (sortable) {
+        var active = opts.sortState && opts.sortState.col === i;
+        th.classList.add("th-sortable");
+        if (active) th.classList.add("th-sorted");
+        th.appendChild(h("span", { class: "th-sort-arrow" }, active ? (opts.sortState.dir === "asc" ? "▲" : "▼") : "↕"));
+        th.addEventListener("click", function () { opts.onSort(i); });
+      }
       headRow.appendChild(th);
     });
     thead.appendChild(headRow);
@@ -137,6 +150,118 @@
     wrap.appendChild(scroll);
     return wrap;
   }
+  /* A dataTable with two things layered on top, shared by every "requests awaiting decision"
+     desk list and the Policy Register: click-to-sort headers, and a "Columns" control the viewer
+     uses to show/hide which of the available columns render (persisted per opts.storageKey so
+     the choice survives navigating away and back).
+
+     opts: {
+       storageKey: sessionStorage key for the visible-column choice,
+       columns: [{ key, label, locked, what, why, rule, sortValue(record), cell(record) }, ...],
+         `locked` columns are always shown and never offered in the picker — reserve it for
+         whichever column(s) identify the row, since hiding every column would leave nothing to
+         click.
+       defaultVisible: keys shown before the viewer has ever touched the picker (default: every
+         non-locked column),
+       trailingColumn: optional { label, cell(record) } appended after the data columns, always
+         shown, never sortable — e.g. the row's "Review"/"Open" action,
+       rows: the real records (not pre-rendered cells) — sortValue/cell both take one of these.
+         Either a plain array (the common case — one fixed set for this render), or a function
+         returning one, re-read on every rebuild — for a page like the Policy Register where its
+         own search/filter controls change the row set and call `.rebuild()` after updating their
+         own state, a static array captured at construction time would go stale immediately.
+       onRowClick(record, i): i is the index into whatever order is currently displayed (post-
+         sort), so callers must key off `record`, not a remembered index into their own array,
+       emptyText, wrapCells: passed straight through to dataTable.
+     }
+     Returns { columnsControl, tableWrap, rebuild } — the two DOM nodes are standalone; the caller
+     places them wherever fits its own layout (a toolbar row, next to a section label, ...) and
+     may call `rebuild()` itself after changing something the table's own controls don't know
+     about (e.g. a `rows` function whose upstream filter changed). */
+  function sortableTable(opts) {
+    var columns = opts.columns;
+    var defaultVisible = opts.defaultVisible || columns.filter(function (c) { return !c.locked; }).map(function (c) { return c.key; });
+    function loadVisible() {
+      try {
+        var raw = sessionStorage.getItem(opts.storageKey);
+        if (raw) { var parsed = JSON.parse(raw); if (Array.isArray(parsed) && parsed.length) return parsed; }
+      } catch (e) { /* ignore */ }
+      return defaultVisible.slice();
+    }
+    function saveVisible(keys) { try { sessionStorage.setItem(opts.storageKey, JSON.stringify(keys)); } catch (e) { /* ignore */ } }
+    var visibleKeys = loadVisible().filter(function (k) { return columns.some(function (c) { return c.key === k; }); });
+    if (visibleKeys.length === 0) visibleKeys = defaultVisible.slice();
+
+    var columnsBtnWrap = h("div", { class: "multiselect" });
+    var columnsBtn = h("button", { type: "button", class: "field-input select-fixed multiselect-btn" }, "Columns");
+    columnsBtnWrap.appendChild(columnsBtn);
+    var panelEl = null;
+    function onDocClick(e) { if (panelEl && !panelEl.contains(e.target) && !columnsBtn.contains(e.target)) closePanel(); }
+    function closePanel() { if (!panelEl) return; panelEl.remove(); panelEl = null; document.removeEventListener("click", onDocClick); }
+    function openPanel() {
+      panelEl = h("div", { class: "multiselect-panel" });
+      var list = h("div", { class: "multiselect-list" });
+      columns.forEach(function (c) {
+        if (c.locked) return;
+        list.appendChild(checkboxRow({
+          label: c.label, checked: visibleKeys.indexOf(c.key) !== -1,
+          onChange: function (checked) {
+            if (checked) { if (visibleKeys.indexOf(c.key) === -1) visibleKeys.push(c.key); }
+            else { visibleKeys = visibleKeys.filter(function (k) { return k !== c.key; }); }
+            saveVisible(visibleKeys);
+            rebuild();
+          },
+        }));
+      });
+      panelEl.appendChild(list);
+      columnsBtnWrap.appendChild(panelEl);
+      document.addEventListener("click", onDocClick);
+    }
+    columnsBtn.addEventListener("click", function (e) { e.stopPropagation(); if (panelEl) closePanel(); else openPanel(); });
+
+    var tableWrap = h("div", {});
+    var sortState = null; /* { key, dir } */
+    function rebuild() {
+      var activeColumns = columns.filter(function (c) { return c.locked || visibleKeys.indexOf(c.key) !== -1; });
+      var sortCol = sortState && activeColumns.filter(function (c) { return c.key === sortState.key; })[0];
+      var rows = typeof opts.rows === "function" ? opts.rows() : opts.rows;
+      if (sortCol) {
+        var dir = sortState.dir;
+        rows = rows.slice().sort(function (a, b) {
+          var va = sortCol.sortValue(a), vb = sortCol.sortValue(b);
+          var cmp = (typeof va === "number" && typeof vb === "number") ? (va - vb) : String(va).localeCompare(String(vb));
+          return dir === "asc" ? cmp : -cmp;
+        });
+      }
+      var headerCols = activeColumns.map(function (c) { return (c.what || c.why || c.rule) ? { label: c.label, what: c.what, why: c.why, rule: c.rule } : c.label; });
+      var sortableFlags = activeColumns.map(function () { return true; });
+      if (opts.trailingColumn) { headerCols.push(opts.trailingColumn.label || ""); sortableFlags.push(false); }
+      var sortDisplayState = sortCol ? { col: activeColumns.indexOf(sortCol), dir: sortState.dir } : null;
+      tableWrap.innerHTML = "";
+      tableWrap.appendChild(dataTable({
+        columns: headerCols,
+        sortable: sortableFlags,
+        sortState: sortDisplayState,
+        wrapCells: opts.wrapCells,
+        onSort: function (i) {
+          if (i >= activeColumns.length) return; /* the trailing action column isn't sortable */
+          var key = activeColumns[i].key;
+          if (sortState && sortState.key === key) sortState = { key: key, dir: sortState.dir === "asc" ? "desc" : "asc" };
+          else sortState = { key: key, dir: "asc" };
+          rebuild();
+        },
+        rows: rows.map(function (r) {
+          var cells = activeColumns.map(function (c) { return c.cell(r); });
+          if (opts.trailingColumn) cells.push(opts.trailingColumn.cell(r));
+          return cells;
+        }),
+        onRowClick: opts.onRowClick ? function (i) { opts.onRowClick(rows[i], i); } : null,
+        emptyText: opts.emptyText,
+      }));
+    }
+    rebuild();
+    return { columnsControl: columnsBtnWrap, tableWrap: tableWrap, rebuild: rebuild };
+  }
   function deskList(opts) {
     var wrap = h("div", {});
     wrap.appendChild(pageHeader(opts));
@@ -151,15 +276,24 @@
   /* wrap: true switches from an exact N-column grid (fine for the usual 4-item desk strip) to a
      responsive auto-fit grid that wraps onto a second row once cards no longer fit — needed once
      a KPI strip grows past what one row can hold at a readable width. */
+  /* opts.href turns a card into a real link to the desk that count belongs to — not just a
+     number, a way to act on it. Kept keyboard-accessible (role=link, tabindex, Enter/Space) since
+     it's a div, not a native <a>. */
   function kpiRow(items, wrap) {
     var row = h("div", { class: "kpi-row" + (wrap ? " wrap" : ""), style: wrap ? {} : { gridTemplateColumns: "repeat(" + items.length + ",minmax(0,1fr))" } });
     items.forEach(function (s) {
-      var card = h("div", { class: "kpi-card" });
+      var card = h("div", { class: "kpi-card" + (s.href ? " clickable" : "") });
       card.appendChild(s.tip || s.why ? tooltip({ tip: s.tip, why: s.why }, [h("span", { class: "label-11 kpi-label" }, s.label), infoDot(10)]) : h("div", { class: "label-11 kpi-label" }, s.label));
       var valueRow = h("div", { class: "kpi-value-row" });
       valueRow.appendChild(h("span", { class: "kpi-value" + (s.tone ? " toned" : ""), "data-tone": s.tone || null }, String(s.value)));
       if (s.delta) valueRow.appendChild(h("span", { class: "kpi-delta " + (s.delta.indexOf("+") === 0 ? "up" : "down") }, s.delta));
       card.appendChild(valueRow);
+      if (s.href) {
+        card.setAttribute("role", "link");
+        card.setAttribute("tabindex", "0");
+        card.addEventListener("click", function () { location.href = s.href; });
+        card.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); location.href = s.href; } });
+      }
       row.appendChild(card);
     });
     return row;
@@ -279,6 +413,62 @@
     label.appendChild(document.createTextNode(opts.label));
     return label;
   }
+  /* A checkbox-dropdown: a button showing a summary ("All", one label, or "N selected") that
+     opens a panel of checkboxRow options with All/None actions. `opts.selected` is an array —
+     empty means "All" (no restriction), matching the button's own label logic, so an untouched
+     filter and an explicitly-cleared one behave identically. */
+  function multiSelect(opts) {
+    var wrap = h("div", { class: "multiselect" });
+    var btn = h("button", { type: "button", class: "field-input select-fixed multiselect-btn" });
+    wrap.appendChild(btn);
+    var panelEl = null;
+    function optValue(o) { return typeof o === "string" ? o : o.value; }
+    function optLabel(o) { return typeof o === "string" ? o : o.label; }
+    function labelFor(v) { var m = opts.options.filter(function (o) { return optValue(o) === v; })[0]; return m ? optLabel(m) : v; }
+    function updateBtn() {
+      var n = opts.selected.length;
+      btn.textContent = (n === 0 || n === opts.options.length) ? (opts.allLabel || "All")
+        : n === 1 ? labelFor(opts.selected[0]) : n + " selected";
+    }
+    function onDocClick(e) { if (panelEl && !panelEl.contains(e.target) && !btn.contains(e.target)) closePanel(); }
+    function closePanel() {
+      if (!panelEl) return;
+      panelEl.remove(); panelEl = null;
+      document.removeEventListener("click", onDocClick);
+    }
+    function openPanel() {
+      panelEl = h("div", { class: "multiselect-panel" });
+      var actions = h("div", { class: "multiselect-actions" });
+      var allBtn = h("button", { type: "button", class: "btn ghost-link" }, "All");
+      var noneBtn = h("button", { type: "button", class: "btn ghost-link" }, "None");
+      function pickAll(e) { e.stopPropagation(); opts.selected = opts.options.map(optValue); updateBtn(); opts.onChange(opts.selected.slice()); closePanel(); openPanel(); }
+      function pickNone(e) { e.stopPropagation(); opts.selected = []; updateBtn(); opts.onChange(opts.selected.slice()); closePanel(); openPanel(); }
+      allBtn.addEventListener("click", pickAll);
+      noneBtn.addEventListener("click", pickNone);
+      actions.appendChild(allBtn); actions.appendChild(noneBtn);
+      panelEl.appendChild(actions);
+      var list = h("div", { class: "multiselect-list" });
+      opts.options.forEach(function (o) {
+        var v = optValue(o), lbl = optLabel(o);
+        list.appendChild(checkboxRow({
+          label: lbl, checked: opts.selected.indexOf(v) !== -1,
+          onChange: function (checked) {
+            if (checked) { if (opts.selected.indexOf(v) === -1) opts.selected.push(v); }
+            else { opts.selected = opts.selected.filter(function (x) { return x !== v; }); }
+            updateBtn();
+            opts.onChange(opts.selected.slice());
+          },
+        }));
+      });
+      panelEl.appendChild(list);
+      wrap.appendChild(panelEl);
+      document.addEventListener("click", onDocClick);
+    }
+    btn.addEventListener("click", function (e) { e.stopPropagation(); if (panelEl) closePanel(); else openPanel(); });
+    updateBtn();
+    return wrap;
+  }
+
   function callout(tone, content) {
     var toneKey = tone === "info" ? "blue" : tone === "warn" ? "amber" : tone === "good" ? "green" : tone === "bad" ? "red" : "violet";
     var div = h("div", { class: "callout", "data-tone": toneKey });
@@ -438,6 +628,12 @@
       modal.appendChild(field({ label: "Decision comment", hint: "Stored on the ledger with your name and the time of confirmation. Required." }, ta));
       modal.appendChild(counter);
 
+      var emailInput = null;
+      if (opts.showEmail) {
+        emailInput = h("input", { class: "field-input", type: "email", placeholder: opts.emailPlaceholder || "name@company.com", value: opts.emailDefault || "" });
+        modal.appendChild(field({ label: "Notify by email (optional)", hint: "Sent via the notification service (SMTP) the moment you confirm — leave blank to skip." }, emailInput));
+      }
+
       var actions = h("div", { class: "decision-modal-actions" });
       var cancelBtn = h("button", { class: "btn", type: "button" }, "Cancel");
       actions.appendChild(confirmBtn);
@@ -464,13 +660,13 @@
       confirmBtn.addEventListener("click", function () {
         var comment = ta.value.trim();
         if (!comment) return;
-        close(comment);
+        close(opts.showEmail ? { comment: comment, email: emailInput.value.trim() } : comment);
       });
     });
   }
   function confirmable(policyNo, txnNo, action, spec) {
     return Object.assign({}, spec, {
-      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning },
+      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning, showEmail: spec.showEmail, emailPlaceholder: spec.emailPlaceholder, emailDefault: spec.emailDefault },
     });
   }
   function decisionTrail(rows) {
@@ -520,7 +716,7 @@
       var meta = h("div", { class: "decision-trail-meta" });
       meta.appendChild(h("div", { class: "decision-trail-user" }, a.user || "Unknown"));
       meta.appendChild(h("div", { class: "decision-trail-at" }, a.at
-        ? new Date(a.at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+        ? new Date(a.at).toLocaleString("en-US", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
         : "—"));
       top.appendChild(meta);
       top.appendChild(pill(tone, a.action));
@@ -680,7 +876,7 @@
     mid.appendChild(h("div", { class: "notif-row-title" + (note.kind === "event" ? " mono" : "") }, note.title));
     mid.appendChild(h("div", { class: "notif-row-detail" }, note.detail));
     row.appendChild(mid);
-    row.appendChild(h("span", { class: "notif-row-time" }, new Date(note.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })));
+    row.appendChild(h("span", { class: "notif-row-time" }, new Date(note.at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })));
     return row;
   }
 
@@ -803,8 +999,8 @@
     h: h, append: appendKids, tooltip: tooltip, tipLabel: tipLabel, infoDot: infoDot,
     pill: pill, badge: badge, txnStatusBadge: txnStatusBadge, modulePill: modulePill, initiatorPill: initiatorPill,
     cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
-    codeBlock: codeBlock, dataTable: dataTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
-    backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow,
+    codeBlock: codeBlock, dataTable: dataTable, sortableTable: sortableTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
+    backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,
     callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
     decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, decisionTrailSide: decisionTrailSide, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
     renderToast: renderToast, notifRow: notifRow, lifecycleStage: lifecycleStage,

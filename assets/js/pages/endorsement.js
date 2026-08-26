@@ -42,7 +42,7 @@
 
         var impInput = ui.h("input", { class: "field-input", type: "number", placeholder: "0" });
         impInput.addEventListener("input", function () { extra.premiumImpact = impInput.value; });
-        var f3 = ui.field({ label: "Premium impact (₹)", hint: "Positive for an increase, negative for a decrease." }, impInput);
+        var f3 = ui.field({ label: "Premium impact ($)", hint: "Positive for an increase, negative for a decrease." }, impInput);
 
         extra.effectiveDate = PAS.todayISO();
         var effInput = ui.h("input", { class: "field-input", type: "date", value: PAS.todayISO() });
@@ -63,21 +63,67 @@
       },
     }));
 
-    page.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted change requests, ordered newest first.", className: "label-11 block mb-9" }));
-    page.appendChild(ui.dataTable({
-      columns: ["Policy", "Insured", "Requested by", { label: "Change", what: "Category of mid-term change." }, { label: "Effective", what: "Business date the change applies from." }, { label: "Flags", what: "Future-dated or out-of-sequence." }, { label: "Materiality", what: "Whether this alters the underlying risk.", rule: "Material changes require re-underwriting before they can be approved." }, { label: "Premium impact", what: "Prorated delta from effective date to end of term." }, ""],
-      rows: pend.map(function (t) {
-        var impact = (t.h.meta && t.h.meta.premiumImpact) || 0;
-        var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, (impact >= 0 ? "+" : "") + PAS.money(impact));
-        var flags = [];
-        if (t.h.meta && t.h.meta.futureDated) flags.push(ui.pill("blue", "Future"));
-        if (t.h.meta && t.h.meta.outOfSequence) flags.push(ui.pill("red", "OOS"));
-        var flagCell = ui.h("span", {}, flags.length ? flags : [ui.pill("gray", "—")]);
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(t.h.meta), t.h.meta.changeType, t.h.meta.effectiveDate || t.h.date, flagCell, ui.pill(t.h.meta.materiality === "Material" ? "red" : "gray", t.h.meta.materiality), impactSpan, ui.cellOpen("Review")];
-      }),
-      emptyText: "No endorsements awaiting decision.",
-      onRowClick: function (i) { location.href = "endorsement-decision.html?policy=" + encodeURIComponent(pend[i].p.id) + "&txn=" + encodeURIComponent(pend[i].h.id); },
-    }));
+    function endorseFlags(t) {
+      var flags = [];
+      if (t.h.meta && t.h.meta.futureDated) flags.push(ui.pill("blue", "Future"));
+      if (t.h.meta && t.h.meta.outOfSequence) flags.push(ui.pill("red", "OOS"));
+      return ui.h("span", {}, flags.length ? flags : [ui.pill("gray", "—")]);
+    }
+    var q = "";
+    function matchSearch(t) {
+      var needle = q.toLowerCase();
+      return !needle || t.p.holder.toLowerCase().indexOf(needle) !== -1 || t.p.id.toLowerCase().indexOf(needle) !== -1;
+    }
+
+    page.appendChild(ui.tipLabel({ text: "REQUESTS AWAITING DECISION (" + pend.length + ")", what: "Already-submitted change requests, ordered newest first.", className: "label-11 block mb-9" }));
+
+    var toolbar = ui.h("div", { class: "register-toolbar" });
+    var searchWrap = ui.h("div", { class: "register-search" });
+    searchWrap.appendChild(PAS.icon("search", { size: 14 }));
+    var searchInput = ui.h("input", { class: "register-search-input", type: "search", placeholder: "Search by insured name or policy number…", autocomplete: "off" });
+    searchWrap.appendChild(searchInput);
+    toolbar.appendChild(searchWrap);
+
+    var endorsementTable = ui.sortableTable({
+      storageKey: "pas.endorsement.columns.v1",
+      defaultVisible: ["requestedBy", "change", "effective", "flags", "materiality", "premiumImpact"],
+      columns: [
+        { key: "policy", label: "Policy", locked: true, sortValue: function (t) { return t.p.id; }, cell: function (t) { return ui.cellId(t.p.id); } },
+        { key: "insured", label: "Insured", locked: true, sortValue: function (t) { return (t.p.holder || "").toLowerCase(); }, cell: function (t) { return ui.cellName(t.p.holder); } },
+        { key: "requestedBy", label: "Requested by", sortValue: function (t) { return (t.h.meta && t.h.meta.initiatedBy) || ""; }, cell: function (t) { return ui.initiatorPill(t.h.meta); } },
+        { key: "change", label: "Change", what: "Category of mid-term change.", sortValue: function (t) { return t.h.meta.changeType || ""; }, cell: function (t) { return t.h.meta.changeType; } },
+        { key: "effective", label: "Effective", what: "Business date the change applies from.", sortValue: function (t) { return t.h.meta.effectiveDate || t.h.date; }, cell: function (t) { return t.h.meta.effectiveDate || t.h.date; } },
+        { key: "flags", label: "Flags", what: "Future-dated or out-of-sequence.", sortValue: function (t) { return (t.h.meta && t.h.meta.futureDated ? "Future" : "") + (t.h.meta && t.h.meta.outOfSequence ? "OOS" : ""); }, cell: endorseFlags },
+        { key: "materiality", label: "Materiality", what: "Whether this alters the underlying risk.", rule: "Material changes require re-underwriting before they can be approved.", sortValue: function (t) { return t.h.meta.materiality || ""; }, cell: function (t) { return ui.pill(t.h.meta.materiality === "Material" ? "red" : "gray", t.h.meta.materiality); } },
+        { key: "premiumImpact", label: "Premium impact", what: "Prorated delta from effective date to end of term.", sortValue: function (t) { return (t.h.meta && t.h.meta.premiumImpact) || 0; }, cell: function (t) { var impact = (t.h.meta && t.h.meta.premiumImpact) || 0; return ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, (impact >= 0 ? "+" : "") + PAS.money(impact)); } },
+        { key: "product", label: "Product", sortValue: function (t) { return t.p.product || ""; }, cell: function (t) { return t.p.product || "—"; } },
+        { key: "currentPremium", label: "Current premium", what: "The policy's premium before this endorsement applies.", sortValue: function (t) { return t.p.premium || 0; }, cell: function (t) { return PAS.money(t.p.premium); } },
+        { key: "newPremium", label: "New premium", what: "Current premium plus this request's impact — what the policy moves to if approved.", sortValue: function (t) { return (t.p.premium || 0) + ((t.h.meta && t.h.meta.premiumImpact) || 0); }, cell: function (t) { return PAS.money((t.p.premium || 0) + ((t.h.meta && t.h.meta.premiumImpact) || 0)); } },
+        { key: "broker", label: "Broker", sortValue: function (t) { return t.p.producer || ""; }, cell: function (t) { return t.p.producer || "—"; } },
+        { key: "mga", label: "MGA", sortValue: function (t) { return t.p.mga || ""; }, cell: function (t) { return t.p.mga || "—"; } },
+        { key: "carrier", label: "Carrier", sortValue: function (t) { return t.p.carrier || ""; }, cell: function (t) { return t.p.carrier || "—"; } },
+        { key: "state", label: "State", sortValue: function (t) { return t.p.state || ""; }, cell: function (t) { return t.p.state || "—"; } },
+        { key: "channel", label: "Channel", what: "How the request came in.", sortValue: function (t) { return (t.h.meta && t.h.meta.channel) || ""; }, cell: function (t) { return (t.h.meta && t.h.meta.channel) || "—"; } },
+        { key: "submitted", label: "Submitted", what: "When the request was logged.", sortValue: function (t) { return (t.h.meta && t.h.meta.submittedOn) || t.h.date || ""; }, cell: function (t) { return (t.h.meta && t.h.meta.submittedOn) || t.h.date || "—"; } },
+      ],
+      trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
+      rows: function () { return pend.filter(matchSearch); },
+      onRowClick: function (t) { location.href = "endorsement-decision.html?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id); },
+      emptyText: "No endorsements match that search.",
+    });
+    toolbar.appendChild(endorsementTable.columnsControl);
+    page.appendChild(toolbar);
+
+    var noteEl = ui.h("div", { class: "faint-note mb-9" });
+    page.appendChild(noteEl);
+    page.appendChild(endorsementTable.tableWrap);
+
+    function refresh() {
+      var filtered = pend.filter(matchSearch);
+      noteEl.textContent = q ? "Showing " + filtered.length + " of " + pend.length + " requests." : "";
+      endorsementTable.rebuild();
+    }
+    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

@@ -695,7 +695,7 @@
   PAS.NAV = [
     { label: "Workspace", items: [["dashboard", "Dashboard", "layout-dashboard", "index.html"], ["approvals", "Pending approvals", "inbox", "approvals.html"]] },
     { label: "Decision desks", items: [
-      ["uw-desk", "Issue Policy", "clipboard-check", "underwriting.html"],
+      // ["uw-desk", "Issue Policy", "clipboard-check", "underwriting.html"],
       ["issue-desk", "Issue", "stamp", "issue.html"],
       ["endorsement-desk", "Endorsements", "edit-3", "endorsement.html"],
       ["cancellation-desk", "Cancellation", "x-circle", "cancellation.html"],

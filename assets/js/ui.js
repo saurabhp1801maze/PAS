@@ -221,6 +221,8 @@
 
     var tableWrap = h("div", {});
     var sortState = null; /* { key, dir } */
+    var pageSize = opts.pageSize || 0;
+    var pageIndex = 0; /* 0-based */
     function rebuild() {
       var activeColumns = columns.filter(function (c) { return c.locked || visibleKeys.indexOf(c.key) !== -1; });
       var sortCol = sortState && activeColumns.filter(function (c) { return c.key === sortState.key; })[0];
@@ -232,6 +234,16 @@
           var cmp = (typeof va === "number" && typeof vb === "number") ? (va - vb) : String(va).localeCompare(String(vb));
           return dir === "asc" ? cmp : -cmp;
         });
+      }
+      var total = rows.length;
+      var pageRows = rows;
+      var totalPages = 1;
+      if (pageSize > 0) {
+        totalPages = Math.max(1, Math.ceil(total / pageSize));
+        if (pageIndex >= totalPages) pageIndex = totalPages - 1;
+        if (pageIndex < 0) pageIndex = 0;
+        var start = pageIndex * pageSize;
+        pageRows = rows.slice(start, start + pageSize);
       }
       var headerCols = activeColumns.map(function (c) { return (c.what || c.why || c.rule) ? { label: c.label, what: c.what, why: c.why, rule: c.rule } : c.label; });
       var sortableFlags = activeColumns.map(function () { return true; });
@@ -248,19 +260,37 @@
           var key = activeColumns[i].key;
           if (sortState && sortState.key === key) sortState = { key: key, dir: sortState.dir === "asc" ? "desc" : "asc" };
           else sortState = { key: key, dir: "asc" };
+          pageIndex = 0;
           rebuild();
         },
-        rows: rows.map(function (r) {
+        rows: pageRows.map(function (r) {
           var cells = activeColumns.map(function (c) { return c.cell(r); });
           if (opts.trailingColumn) cells.push(opts.trailingColumn.cell(r));
           return cells;
         }),
-        onRowClick: opts.onRowClick ? function (i) { opts.onRowClick(rows[i], i); } : null,
+        onRowClick: opts.onRowClick ? function (i) { opts.onRowClick(pageRows[i], i); } : null,
         emptyText: opts.emptyText,
       }));
+      if (pageSize > 0) {
+        var pager = h("div", { class: "table-pager" });
+        var from = total === 0 ? 0 : pageIndex * pageSize + 1;
+        var to = Math.min(total, (pageIndex + 1) * pageSize);
+        pager.appendChild(h("span", { class: "table-pager-meta" }, total === 0 ? "No rows" : ("Showing " + from + "–" + to + " of " + total)));
+        var nav = h("div", { class: "table-pager-nav" });
+        var prev = h("button", { class: "btn small", type: "button", disabled: pageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (pageIndex > 0) { pageIndex--; rebuild(); } });
+        var next = h("button", { class: "btn small", type: "button", disabled: pageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (pageIndex < totalPages - 1) { pageIndex++; rebuild(); } });
+        nav.appendChild(prev);
+        nav.appendChild(h("span", { class: "table-pager-page" }, "Page " + (pageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        tableWrap.appendChild(pager);
+      }
     }
+    function resetPage() { pageIndex = 0; }
     rebuild();
-    return { columnsControl: columnsBtnWrap, tableWrap: tableWrap, rebuild: rebuild };
+    return { columnsControl: columnsBtnWrap, tableWrap: tableWrap, rebuild: rebuild, resetPage: resetPage };
   }
   function deskList(opts) {
     var wrap = h("div", {});
@@ -375,6 +405,51 @@
     appendKids(bodyEl, body);
     p.appendChild(bodyEl);
     return p;
+  }
+
+  /* Independent open/close section — used for reference blocks on desks (e.g. cancellation
+     terminology). Sections do not auto-close siblings; each acts like its own dropdown. */
+  function accordionSection(opts) {
+    var open = !!opts.open;
+    var section = h("div", { class: "accordion-section" + (open ? " is-open" : "") });
+    var head = h("button", {
+      type: "button",
+      class: "accordion-head",
+      "aria-expanded": open ? "true" : "false",
+    });
+    var titleWrap = h("div", { class: "accordion-title-wrap" });
+    titleWrap.appendChild(tipLabel({
+      text: opts.title,
+      what: opts.what,
+      why: opts.why,
+      className: "accordion-title",
+    }));
+    if (opts.sub) titleWrap.appendChild(h("div", { class: "accordion-sub" }, opts.sub));
+    head.appendChild(titleWrap);
+    var chevron = PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--text-faint)" });
+    head.appendChild(chevron);
+    section.appendChild(head);
+    var body = h("div", { class: "accordion-body" + (opts.pad === 0 ? " no-pad" : "") });
+    appendKids(body, opts.body);
+    if (!open) body.hidden = true;
+    section.appendChild(body);
+    head.addEventListener("click", function () {
+      open = !open;
+      section.classList.toggle("is-open", open);
+      head.setAttribute("aria-expanded", open ? "true" : "false");
+      body.hidden = !open;
+      var next = PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--text-faint)" });
+      head.replaceChild(next, chevron);
+      chevron = next;
+    });
+    return section;
+  }
+  function accordion(opts) {
+    var wrap = h("div", { class: "accordion" });
+    (opts.sections || []).forEach(function (sec) {
+      wrap.appendChild(accordionSection(sec));
+    });
+    return wrap;
   }
 
   /* ================= page header ================= */
@@ -1000,7 +1075,7 @@
     pill: pill, badge: badge, txnStatusBadge: txnStatusBadge, modulePill: modulePill, initiatorPill: initiatorPill,
     cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
     codeBlock: codeBlock, dataTable: dataTable, sortableTable: sortableTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
-    backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,
+    backLink: backLink, kv: kv, panel: panel, accordion: accordion, accordionSection: accordionSection, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,
     callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
     decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, decisionTrailSide: decisionTrailSide, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
     renderToast: renderToast, notifRow: notifRow, lifecycleStage: lifecycleStage,

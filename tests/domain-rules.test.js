@@ -158,6 +158,22 @@ book.forEach(function (p) {
 });
 check("every seeded cancellation's stored type matches what deriveCancelType would produce today", typeMismatches.length === 0, typeMismatches.join(", "));
 
+console.log("\n=== DNOC — Direct Notice of Cancellation ===");
+check("System Non-Payment requires DNOC", PAS.requiresDnoc("Non-Payment", "System") === true);
+check("Carrier Underwriting requires DNOC", PAS.requiresDnoc("Underwriting", "Carrier") === true);
+check("Insured Request does not require DNOC", PAS.requiresDnoc("Insured Request", "Insured") === false);
+check("Broker Short-Rate reason does not require DNOC", PAS.requiresDnoc("Sold Vehicle/Business", "Broker/Producer") === false);
+var dnocSeed = byId("POL-2025-07734");
+var dnocTxn = dnocSeed && dnocSeed.history.find(function (h) { return h.type === "Cancellation" && h.status === "Pending"; });
+check("Walter Higgins has a System Non-Payment pending with DNOC served", !!dnocTxn && dnocTxn.meta.initiatedBy === "System" && !!dnocTxn.meta.dnocServedOn);
+var st = PAS.dnocState(dnocTxn.meta);
+check("DNOC pending days = 5 (served 2026-08-15, today 2026-08-20, 10 required)", st.served && st.pendingDays === 5 && !st.ready, "pending=" + st.pendingDays);
+var iron = byId("POL-2026-00988");
+var ironCx = iron && iron.history.find(function (h) { return h.type === "Cancellation" && h.status === "Pending"; });
+check("Ironwood Carrier cancel requires DNOC and is not yet served", PAS.requiresDnoc(ironCx.meta.reason, ironCx.meta.initiatedBy) && !ironCx.meta.dnocServedOn);
+var stIron = PAS.dnocState(ironCx.meta);
+check("unserved DNOC shows full notice days as pending", stIron.required && !stIron.served && stIron.pendingDays === 45);
+
 console.log("\n=== decision audit trail ===");
 var mem = {};
 stub.sessionStorage = {

@@ -869,11 +869,11 @@ window.PAS_SEED_POLICIES = [
       {
         "id": "TXN-FI43A",
         "seq": 2,
-        "date": "2026-09-15",
-        "recordedAt": "2026-09-15T09:30:00.000Z",
+        "date": "2026-10-04",
+        "recordedAt": "2026-08-19T09:30:00.000Z",
         "type": "Cancellation",
-        "title": "Cancellation requested — held for review",
-        "detail": "Carrier-initiated on adverse loss ratio. HELD — requires a second underwriter's sign-off before it can proceed.",
+        "title": "Cancellation initiated — DNOC required",
+        "detail": "Initiated by Carrier for Underwriting. Direct Notice of Cancellation (DNOC) must be served; 45 pending notice days must run before cancellation can complete.",
         "user": "Internal review",
         "status": "Pending",
         "meta": {
@@ -881,7 +881,8 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Carrier",
           "channel": "Internal review",
           "submittedOn": "2026-08-19",
-          "requestNote": "Loss ratio has run 140% over two terms on this location — recommend non-renewal path via mid-term cancellation with full notice."
+          "requiresDnoc": true,
+          "requestNote": "Loss ratio has run 140% over two terms on this location — recommend mid-term cancellation with full statutory notice via DNOC."
         }
       }
     ]
@@ -1173,6 +1174,15 @@ window.PAS_SEED_POLICIES = [
         "version": 1,
         "generatedAt": "2025-07-01",
         "type": "Schedule"
+      },
+      {
+        "id": "DOC-DNOC1",
+        "name": "Direct Notice of Cancellation",
+        "version": 1,
+        "generatedAt": "2026-08-15",
+        "type": "DNOC",
+        "transactionId": "TXN-DNOC1",
+        "deliveryStatus": "Generated"
       }
     ],
     "history": [
@@ -1203,6 +1213,28 @@ window.PAS_SEED_POLICIES = [
         "meta": {
           "category": "Contact update",
           "channel": "Phone"
+        }
+      },
+      {
+        "id": "TXN-DNOC1",
+        "seq": 3,
+        "date": "2026-08-25",
+        "recordedAt": "2026-08-15T09:30:00.000Z",
+        "type": "Cancellation",
+        "title": "DNOC served — 10 days pending",
+        "detail": "Direct Notice of Cancellation served on 2026-08-15. Cancellation may complete on or after 2026-08-25 (10-day statutory notice for Non-Payment). Billing reported premium unpaid past grace.",
+        "user": "System",
+        "status": "Pending",
+        "meta": {
+          "reason": "Non-Payment",
+          "initiatedBy": "System",
+          "channel": "Billing non-payment trigger",
+          "submittedOn": "2026-08-15",
+          "requiresDnoc": true,
+          "dnocServedOn": "2026-08-15",
+          "dnocEffectiveDate": "2026-08-25",
+          "dnocPendingDaysAtServe": 10,
+          "requestNote": "Premium installment unpaid after grace period — System issued DNOC."
         }
       }
     ]

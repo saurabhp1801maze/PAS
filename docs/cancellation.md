@@ -117,7 +117,31 @@ own portfolio review is a Renewal concept, not a cancellation one:
 on the shared `PAS.INITIATORS` directory (added, not renamed — nothing else that already used
 `Underwriter`, `Broker/Producer`, etc. changed).
 
+## DNOC — Direct Notice of Cancellation
+
+When **System**, **Carrier**, or **MGA** initiates a cancellation for a reason that carries a
+statutory notice period (Non-Payment = 10 days, Underwriting = 45 days, Other = 30 days), PAS
+requires a **Direct Notice of Cancellation (DNOC)** before the cancel can complete:
+
+```
+Insurer-side cancel initiated (noticeDays > 0)
+      │
+      ▼
+Serve DNOC  ──►  document generated, effective date = served + noticeDays
+      │
+      ▼
+Pending days countdown  (pendingDays = noticeRequired − days since DNOC)
+      │
+      ▼
+pendingDays = 0  ──►  Approve / System complete allowed
+```
+
+Insured- or Broker-initiated cancellations do **not** use DNOC — those are voluntary exits with
+their own notice rules (often 0 days). `PAS.serveDnoc`, `PAS.dnocState`, and `PAS.requiresDnoc`
+enforce this. Approve is disabled until the DNOC countdown finishes.
+
 ## Timing: derived, never stored
+
 
 `PAS.cancelTiming(effectiveDate)` returns `"Immediate"` when the effective date is today or
 earlier, `"Future/Scheduled"` otherwise. It is never written to a transaction's `meta` — computing

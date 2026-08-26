@@ -196,7 +196,7 @@ console.log("\n  content spot-checks");
   ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected carriers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
   ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Endorsement requests", "Reinstated", "Cancelled", "Awaiting decision", "Monthly", "Yearly", "New business issued", "Cancelled policy requests"]],
-  ["cancellation", ["Auto-cancelled (non-payment)", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason"]],
+  ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason"]],
 ].forEach(function (c) {
   var txt = renderText(c[0]);
   c[1].forEach(function (needle) {

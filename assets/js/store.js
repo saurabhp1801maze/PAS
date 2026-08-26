@@ -141,7 +141,8 @@
 
   /* Everything about a cancellation follows from these four attributes plus dates. Nothing is
      hand-keyed. */
-  function cancelQuote(policy, reason, initiatedBy, effectiveDate) {
+  function cancelQuote(policy, reason, initiatedBy, effectiveDate, meta) {
+    meta = meta || {};
     var reasonSpec = CANCEL_REASONS[reason] || CANCEL_REASONS.Other;
     var totalDays = Math.max(1, daysBetween(policy.effectiveDate, policy.expirationDate));
     var atInception = effectiveDate <= policy.effectiveDate;
@@ -152,16 +153,93 @@
     var gross = type === "Flat" ? policy.premium : unearned;
     var penalty = gross * spec.penaltyPct;
     var refund = Math.max(0, gross - penalty);
-    var noticeProvided = daysBetween(todayISO(), effectiveDate);
     var noticeRequired = reasonSpec.noticeDays;
+    /* When a DNOC has been served, noticeProvided is measured from the notice date — not from
+       "today vs effective" alone. That is what makes the pending-days countdown real. */
+    var noticeAnchor = meta.dnocServedOn || todayISO();
+    var noticeProvided = daysBetween(noticeAnchor, effectiveDate);
+    if (meta.dnocServedOn) {
+      noticeProvided = Math.max(noticeProvided, daysBetween(meta.dnocServedOn, todayISO()));
+    }
+    var noticeOk = noticeProvided >= noticeRequired;
+    var pendingDays = meta.dnocServedOn
+      ? Math.max(0, noticeRequired - daysBetween(meta.dnocServedOn, todayISO()))
+      : noticeRequired;
     return {
       type: type, spec: spec, reason: reason, initiatedBy: initiatedBy, timing: cancelTiming(effectiveDate),
       totalDays: totalDays, remainingDays: remainingDays,
       earnedDays: totalDays - remainingDays, gross: gross, penalty: penalty, refund: refund,
-      noticeRequired: noticeRequired, noticeProvided: noticeProvided, noticeOk: noticeProvided >= noticeRequired,
-      needsReview: reason === "Fraud" || noticeProvided < noticeRequired,
+      noticeRequired: noticeRequired, noticeProvided: noticeProvided, noticeOk: noticeOk,
+      needsReview: reason === "Fraud" || !noticeOk,
+      requiresDnoc: requiresDnoc(reason, initiatedBy),
+      dnocServed: !!meta.dnocServedOn,
+      dnocServedOn: meta.dnocServedOn || null,
+      dnocPendingDays: pendingDays,
+      dnocReady: !!meta.dnocServedOn && pendingDays === 0,
     };
   }
+
+  /* DNOC — Direct Notice of Cancellation. Required when an insurer-side initiator (System,
+     Carrier, MGA) cancels for a reason that carries a statutory notice period. The notice is a
+     first-class PAS document; the cancellation cannot complete until the pending days run out. */
+  function requiresDnoc(reason, initiatedBy) {
+    if (!CANCEL_INSURER_SIDE[initiatedBy]) return false;
+    var spec = CANCEL_REASONS[reason] || CANCEL_REASONS.Other;
+    return (spec.noticeDays || 0) > 0;
+  }
+  PAS.requiresDnoc = requiresDnoc;
+
+  function dnocState(meta) {
+    meta = meta || {};
+    var reason = meta.reason || "Insured Request";
+    var initiatedBy = meta.initiatedBy || "Insured";
+    var required = (CANCEL_REASONS[reason] || CANCEL_REASONS.Other).noticeDays || 0;
+    if (!requiresDnoc(reason, initiatedBy)) {
+      return { required: false, served: false, pendingDays: 0, ready: true, noticeRequired: required };
+    }
+    if (!meta.dnocServedOn) {
+      return { required: true, served: false, pendingDays: required, ready: false, noticeRequired: required };
+    }
+    var elapsed = daysBetween(meta.dnocServedOn, todayISO());
+    var pending = Math.max(0, required - elapsed);
+    return {
+      required: true, served: true, pendingDays: pending, ready: pending === 0,
+      noticeRequired: required, dnocServedOn: meta.dnocServedOn,
+      effectiveDate: meta.dnocEffectiveDate || addDays(meta.dnocServedOn, required),
+    };
+  }
+  PAS.dnocState = dnocState;
+
+  PAS.serveDnoc = function (policyId, txnId) {
+    return patch(policyId, function (p) {
+      var txn = p.history.find(function (h) { return h.id === txnId && h.type === "Cancellation" && h.status === "Pending"; });
+      if (!txn) return p;
+      var meta = txn.meta || {};
+      if (!requiresDnoc(meta.reason, meta.initiatedBy)) return p;
+      if (meta.dnocServedOn) return p;
+      var noticeDays = (CANCEL_REASONS[meta.reason] || CANCEL_REASONS.Other).noticeDays || 0;
+      var servedOn = todayISO();
+      var effDate = addDays(servedOn, noticeDays);
+      var history = p.history.map(function (h) {
+        if (h.id !== txnId) return h;
+        return Object.assign({}, h, {
+          date: effDate,
+          title: "DNOC served — " + noticeDays + " days pending",
+          detail: "Direct Notice of Cancellation served on " + servedOn + ". Cancellation may complete on or after " + effDate + " (" + noticeDays + "-day statutory notice for " + meta.reason + ").",
+          meta: Object.assign({}, meta, {
+            dnocServedOn: servedOn,
+            dnocEffectiveDate: effDate,
+            dnocPendingDaysAtServe: noticeDays,
+          }),
+        });
+      });
+      var docs = (p.documents || []).concat([{
+        id: uid("DOC"), name: "Direct Notice of Cancellation", version: 1,
+        generatedAt: servedOn, type: "DNOC", transactionId: txnId, deliveryStatus: "Generated",
+      }]);
+      return Object.assign({}, p, { history: history, documents: docs });
+    });
+  };
   /* ---------- risk scoring ----------
      The score measures risk QUALITY only. Exposure size is deliberately not an input: premium is
      an output of risk assessment, not an input to it, and while it was one the score gate and the
@@ -746,6 +824,7 @@
     "/service-requests": "serviceRequestLogged", "/approve": "transactionApproved",
     "/reject": "transactionRejected", "/reverse": "transactionReversed",
     "/underwriting-decision": "underwritingDecided", "/documents": "documentGenerated",
+    "/dnoc": "dnocServed",
   };
   PAS.CONSUMERS = {
     policyIssued: ["Billing", "Documents", "Reinsurance"], policyCancelled: ["Billing", "Claims", "Documents"],
@@ -754,6 +833,7 @@
     transactionApproved: ["Billing"], transactionRejected: ["CRM"], transactionReversed: ["Billing"],
     policyNonRenewed: ["CRM", "Documents"], serviceRequestLogged: ["CRM"],
     policyTransferred: ["Billing", "Documents", "CRM", "Reinsurance"],
+    dnocServed: ["Documents", "CRM", "Billing"],
   };
   PAS.eventTypeFor = function (ep) {
     var k = Object.keys(PAS.EVENT_FOR).find(function (x) { return ep.indexOf(x) !== -1; });
@@ -1265,27 +1345,56 @@
       var submittedOn = meta.submittedOn || todayISO();
       var titles = { Cancellation: "Cancellation requested — awaiting decision", Renewal: "Renewal requested — awaiting decision", Reinstatement: "Reinstatement requested — awaiting decision", Endorsement: "Endorsement requested — awaiting decision", Transfer: "Transfer requested — awaiting decision" };
       var effDate = type === "Renewal" ? p.expirationDate : todayISO();
-      return pushTxn(p, { date: effDate, type: type, status: "Pending", title: titles[type],
-        detail: "Requested by " + meta.initiatedBy + " via " + meta.channel + ". \"" + meta.requestNote + "\"",
-        meta: Object.assign({}, meta, { submittedOn: submittedOn }) });
+      var nextMeta = Object.assign({}, meta, { submittedOn: submittedOn });
+      var title = titles[type];
+      var detail = "Requested by " + meta.initiatedBy + " via " + meta.channel + ". \"" + meta.requestNote + "\"";
+      /* Insurer-side cancellations with a statutory notice period begin as DNOC-required —
+         the Direct Notice of Cancellation must be served before the cancel can complete. */
+      if (type === "Cancellation" && requiresDnoc(meta.reason, meta.initiatedBy)) {
+        nextMeta.requiresDnoc = true;
+        title = "Cancellation initiated — DNOC required";
+        detail = "Initiated by " + meta.initiatedBy + " for " + meta.reason + ". Direct Notice of Cancellation (DNOC) must be served; " +
+          ((CANCEL_REASONS[meta.reason] || CANCEL_REASONS.Other).noticeDays) + " pending notice days must run before cancellation can complete.";
+        var noticeDays = (CANCEL_REASONS[meta.reason] || CANCEL_REASONS.Other).noticeDays || 0;
+        if (noticeDays > 0) effDate = addDays(todayISO(), noticeDays);
+      }
+      return pushTxn(p, { date: effDate, type: type, status: "Pending", title: title,
+        detail: detail,
+        meta: nextMeta });
     });
   };
   PAS.decideCancellation = function (id, txnId, approve, effDate, q, audit) {
     return patch(id, function (p) {
+      var held = p.history.find(function (h) { return h.id === txnId; });
+      var meta = (held && held.meta) || {};
+      if (approve && requiresDnoc(meta.reason || q.reason, meta.initiatedBy || q.initiatedBy)) {
+        var st = dnocState(meta);
+        if (!st.served || !st.ready) return p; /* cannot complete until DNOC pending days are zero */
+      }
       var history = p.history.map(function (h) {
         if (h.id !== txnId) return h;
         var detail = approve ? ("Approved. " + q.type + " basis, effective " + effDate + ". Refund " + money(q.refund) + ".") : ("Declined. Policy remains ACTIVE. " + h.detail);
+        if (approve && meta.dnocServedOn) detail = "DNOC notice completed (" + meta.dnocServedOn + " → " + effDate + "). " + detail;
         if (audit && audit.comment) detail += " " + audit.comment;
         return withAudit(h, audit, {
           status: approve ? "Completed" : "Rejected", date: effDate,
           title: approve ? "Cancellation approved" : "Cancellation declined",
           detail: detail,
-          meta: { cancelType: q.type, refund: Math.round(q.refund) },
+          meta: { cancelType: q.type, refund: Math.round(q.refund), dnocServedOn: meta.dnocServedOn || null },
         });
       });
       if (!approve) return Object.assign({}, p, { history: history });
-      return Object.assign({}, p, { history: history, status: "Cancelled",
-        documents: (p.documents || []).concat([{ id: uid("DOC"), name: "Cancellation notice", version: 1, generatedAt: todayISO(), type: "Notice" }]) });
+      var noticeName = (meta.dnocServedOn || requiresDnoc(q.reason, q.initiatedBy))
+        ? "Direct Notice of Cancellation"
+        : "Cancellation notice";
+      var alreadyHasDnoc = (p.documents || []).some(function (d) { return d.type === "DNOC" || d.name === "Direct Notice of Cancellation"; });
+      var docs = p.documents || [];
+      if (!alreadyHasDnoc) {
+        docs = docs.concat([{ id: uid("DOC"), name: noticeName, version: 1, generatedAt: todayISO(), type: meta.dnocServedOn ? "DNOC" : "Notice", transactionId: txnId }]);
+      } else if (noticeName === "Cancellation notice") {
+        docs = docs.concat([{ id: uid("DOC"), name: "Cancellation notice", version: 1, generatedAt: todayISO(), type: "Notice", transactionId: txnId }]);
+      }
+      return Object.assign({}, p, { history: history, status: "Cancelled", documents: docs });
     });
   };
   PAS.decideReinstatement = function (id, txnId, approve, m, audit) {

@@ -36,7 +36,8 @@
 
     function buildContent() {
       refreshPolicy();
-      var q = PAS.cancelQuote(p, reason, initiatedBy, effDate);
+      var q = PAS.cancelQuote(p, reason, initiatedBy, effDate, h.meta || {});
+      var dnoc = PAS.dnocState(h.meta || {});
       var decided = h.status === "Completed" || h.status === "Rejected";
       headContainer.innerHTML = "";
       headContainer.appendChild(ui.recordHead(p, ui.pill(q.spec.tone, q.type)));
@@ -48,9 +49,14 @@
       left.push(ui.kv({ k: "Initiated by", v: initiatedBy, what: "Who is actually asking for this.", rule: "An insurer-side initiator (Carrier, MGA, System) can never end up with a Short-Rate penalty." }));
       left.push(ui.kv({ k: "Timing", v: q.timing, what: "Immediate if the effective date is today or past, Future/Scheduled otherwise." }));
 
-      var dateInput = ui.h("input", { class: "field-input", type: "date", value: effDate, disabled: decided });
+      var dateInput = ui.h("input", { class: "field-input", type: "date", value: effDate, disabled: decided || dnoc.required });
       dateInput.addEventListener("change", function () { effDate = dateInput.value; buildContent(); });
-      left.push(ui.field({ label: "Effective date", hint: "Pre-filled from the request; adjust only if the underwriter is confirming a different date." }, dateInput));
+      left.push(ui.field({
+        label: "Effective date",
+        hint: dnoc.required
+          ? "Set by DNOC: notice served date + statutory notice days. Not hand-typed for insurer-side notices."
+          : "Pre-filled from the request; adjust only if the underwriter is confirming a different date.",
+      }, dateInput));
 
       var derivedWrap = ui.h("div", { class: "mt-6" });
       derivedWrap.appendChild(ui.tipLabel({ text: "Derived type", what: "Which of the three cancellation types this maps to — from Reason + Initiated By + whether it lands at inception.", className: "label-11 block mb-9" }));
@@ -61,8 +67,25 @@
       derivedWrap.appendChild(derivedCard);
       left.push(derivedWrap);
 
+      /* DNOC panel — Direct Notice of Cancellation for System / Carrier / MGA with notice days */
+      if (dnoc.required) {
+        var dnocWrap = ui.h("div", { class: "mt-13" });
+        dnocWrap.appendChild(ui.tipLabel({ text: "DNOC — Direct Notice of Cancellation", what: "Formal notice the insurer must serve before an insurer-side cancellation can take effect.", why: "Pending days count down from the day DNOC is served. Cancellation completes only when pending days reach zero.", className: "label-11 block mb-9" }));
+        if (!dnoc.served) {
+          dnocWrap.appendChild(ui.callout("warn", "DNOC not yet served. " + dnoc.noticeRequired + " statutory notice days are required for " + reason + ". Serve the Direct Notice of Cancellation to start the countdown."));
+        } else if (!dnoc.ready) {
+          dnocWrap.appendChild(ui.callout("warn", "DNOC served on " + dnoc.dnocServedOn + ". " + dnoc.pendingDays + " pending day" + (dnoc.pendingDays === 1 ? "" : "s") + " remaining before cancellation can complete (effective " + (dnoc.effectiveDate || effDate) + ")."));
+        } else {
+          dnocWrap.appendChild(ui.callout("good", "DNOC notice completed. Pending days = 0. Cancellation is ready to approve and take effect."));
+        }
+        dnocWrap.appendChild(ui.kv({ k: "DNOC status", v: !dnoc.served ? "Required — not served" : (dnoc.ready ? "Ready to complete" : "Notice running") }));
+        dnocWrap.appendChild(ui.kv({ k: "Pending days", v: String(dnoc.pendingDays), what: "Days left in the statutory notice window." }));
+        if (dnoc.served) dnocWrap.appendChild(ui.kv({ k: "DNOC served on", v: dnoc.dnocServedOn }));
+        left.push(dnocWrap);
+      }
+
       var noticeWrap = ui.h("div", { class: "mt-13" });
-      noticeWrap.appendChild(ui.callout(q.noticeOk ? "good" : "bad", q.noticeOk ? ("Notice satisfied — " + q.noticeRequired + "d required, " + q.noticeProvided + "d given.") : (reason + " requires " + q.noticeRequired + "d notice, only " + q.noticeProvided + "d given. Decide with this in mind.")));
+      noticeWrap.appendChild(ui.callout(q.noticeOk ? "good" : "bad", q.noticeOk ? ("Notice satisfied — " + q.noticeRequired + "d required, " + q.noticeProvided + "d given.") : (reason + " requires " + q.noticeRequired + "d notice, only " + q.noticeProvided + "d given." + (dnoc.required ? " Serve or wait for DNOC." : " Decide with this in mind."))));
       if (reason === "Fraud") noticeWrap.appendChild(ui.callout("warn", "Fraud-flagged — decide carefully. Approving permanently blocks reinstatement."));
       left.push(noticeWrap);
 
@@ -81,7 +104,8 @@
       var noticePeriodWrap = ui.h("div", { class: "mt-14" });
       noticePeriodWrap.appendChild(ui.tipLabel({ text: "Notice period", what: "Statutory days that must run before the effective date.", className: "label-11 block mb-9" }));
       noticePeriodWrap.appendChild(ui.kv({ k: "Required", v: q.noticeRequired + " days", what: reason + " requires this much notice." }));
-      noticePeriodWrap.appendChild(ui.kv({ k: "Provided", v: q.noticeProvided + " days", what: "Between today and the effective date." }));
+      noticePeriodWrap.appendChild(ui.kv({ k: "Provided", v: q.noticeProvided + " days", what: dnoc.served ? "From DNOC served date." : "Between today and the effective date." }));
+      if (dnoc.required) noticePeriodWrap.appendChild(ui.kv({ k: "Pending days", v: dnoc.pendingDays + " days", what: "Countdown after DNOC is served. Zero = ready to cancel." }));
       right.push(noticePeriodWrap);
       right.push(ui.decisionTrailSide(PAS.decisionTrailFor(p, txnId)));
 
@@ -106,15 +130,37 @@
           buildContent();
         };
       }
+      function serveDnoc() {
+        return PAS.api.call("POST", "/api/v1/policies/" + p.id + "/dnoc", { txnId: txnId, reason: reason },
+          { module: "Cancellation", policyId: p.id, statusCode: 201, label: "Serve DNOC — " + p.holder, response: { txnId: txnId, event: "dnocServed", noticeDays: dnoc.noticeRequired } })
+          .then(function () {
+            PAS.serveDnoc(p.id, txnId);
+            refreshPolicy();
+            effDate = (h.meta && h.meta.dnocEffectiveDate) || effDate;
+            ui.renderToast({ title: "DNOC served", detail: p.id + " · " + dnoc.noticeRequired + " pending days started", tone: "amber" });
+            buildContent();
+          });
+      }
+
+      var approveBlocked = dnoc.required && (!dnoc.served || !dnoc.ready);
+      var approveDisabledReason = !dnoc.served
+        ? "Serve DNOC first — Direct Notice of Cancellation required."
+        : (!dnoc.ready ? (dnoc.pendingDays + " pending notice day(s) remaining after DNOC.") : "");
 
       var actions = decided
         ? [{ label: "Back to cancellation desk", icon: "arrow-left", onRun: function () { location.href = "cancellation.html"; } }]
         : [
-          ui.confirmable(p.id, txnId, "Approve", { label: "Approve cancellation", tone: "red", icon: "x-circle", onRun: function (c) { return decide(true, c); } }),
+          (!dnoc.required || dnoc.served) ? null : { label: "Serve DNOC", tone: "primary", icon: "file-check-2", onRun: function () { return serveDnoc(); } },
+          ui.confirmable(p.id, txnId, "Approve", {
+            label: "Approve cancellation", tone: "red", icon: "x-circle",
+            onRun: function (c) { return decide(true, c); },
+            disabled: approveBlocked,
+            disabledReason: approveDisabledReason,
+          }),
           ui.confirmable(p.id, txnId, "Decline", { label: "Decline request", icon: "ban", onRun: function (c) { return decide(false, c); } }),
           ui.confirmable(p.id, txnId, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
           ui.confirmable(p.id, txnId, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
-        ];
+        ].filter(Boolean);
 
       layoutContainer.innerHTML = "";
       layoutContainer.appendChild(ui.decisionLayout(left, right, actions));

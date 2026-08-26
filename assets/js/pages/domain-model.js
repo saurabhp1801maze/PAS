@@ -194,7 +194,7 @@
         ["A decline must carry a written reason", ui.pill("green", "Enforced"), "underwriting-decision"],
         ["Cancellation type is derived from reason and dates, never chosen", ui.pill("green", "Enforced"), "cancelQuote"],
         ["An insurer-initiated cancellation carries no short-rate penalty", ui.pill("green", "Enforced"), "CANCEL_TYPES"],
-        ["Non-payment cancellation requires 15 days' notice", ui.pill("red", "Warns only"), "cancelQuote → noticeOk"],
+        ["Non-payment cancellation requires 10 days' notice (DNOC)", ui.pill("green", "Enforced"), "serveDnoc → pending days → decideCancellation"],
         ["A material endorsement must be re-underwritten", ui.pill("red", "Warns only"), "endorsement-decision"],
         ["A held transaction may not be approved by whoever raised it", ui.pill("red", "Not modelled"), "no identity yet"],
       ],

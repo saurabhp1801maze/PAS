@@ -26,17 +26,38 @@
        that premium is still unpaid once the grace period has run out; the System reacts to that
        notification by cancelling on its own, with nobody in ops clicking anything. */
     var autoCancelled = hist.filter(function (t) { return t.h.status === "Completed" && t.h.meta && t.h.meta.reason === "Non-Payment" && t.h.meta.initiatedBy === "System"; });
+    var dnocPending = pend.filter(function (t) {
+      var st = PAS.dnocState(t.h.meta || {});
+      return st.required && (!st.ready);
+    });
 
     page.appendChild(ui.kpiRow([
       { label: "Awaiting decision", value: pend.length, tone: "amber", tip: "Requests already submitted, not yet decided." },
-      { label: "From insured/broker", value: pend.filter(function (t) { return !PAS.CANCEL_INSURER_SIDE[t.h.meta.initiatedBy]; }).length, tone: "blue", tip: "Initiated by the Insured or a Broker." },
-      { label: "From insurer side", value: pend.filter(function (t) { return PAS.CANCEL_INSURER_SIDE[t.h.meta.initiatedBy]; }).length, tone: "violet", tip: "Initiated by the Carrier, an MGA, or the System — e.g. non-payment, adverse loss ratio.", why: "These still require a decision, never an instant execution." },
-      { label: "Auto-cancelled (non-payment)", value: autoCancelled.length, tone: "red", tip: "Cancelled automatically by the System for Non-Payment — no held request, no human click.", why: "The trigger is a notification from Billing that premium is still unpaid once the grace period has run out. The System reacts to that notification on its own and cancels the policy directly; this is the one cancellation path that skips the request-then-decide queue entirely." },
+      { label: "DNOC pending", value: dnocPending.length, tone: "violet", tip: "Insurer-side cancellations waiting on Direct Notice of Cancellation countdown.", why: "System/Carrier/MGA cancellations with a statutory notice period must serve DNOC; pending days count down to zero before cancel can complete." },
+      { label: "From insurer side", value: pend.filter(function (t) { return PAS.CANCEL_INSURER_SIDE[t.h.meta.initiatedBy]; }).length, tip: "Initiated by the Carrier, an MGA, or the System — e.g. non-payment, adverse loss ratio." },
+      { label: "Auto-cancelled (non-payment)", value: autoCancelled.length, tone: "red", tip: "Cancelled automatically by the System for Non-Payment after DNOC notice ran.", why: "Billing reports unpaid premium past grace; System serves DNOC, waits notice days, then cancels." },
     ]));
 
-    /* Type — the refund basis, three cards. Reason, Initiated By and Timing are shown separately
-       below rather than folded into the type card, since none of them determine Type on their
-       own — see the derivation panel underneath. */
+    /* Reference accordion: terminology → types → reasons. Collapsed by default so the
+       decision queue stays the primary surface; each section opens independently. */
+    var termBody = ui.h("div", {});
+    termBody.appendChild(ui.h("p", { class: "term-intro" },
+      "A cancellation is four independent values — not one reason string. Type is derived from the others; it is never hand-picked."));
+    termBody.appendChild(ui.dataTable({
+      columns: [
+        "Attribute",
+        { label: "Answers", what: "The question this attribute owns." },
+        { label: "Values", what: "Allowed values recorded on the request." },
+      ],
+      rows: [
+        ["Type", "What happens financially", "Flat · Pro-Rata · Short-Rate"],
+        ["Reason", "Why cover is ending", Object.keys(PAS.CANCEL_REASONS).join(" · ")],
+        ["Initiated By", "Who raised the request", (PAS.CANCEL_INITIATOR_KEYS || []).join(" · ")],
+        ["Timing", "When it takes effect", "Immediate · Future/Scheduled"],
+      ],
+      wrapCells: true,
+    }));
+
     var typeGrid = ui.h("div", { class: "cancel-type-grid" });
     Object.keys(PAS.CANCEL_TYPES).forEach(function (name) {
       var t = PAS.CANCEL_TYPES[name];
@@ -46,18 +67,8 @@
       card.appendChild(ui.h("div", { class: "cancel-type-meta" }, (t.penaltyPct ? (t.penaltyPct * 100 + "% penalty") : "no penalty") + " · " + t.basis + " basis"));
       typeGrid.appendChild(ui.tooltip({ what: t.when, why: t.rate, rule: t.rule, width: 300 }, card));
     });
-    page.appendChild(typeGrid);
 
-    /* Reason — six values, each carrying the notice period that must run and the Type it
-       recommends before an insurer-side Initiated By can downgrade it. Shown as its own reference
-       table so the notice-period rule (which used to live invisibly inside Type) is visible. */
-    var reasonPanel = ui.panel({
-      title: "Reason, notice & default type",
-      what: "Every reason a cancellation can be raised for.",
-      why: "Notice period is a property of Reason now, not Type — a non-payment cancellation needs 15 days regardless of which of the three types it ends up deriving to.",
-      pad: 0,
-    }, []);
-    reasonPanel.querySelector(".panel-body").appendChild(ui.dataTable({
+    var reasonTable = ui.dataTable({
       columns: ["Reason",
         { label: "Notice required", what: "Days that must run before the effective date." },
         { label: "Default type", what: "What Type this reason recommends, before the Initiated By check applies.", rule: "An insurer-side Initiated By (Carrier, MGA, System) downgrades a Short-Rate default to Pro-Rata — it can never upgrade a no-penalty reason into one." }],
@@ -66,8 +77,37 @@
         return [r, spec.noticeDays + " days", ui.pill(PAS.CANCEL_TYPES[spec.defaultType].tone, spec.defaultType)];
       }),
       wrapCells: true,
+    });
+
+    page.appendChild(ui.accordion({
+      sections: [
+        {
+          title: "Terminology",
+          sub: "Type, Reason, Initiated By, and Timing — four attributes, one cancellation",
+          what: "How a cancellation is described in this desk.",
+          why: "Splitting them keeps notice periods on Reason and penalty rules on Initiated By, instead of baking everything into one string.",
+          open: false,
+          body: termBody,
+        },
+        {
+          title: "Types of cancellation",
+          sub: "Flat, Pro-Rata, and Short-Rate — the refund basis, derived never chosen",
+          what: "The three refund bases a cancellation can derive to.",
+          why: "Getting Type wrong means refunding money you were entitled to keep, or applying a penalty the insurer side may never charge.",
+          open: false,
+          body: typeGrid,
+        },
+        {
+          title: "Reason, notice & default type",
+          sub: "Every raisable reason, its notice days, and the Type it proposes",
+          what: "Every reason a cancellation can be raised for.",
+          why: "Notice period is a property of Reason, not Type — Non-Payment needs its statutory days regardless of which refund type it derives to.",
+          open: false,
+          pad: 0,
+          body: reasonTable,
+        },
+      ],
     }));
-    page.appendChild(reasonPanel);
 
     /* Refund-wise breakdown: every completed cancellation already carries its decided type,
        reason and refund on `meta` — this is that history grouped two ways rather than a new
@@ -137,32 +177,128 @@
       var effDate = t.h.date || PAS.todayISO();
       var atInception = effDate <= t.p.effectiveDate;
       var type = PAS.deriveCancelType(reason, initiatedBy, atInception);
-      var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate);
-      return { t: t, meta: meta, reason: reason, effDate: effDate, type: type, refund: Math.round(quote.refund) };
+      var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate, meta);
+      var dnoc = PAS.dnocState(meta);
+      var dnocDate = meta.dnocServedOn || "";
+      var dnocBucket = !dnoc.required ? "na" : (!dnoc.served ? "serve" : (!dnoc.ready ? "pending" : "ready"));
+      return { t: t, meta: meta, reason: reason, initiatedBy: initiatedBy, effDate: effDate, type: type, refund: Math.round(quote.refund), dnoc: dnoc, dnocDate: dnocDate, dnocBucket: dnocBucket };
     });
-    var reqHead = ui.h("div", { class: "period-toggle-row" });
-    reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted requests, ordered newest first.", className: "label-11" }));
+
+    var q = "";
+    var reasonF = "All";
+    var initiatorF = "All";
+    var dnocF = "All";
+
+    function matchRow(r) {
+      var needle = q.toLowerCase();
+      var textOk = !needle
+        || (r.t.p.holder || "").toLowerCase().indexOf(needle) !== -1
+        || (r.t.p.id || "").toLowerCase().indexOf(needle) !== -1
+        || (r.reason || "").toLowerCase().indexOf(needle) !== -1;
+      var reasonOk = reasonF === "All" || r.reason === reasonF;
+      var initiatorOk = initiatorF === "All" || r.initiatedBy === initiatorF;
+      var dnocOk = dnocF === "All" || r.dnocBucket === dnocF;
+      return textOk && reasonOk && initiatorOk && dnocOk;
+    }
+
+    function filteredRows() {
+      return pendEnriched.filter(matchRow);
+    }
+
+    page.appendChild(ui.tipLabel({ text: "REQUESTS AWAITING DECISION (" + pend.length + ")", what: "Already-submitted requests. Search and filters apply before pagination.", className: "label-11 block mb-9" }));
+
+    var toolbar = ui.h("div", { class: "register-toolbar" });
+    var searchWrap = ui.h("div", { class: "register-search" });
+    searchWrap.appendChild(PAS.icon("search", { size: 14 }));
+    var searchInput = ui.h("input", {
+      class: "register-search-input",
+      type: "search",
+      placeholder: "Search by insured, policy, or reason…",
+      autocomplete: "off",
+    });
+    searchWrap.appendChild(searchInput);
+    toolbar.appendChild(searchWrap);
+
+    var filters = ui.h("div", { class: "register-filters" });
+    var reasonSelect = ui.h("select", { class: "register-select", title: "Reason" });
+    reasonSelect.appendChild(ui.h("option", { value: "All" }, "All reasons"));
+    Object.keys(PAS.CANCEL_REASONS).forEach(function (r) {
+      reasonSelect.appendChild(ui.h("option", { value: r }, r));
+    });
+    filters.appendChild(reasonSelect);
+
+    var initiatorSelect = ui.h("select", { class: "register-select", title: "Initiated by" });
+    initiatorSelect.appendChild(ui.h("option", { value: "All" }, "All initiators"));
+    (PAS.CANCEL_INITIATOR_KEYS || []).forEach(function (k) {
+      initiatorSelect.appendChild(ui.h("option", { value: k }, k));
+    });
+    filters.appendChild(initiatorSelect);
+
+    var dnocSelect = ui.h("select", { class: "register-select", title: "DNOC" });
+    [
+      ["All", "All DNOC"],
+      ["serve", "Serve DNOC"],
+      ["pending", "DNOC pending"],
+      ["ready", "DNOC ready"],
+      ["na", "DNOC N/A"],
+    ].forEach(function (opt) {
+      dnocSelect.appendChild(ui.h("option", { value: opt[0] }, opt[1]));
+    });
+    filters.appendChild(dnocSelect);
+    toolbar.appendChild(filters);
+
     var cancellationTable = ui.sortableTable({
-      storageKey: "pas.cancellation.columns.v1",
+      storageKey: "pas.cancellation.columns.v3",
+      pageSize: 10,
+      defaultVisible: ["requestedBy", "reason", "type", "dnoc", "dnocDate", "submitted", "premium"],
       columns: [
         { key: "policy", label: "Policy", locked: true, sortValue: function (r) { return r.t.p.id; }, cell: function (r) { return ui.cellId(r.t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (r) { return (r.t.p.holder || "").toLowerCase(); }, cell: function (r) { return ui.cellName(r.t.p.holder); } },
         { key: "requestedBy", label: "Requested by", sortValue: function (r) { return r.meta.initiatedBy || ""; }, cell: function (r) { return ui.initiatorPill(r.meta); } },
         { key: "reason", label: "Reason", what: "What the requester gave as their reason.", why: "Drives the default type and the notice period.", sortValue: function (r) { return r.reason; }, cell: function (r) { return r.reason; } },
         { key: "type", label: "Type", what: "The derived refund basis — Reason plus Initiated By, never hand-picked.", sortValue: function (r) { return r.type; }, cell: function (r) { return ui.pill(PAS.CANCEL_TYPES[r.type].tone, r.type); } },
+        { key: "dnoc", label: "DNOC", what: "Direct Notice of Cancellation status for insurer-side cancellations.", why: "Pending days must reach zero before cancel can complete.", sortValue: function (r) { return r.dnoc.required ? r.dnoc.pendingDays : -1; }, cell: function (r) {
+          if (!r.dnoc.required) return ui.pill("gray", "N/A");
+          if (!r.dnoc.served) return ui.pill("amber", "Serve DNOC");
+          if (!r.dnoc.ready) return ui.pill("violet", r.dnoc.pendingDays + "d pending");
+          return ui.pill("green", "Ready");
+        } },
+        { key: "dnocDate", label: "DNOC date", what: "Date Direct Notice of Cancellation was served.", why: "Notice countdown starts from this date for insurer-side cancellations.", sortValue: function (r) { return r.dnocDate || ""; }, cell: function (r) {
+          return r.dnocDate || "—";
+        } },
         { key: "timing", label: "Timing", what: "Immediate if the effective date is today or past, Future/Scheduled otherwise.", sortValue: function (r) { return PAS.cancelTiming(r.effDate); }, cell: function (r) { return PAS.cancelTiming(r.effDate); } },
         { key: "submitted", label: "Submitted", what: "When the request arrived.", sortValue: function (r) { return r.meta.submittedOn || r.t.h.date; }, cell: function (r) { return r.meta.submittedOn || r.t.h.date; } },
         { key: "premium", label: "Premium", what: "Refund due if this request is approved.", why: "Same live quote shown as Refund due on the decision screen — derived from type, term dates and effective date.", sortValue: function (r) { return r.refund; }, cell: function (r) { return PAS.money(r.refund); } },
       ],
       trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
-      rows: pendEnriched,
+      rows: filteredRows,
       onRowClick: function (r) { location.href = "cancellation-decision.html?policy=" + encodeURIComponent(r.t.p.id) + "&txn=" + encodeURIComponent(r.t.h.id); },
-      emptyText: "No cancellation requests awaiting decision.",
+      emptyText: "No cancellation requests match the current search or filters.",
       wrapCells: true,
     });
-    reqHead.appendChild(cancellationTable.columnsControl);
-    page.appendChild(reqHead);
+    toolbar.appendChild(cancellationTable.columnsControl);
+    page.appendChild(toolbar);
+
+    var filterNote = ui.h("div", { class: "faint-note mb-9" });
+    function refreshFilterNote() {
+      var n = filteredRows().length;
+      var active = q || reasonF !== "All" || initiatorF !== "All" || dnocF !== "All";
+      filterNote.textContent = active ? ("Showing " + n + " of " + pendEnriched.length + " pending.") : "";
+      filterNote.style.display = active ? "" : "none";
+    }
+    refreshFilterNote();
+    page.appendChild(filterNote);
     page.appendChild(cancellationTable.tableWrap);
+
+    function onFilterChange() {
+      cancellationTable.resetPage();
+      refreshFilterNote();
+      cancellationTable.rebuild();
+    }
+    searchInput.addEventListener("input", function () { q = searchInput.value; onFilterChange(); });
+    reasonSelect.addEventListener("change", function () { reasonF = reasonSelect.value; onFilterChange(); });
+    initiatorSelect.addEventListener("change", function () { initiatorF = initiatorSelect.value; onFilterChange(); });
+    dnocSelect.addEventListener("change", function () { dnocF = dnocSelect.value; onFilterChange(); });
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

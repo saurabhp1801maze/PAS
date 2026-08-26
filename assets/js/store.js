@@ -218,8 +218,14 @@
       if (!requiresDnoc(meta.reason, meta.initiatedBy)) return p;
       if (meta.dnocServedOn) return p;
       var noticeDays = (CANCEL_REASONS[meta.reason] || CANCEL_REASONS.Other).noticeDays || 0;
+      if (noticeDays < 1) return p;
+      var submittedOn = meta.submittedOn || todayISO();
       var servedOn = todayISO();
+      /* Expire must be strictly after submitted (and after issue). Use max of issue+notice and submitted+notice. */
       var effDate = addDays(servedOn, noticeDays);
+      var fromSubmitted = addDays(submittedOn, noticeDays);
+      if (effDate <= submittedOn || effDate < fromSubmitted) effDate = fromSubmitted;
+      if (effDate <= servedOn) effDate = addDays(servedOn, noticeDays);
       var history = p.history.map(function (h) {
         if (h.id !== txnId) return h;
         return Object.assign({}, h, {
@@ -227,6 +233,7 @@
           title: "DNOC served — " + noticeDays + " days pending",
           detail: "Direct Notice of Cancellation served on " + servedOn + ". Cancellation may complete on or after " + effDate + " (" + noticeDays + "-day statutory notice for " + meta.reason + ").",
           meta: Object.assign({}, meta, {
+            submittedOn: submittedOn,
             dnocServedOn: servedOn,
             dnocEffectiveDate: effDate,
             dnocPendingDaysAtServe: noticeDays,
@@ -1356,7 +1363,10 @@
         detail = "Initiated by " + meta.initiatedBy + " for " + meta.reason + ". Direct Notice of Cancellation (DNOC) must be served; " +
           ((CANCEL_REASONS[meta.reason] || CANCEL_REASONS.Other).noticeDays) + " pending notice days must run before cancellation can complete.";
         var noticeDays = (CANCEL_REASONS[meta.reason] || CANCEL_REASONS.Other).noticeDays || 0;
-        if (noticeDays > 0) effDate = addDays(todayISO(), noticeDays);
+        if (noticeDays > 0) {
+          /* Planned DNOC expire is always strictly after submitted — never the same day. */
+          effDate = addDays(submittedOn, noticeDays);
+        }
       }
       return pushTxn(p, { date: effDate, type: type, status: "Pending", title: title,
         detail: detail,

@@ -168,11 +168,15 @@ var dnocTxn = dnocSeed && dnocSeed.history.find(function (h) { return h.type ===
 check("Walter Higgins has a System Non-Payment pending with DNOC served", !!dnocTxn && dnocTxn.meta.initiatedBy === "System" && !!dnocTxn.meta.dnocServedOn);
 var st = PAS.dnocState(dnocTxn.meta);
 check("DNOC pending days = 5 (served 2026-08-15, today 2026-08-20, 10 required)", st.served && st.pendingDays === 5 && !st.ready, "pending=" + st.pendingDays);
+check("Walter DNOC issue and expire dates are set", dnocTxn.meta.dnocServedOn === "2026-08-15" && dnocTxn.meta.dnocEffectiveDate === "2026-08-25");
+check("Walter submitted date is strictly before DNOC expire", dnocTxn.meta.submittedOn < dnocTxn.meta.dnocEffectiveDate, dnocTxn.meta.submittedOn + " vs " + dnocTxn.meta.dnocEffectiveDate);
+check("Walter submitted date is strictly before DNOC issue", dnocTxn.meta.submittedOn < dnocTxn.meta.dnocServedOn, dnocTxn.meta.submittedOn + " vs " + dnocTxn.meta.dnocServedOn);
 var iron = byId("POL-2026-00988");
 var ironCx = iron && iron.history.find(function (h) { return h.type === "Cancellation" && h.status === "Pending"; });
 check("Ironwood Carrier cancel requires DNOC and is not yet served", PAS.requiresDnoc(ironCx.meta.reason, ironCx.meta.initiatedBy) && !ironCx.meta.dnocServedOn);
 var stIron = PAS.dnocState(ironCx.meta);
 check("unserved DNOC shows full notice days as pending", stIron.required && !stIron.served && stIron.pendingDays === 45);
+check("Ironwood submitted is strictly before planned DNOC expire (txn date)", ironCx.meta.submittedOn < ironCx.date, ironCx.meta.submittedOn + " vs " + ironCx.date);
 
 console.log("\n=== decision audit trail ===");
 var mem = {};

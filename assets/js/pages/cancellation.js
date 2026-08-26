@@ -179,9 +179,16 @@
       var type = PAS.deriveCancelType(reason, initiatedBy, atInception);
       var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate, meta);
       var dnoc = PAS.dnocState(meta);
-      var dnocDate = meta.dnocServedOn || "";
+      var submittedOn = meta.submittedOn || (t.h.recordedAt ? String(t.h.recordedAt).slice(0, 10) : "");
+      var dnocIssueDate = meta.dnocServedOn || "";
+      /* Expire = notice end. Prefer stored DNOC effective; else planned txn date when DNOC required. */
+      var dnocExpireDate = meta.dnocEffectiveDate || (dnoc.required ? (t.h.date || "") : "");
       var dnocBucket = !dnoc.required ? "na" : (!dnoc.served ? "serve" : (!dnoc.ready ? "pending" : "ready"));
-      return { t: t, meta: meta, reason: reason, initiatedBy: initiatedBy, effDate: effDate, type: type, refund: Math.round(quote.refund), dnoc: dnoc, dnocDate: dnocDate, dnocBucket: dnocBucket };
+      return {
+        t: t, meta: meta, reason: reason, initiatedBy: initiatedBy, effDate: effDate, type: type,
+        refund: Math.round(quote.refund), dnoc: dnoc, submittedOn: submittedOn,
+        dnocIssueDate: dnocIssueDate, dnocExpireDate: dnocExpireDate, dnocBucket: dnocBucket,
+      };
     });
 
     var q = "";
@@ -248,9 +255,9 @@
     toolbar.appendChild(filters);
 
     var cancellationTable = ui.sortableTable({
-      storageKey: "pas.cancellation.columns.v3",
+      storageKey: "pas.cancellation.columns.v4",
       pageSize: 10,
-      defaultVisible: ["requestedBy", "reason", "type", "dnoc", "dnocDate", "submitted", "premium"],
+      defaultVisible: ["requestedBy", "reason", "type", "dnoc", "dnocIssueDate", "dnocExpireDate", "submitted", "premium"],
       columns: [
         { key: "policy", label: "Policy", locked: true, sortValue: function (r) { return r.t.p.id; }, cell: function (r) { return ui.cellId(r.t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (r) { return (r.t.p.holder || "").toLowerCase(); }, cell: function (r) { return ui.cellName(r.t.p.holder); } },
@@ -263,11 +270,14 @@
           if (!r.dnoc.ready) return ui.pill("violet", r.dnoc.pendingDays + "d pending");
           return ui.pill("green", "Ready");
         } },
-        { key: "dnocDate", label: "DNOC date", what: "Date Direct Notice of Cancellation was served.", why: "Notice countdown starts from this date for insurer-side cancellations.", sortValue: function (r) { return r.dnocDate || ""; }, cell: function (r) {
-          return r.dnocDate || "—";
+        { key: "dnocIssueDate", label: "DNOC issue date", what: "Date Direct Notice of Cancellation was served (issued).", why: "Notice countdown starts from this date.", sortValue: function (r) { return r.dnocIssueDate || ""; }, cell: function (r) {
+          return r.dnocIssueDate || "—";
+        } },
+        { key: "dnocExpireDate", label: "DNOC expire date", what: "Date the statutory notice period ends — cancellation may complete on or after this date.", why: "Always after the request was submitted when notice days apply.", sortValue: function (r) { return r.dnocExpireDate || ""; }, cell: function (r) {
+          return r.dnocExpireDate || "—";
         } },
         { key: "timing", label: "Timing", what: "Immediate if the effective date is today or past, Future/Scheduled otherwise.", sortValue: function (r) { return PAS.cancelTiming(r.effDate); }, cell: function (r) { return PAS.cancelTiming(r.effDate); } },
-        { key: "submitted", label: "Submitted", what: "When the request arrived.", sortValue: function (r) { return r.meta.submittedOn || r.t.h.date; }, cell: function (r) { return r.meta.submittedOn || r.t.h.date; } },
+        { key: "submitted", label: "Submitted", what: "When the cancellation request was logged — always before DNOC expire when notice applies.", sortValue: function (r) { return r.submittedOn || ""; }, cell: function (r) { return r.submittedOn || "—"; } },
         { key: "premium", label: "Premium", what: "Refund due if this request is approved.", why: "Same live quote shown as Refund due on the decision screen — derived from type, term dates and effective date.", sortValue: function (r) { return r.refund; }, cell: function (r) { return PAS.money(r.refund); } },
       ],
       trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },

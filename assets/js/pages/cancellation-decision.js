@@ -80,7 +80,10 @@
         }
         dnocWrap.appendChild(ui.kv({ k: "DNOC status", v: !dnoc.served ? "Required — not served" : (dnoc.ready ? "Ready to complete" : "Notice running") }));
         dnocWrap.appendChild(ui.kv({ k: "Pending days", v: String(dnoc.pendingDays), what: "Days left in the statutory notice window." }));
-        if (dnoc.served) dnocWrap.appendChild(ui.kv({ k: "DNOC served on", v: dnoc.dnocServedOn }));
+        if (dnoc.served) {
+          dnocWrap.appendChild(ui.kv({ k: "DNOC issue date", v: dnoc.dnocServedOn, what: "When Direct Notice of Cancellation was served." }));
+          dnocWrap.appendChild(ui.kv({ k: "DNOC expire date", v: dnoc.effectiveDate || effDate, what: "When the statutory notice period ends — cancel may complete on or after this date." }));
+        }
         left.push(dnocWrap);
       }
 

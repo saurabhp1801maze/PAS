@@ -144,15 +144,23 @@ var PAGES = [
   ["approvals", "approvals"],
   ["cancellation", "cancellation-desk"],
   ["cancellation-decision", "cancellation-desk", "?policy=POL-2026-02233"],
+  ["endorsement", "endorsement-desk"],
+  ["reinstatement", "reinstatement-desk"],
   ["reinstatement-decision", "reinstatement-desk", "?policy=POL-2026-01190"],
+  ["renewal", "renewal-desk"],
   ["policy-detail", "detail", "?policy=POL-2026-02233&tab=cover"],
   ["loyalty", "loyalty"],
   ["transfer", "transfer-desk"],
   ["transfer-decision", "transfer-desk", "?policy=POL-2026-00777"],
   ["terms", "terms"],
+  ["admin-config", "admin-config"],
+  ["brokers", "brokers"],
+  ["mgas", "mgas"],
+  ["carriers", "carriers"],
+  ["customers", "customers"],
 ];
 
-var CORE = ["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/api.js", "assets/js/ui.js"];
+var CORE = ["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/entity-book.js"];
 var fails = 0;
 
 PAGES.forEach(function (pair) {
@@ -341,40 +349,47 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   if (pendingCx.length > 5 && cancelPanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Cancelled policy requests exceeds the cap but is missing its "View more" link'); }
 })();
 
-/* Role-based dashboard: the same URL, four genuinely different renders. Underwriter is the
-   existing operational dashboard (already covered above, at the default no-role state); MGA and
-   Carrier get the portfolio-analytics view; Broker/Producer gets a scoped, filtered book. */
-console.log("\n  role-based dashboards (default = Underwriter, no role stored)");
+/* Role-based dashboard: the same URL, genuinely different renders. Super Admin/Admin get the
+   existing operational dashboard (already covered above, at the default no-role state); MGA gets
+   a read-only, scoped-to-own-book portfolio-analytics view; Broker gets a scoped, filtered book
+   of their own placements. */
+console.log("\n  role-based dashboards (default = Super Admin, no role stored)");
 (function () {
   var underwriterTxt = renderText("dashboard", "", null);
   ["Portfolio Dashboard", "Renewal pipeline", "Cancelled policy requests"].forEach(function (needle) {
-    if (underwriterTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  default (no role set) dashboard missing "' + needle + '" — should default to Underwriter'); }
+    if (underwriterTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  default (no role set) dashboard missing "' + needle + '" — should default to Super Admin'); }
   });
-  console.log("  PASS  no role stored defaults to the Underwriter operational dashboard");
+  console.log("  PASS  no role stored defaults to the Super Admin operational dashboard");
 
-  ["MGA", "Carrier"].forEach(function (role) {
-    var txt = renderText("dashboard", "", role);
-    /* MGA's identity ("Jordan Blake") isn't expected in the dashboard body — it's shown once, in
-       the topbar role pill (layout.js, not loaded by this page-only harness); the dashboard
-       itself is about the whole book, not "MGA's own" book. Carrier's framing is different — the
-       book is explicitly "written on their paper" — so its sub-line does name the identity. */
-    var expectStrings = ["Dashboard", "In-force premium", "Premium by state", "Premium by broker", "Premium by LOB", "Claims & reserves", "Loss ratio", "Open reserves", "Conversion rate"];
-    if (role === "Carrier") expectStrings.push("Meridian Assurance Co.");
-    expectStrings.forEach(function (needle) {
-      if (txt.indexOf(needle) === -1) { fails++; console.log("  FAIL  " + role + ' dashboard missing "' + needle + '"'); }
-    });
-    /* Must NOT contain the operational-only panels — those belong to the Underwriter view only. */
-    ["Renewal pipeline", "Cancelled policy requests", "Endorsement requests"].forEach(function (banned) {
-      if (txt.indexOf(banned) !== -1) { fails++; console.log("  FAIL  " + role + ' dashboard leaked operational panel "' + banned + '"'); }
-    });
-    console.log("  PASS  " + role + " dashboard: portfolio KPIs, state/broker/LOB breakdowns, honest Claims & reserves gap, no operational panels");
+  var mgaTxt = renderText("dashboard", "", "MGA");
+  ["Dashboard", "In-force premium", "Premium by state", "Premium by broker", "Written premium by product", "New business issued", "Claims & reserves", "Loss ratio", "Cornerstone MGA Partners"].forEach(function (needle) {
+    if (mgaTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  MGA dashboard missing "' + needle + '"'); }
   });
+  /* Conversion rate and Requests pending are gone entirely (not present anywhere on this
+     dashboard, unlike Loss ratio/Open reserves which still legitimately appear inside the
+     Claims & reserves panel's own "this filter" breakdown). */
+  ["Conversion rate", "Requests pending"].forEach(function (banned) {
+    if (mgaTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  MGA dashboard still shows the removed "' + banned + '" KPI'); }
+  });
+  /* Must NOT contain the operational-only panels — those belong to the Super Admin/Admin view only. */
+  ["Renewal pipeline", "Cancelled policy requests", "Endorsement requests"].forEach(function (banned) {
+    if (mgaTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  MGA dashboard leaked operational panel "' + banned + '"'); }
+  });
+  console.log("  PASS  MGA dashboard: portfolio KPIs, state/broker/LOB breakdowns, honest Claims & reserves gap, no operational panels, framed around its own book (Cornerstone MGA Partners)");
 
-  var brokerTxt = renderText("dashboard", "", "Broker/Producer");
-  ["Apex Insurance Brokers", "Policies placed", "Requests pending"].forEach(function (needle) {
-    if (brokerTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Broker/Producer dashboard missing "' + needle + '"'); }
+  /* Broker now shares the exact same dashboard shape as MGA (renderScopedDashboard) — same KPI
+     row, same panel layout — with only the second breakdown panel's dimension swapped (MGA
+     facility instead of broker, since "premium by broker" on a broker's own dashboard would
+     always be one bar, themselves). */
+  var brokerTxt = renderText("dashboard", "", "Broker");
+  ["Apex Insurance Brokers", "Premium by MGA", "Premium by state", "Written premium by product", "New business issued", "Claims & reserves", "Loss ratio"].forEach(function (needle) {
+    if (brokerTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Broker dashboard missing "' + needle + '"'); }
   });
-  console.log("  PASS  Broker/Producer dashboard shows their own identity and book");
+  if (brokerTxt.indexOf("Premium by broker") !== -1) { fails++; console.log('  FAIL  Broker dashboard shows "Premium by broker" — would always be a single bar (themselves), should show "Premium by MGA" instead'); }
+  ["Conversion rate", "Requests pending"].forEach(function (banned) {
+    if (brokerTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  Broker dashboard still shows the removed "' + banned + '" KPI'); }
+  });
+  console.log("  PASS  Broker dashboard shows their own identity/book, and the same panel layout as MGA's dashboard (with the broker-specific dimension swap)");
 
   /* Real scoping, not cosmetic: verify against the actual data, not just that some table rendered. */
   var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
@@ -386,50 +401,71 @@ console.log("\n  role-based dashboards (default = Underwriter, no role stored)")
   var PAS2 = stub.PAS;
   var allPolicies = PAS2.getPolicies();
   var apexCount = allPolicies.filter(function (p) { return p.producer === "Apex Insurance Brokers"; }).length;
-  var brokerDom = renderDom("dashboard", "", "Broker/Producer");
-  /* The shim's querySelectorAll only matches a single simple selector (no descendant
-     combinators), so count all <tr> and subtract the one thead header row dataTable always
-     renders, rather than trying ".data-table tbody tr" as one compound selector. */
-  var brokerRowCount = brokerDom.querySelectorAll("tr").length - 1;
-  if (brokerRowCount !== apexCount) { fails++; console.log("  FAIL  Broker/Producer table shows " + brokerRowCount + " rows, expected exactly " + apexCount + " (real policies with producer = Apex Insurance Brokers)"); }
-  else console.log("  PASS  Broker/Producer table shows exactly " + apexCount + " real policies scoped by producer — not the full 27-policy book");
+  /* Real scoping on the dashboard's own KPI row too, not just the Policy Register (checked
+     separately below) — Broker's In-force premium/Active policies must match Apex's own real
+     figures, not the whole book's. */
+  var apexActive = allPolicies.filter(function (p) { return p.producer === "Apex Insurance Brokers" && p.status === "Active"; });
+  var apexPremium = apexActive.reduce(function (s, p) { return s + p.premium; }, 0);
+  var brokerDom = renderDom("dashboard", "", "Broker");
+  var brokerKpiValues = brokerDom.querySelectorAll(".kpi-value");
+  var brokerActiveShown = Array.prototype.some.call(brokerKpiValues, function (el) { return el.textContent === String(apexActive.length); });
+  var brokerPremiumShown = Array.prototype.some.call(brokerKpiValues, function (el) { return el.textContent === PAS2.moneyShort(apexPremium); });
+  if (!brokerActiveShown || !brokerPremiumShown) { fails++; console.log("  FAIL  Broker dashboard's KPIs don't match Apex's real figures (" + apexActive.length + " active, " + PAS2.moneyShort(apexPremium) + " in-force premium)"); }
+  else console.log("  PASS  Broker dashboard's KPIs (" + apexActive.length + " active, " + PAS2.moneyShort(apexPremium) + ") match Apex Insurance Brokers' real scoped figures — not the full " + apexCount + "-of-" + allPolicies.length + " book");
 
-  /* The MGA dashboard's headline KPI must exactly match the same in-force-premium figure the
-     Underwriter dashboard computes from the identical active-policy set — same book, same
-     formula, two different screens; a filter or grouping bug would make these disagree. */
+  /* MGA is now genuinely scoped to its own book (PAS.scopePolicies, scope:"mga"), not a
+     portfolio-wide view — its headline KPI must match the real Cornerstone-only figure, and that
+     figure must be a genuine subset (not the whole book, not empty). */
   var activePolicies = allPolicies.filter(function (p) { return p.status === "Active"; });
   var realInForcePremium = activePolicies.reduce(function (s, p) { return s + p.premium; }, 0);
+  var cornerstonePolicies = allPolicies.filter(function (p) { return p.mga === "Cornerstone MGA Partners"; });
+  var cornerstonePremium = cornerstonePolicies.filter(function (p) { return p.status === "Active"; }).reduce(function (s, p) { return s + p.premium; }, 0);
+  if (cornerstonePolicies.length === allPolicies.length || cornerstonePolicies.length === 0) { fails++; console.log("  FAIL  MGA scoping isn't real — Cornerstone MGA Partners shows " + cornerstonePolicies.length + " of " + allPolicies.length + " policies, expected a genuine subset"); }
+  else console.log("  PASS  Cornerstone MGA Partners is genuinely scoped to " + cornerstonePolicies.length + " of " + allPolicies.length + " policies");
   var mgaDom = renderDom("dashboard", "", "MGA");
   var mgaKpiValues = mgaDom.querySelectorAll(".kpi-value");
-  var mgaPremiumShown = Array.prototype.some.call(mgaKpiValues, function (el) { return el.textContent === PAS2.moneyShort(realInForcePremium); });
-  if (!mgaPremiumShown) { fails++; console.log("  FAIL  MGA dashboard's In-force premium KPI does not match " + PAS2.moneyShort(realInForcePremium) + ", the real figure from the " + activePolicies.length + " active policies"); }
-  else console.log("  PASS  MGA dashboard's In-force premium KPI (" + PAS2.moneyShort(realInForcePremium) + ") exactly matches the real active-book total — same figure, same formula as the Underwriter dashboard");
+  var mgaPremiumShown = Array.prototype.some.call(mgaKpiValues, function (el) { return el.textContent === PAS2.moneyShort(cornerstonePremium); });
+  if (!mgaPremiumShown) { fails++; console.log("  FAIL  MGA dashboard's In-force premium KPI does not match " + PAS2.moneyShort(cornerstonePremium) + ", the real figure scoped to Cornerstone MGA Partners' own book"); }
+  else console.log("  PASS  MGA dashboard's In-force premium (" + PAS2.moneyShort(cornerstonePremium) + ") is scoped to its own book, genuinely different from the whole-portfolio total " + PAS2.moneyShort(realInForcePremium));
 
-  /* Connected carriers: Carrier's dashboard must be genuinely scoped to their own book
-     (PAS.PRODUCT_CARRIER), not a relabeled copy of the MGA's whole-portfolio view. */
-  var meridianPolicies = allPolicies.filter(function (p) { return p.carrier === "Meridian Assurance Co."; });
-  var meridianPremium = meridianPolicies.filter(function (p) { return p.status === "Active"; }).reduce(function (s, p) { return s + p.premium; }, 0);
-  if (meridianPolicies.length === allPolicies.length || meridianPolicies.length === 0) { fails++; console.log("  FAIL  carrier scoping isn't real — Meridian Assurance Co. shows " + meridianPolicies.length + " of " + allPolicies.length + " policies, expected a genuine subset"); }
-  else console.log("  PASS  Meridian Assurance Co. is genuinely scoped to " + meridianPolicies.length + " of " + allPolicies.length + " policies (Commercial Property + Marine Cargo — their real appetite)");
-  var carrierDom = renderDom("dashboard", "", "Carrier");
-  var carrierKpiValues = carrierDom.querySelectorAll(".kpi-value");
-  var carrierPremiumShown = Array.prototype.some.call(carrierKpiValues, function (el) { return el.textContent === PAS2.moneyShort(meridianPremium); });
-  if (!carrierPremiumShown) { fails++; console.log("  FAIL  Carrier dashboard's In-force premium does not match " + PAS2.moneyShort(meridianPremium) + ", the real figure scoped to Meridian Assurance Co.'s own book"); }
-  else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS2.moneyShort(meridianPremium) + ") is scoped to Meridian's own book, genuinely different from MGA's whole-portfolio " + PAS2.moneyShort(realInForcePremium));
+  /* Role scoping isn't just a dashboard cosmetic — PAS.getScopedPolicies() feeds the Policy
+     Register and every desk list page too, so a Broker/MGA never sees another role's business in
+     those tables either, not just on their own dashboard. */
+  var brokerRegistryDom = renderDom("registry", "", "Broker");
+  var brokerRegistryRows = brokerRegistryDom.querySelectorAll("tr").length - 1;
+  if (brokerRegistryRows !== apexCount) { fails++; console.log("  FAIL  Policy Register shows " + brokerRegistryRows + " rows for Broker, expected exactly " + apexCount + " (scoped by producer, not the whole book)"); }
+  else console.log("  PASS  Policy Register is genuinely scoped for Broker too (" + apexCount + " rows) — not just the dashboard");
 
-  /* Customer portal: scoped to exactly one holder's own policy, nothing else on the platform. */
-  var karanCount = allPolicies.filter(function (p) { return p.holder === "Marcus Whitfield"; }).length;
-  var customerTxt = renderText("dashboard", "", "Customer");
-  ["My Policies", "Marcus Whitfield", "Your coverage", "Your documents", "Recent activity"].forEach(function (needle) {
-    if (customerTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Customer portal missing "' + needle + '"'); }
-  });
-  ["Portfolio Dashboard", "In-force premium", "Cancelled policy requests", "Renewal pipeline", "Apex Insurance Brokers", "Meridian Assurance Co."].forEach(function (banned) {
-    if (customerTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  Customer portal leaked internal/other-role content "' + banned + '"'); }
-  });
-  var customerDom = renderDom("dashboard", "", "Customer");
-  var policyRows = customerDom.querySelectorAll(".kpi-row").length;
-  if (policyRows !== karanCount) { fails++; console.log("  FAIL  Customer portal renders " + policyRows + " policy KPI row(s), expected exactly " + karanCount + " (one per Marcus Whitfield's real policies)"); }
-  else console.log("  PASS  Customer portal shows exactly " + karanCount + " real polic" + (karanCount === 1 ? "y" : "ies") + " for Marcus Whitfield, first-person framing, no internal-desk or other-role content leaked");
+  var mgaRegistryDom = renderDom("registry", "", "MGA");
+  var mgaRegistryRows = mgaRegistryDom.querySelectorAll("tr").length - 1;
+  if (mgaRegistryRows !== cornerstonePolicies.length) { fails++; console.log("  FAIL  Policy Register shows " + mgaRegistryRows + " rows for MGA, expected exactly " + cornerstonePolicies.length + " (scoped by mga, not the whole book)"); }
+  else console.log("  PASS  Policy Register is genuinely scoped for MGA too (" + cornerstonePolicies.length + " rows)");
+
+  /* Entity directories (Brokers/MGA/Carriers/Customers) are scoped too — a role only sees the
+     partners genuinely associated with its own book, not the full directory. A Broker's own book
+     is all producer="Apex Insurance Brokers" by definition, so the Brokers page collapses to
+     exactly one row (themselves); the MGA/Carrier/Customer pages show only the distinct partners
+     that actually appear among Apex's own policies. */
+  var apexPolicies = allPolicies.filter(function (p) { return p.producer === "Apex Insurance Brokers"; });
+  var apexMgaCount = new Set(apexPolicies.map(function (p) { return p.mga; })).size;
+  var apexCarrierCount = new Set(apexPolicies.map(function (p) { return p.carrier; })).size;
+  var apexHolderCount = new Set(apexPolicies.map(function (p) { return p.holder; })).size;
+
+  var brokerBrokersRows = renderDom("brokers", "", "Broker").querySelectorAll("tr").length - 1;
+  if (brokerBrokersRows !== 1) { fails++; console.log("  FAIL  Brokers directory shows " + brokerBrokersRows + " rows for Broker, expected exactly 1 (themselves — every policy in their own scope has the same producer)"); }
+  else console.log("  PASS  Brokers directory collapses to exactly 1 row (themselves) when viewed as Broker — not the full partner directory");
+
+  var brokerMgasRows = renderDom("mgas", "", "Broker").querySelectorAll("tr").length - 1;
+  if (brokerMgasRows !== apexMgaCount || brokerMgasRows === 0) { fails++; console.log("  FAIL  MGA directory shows " + brokerMgasRows + " rows for Broker, expected exactly " + apexMgaCount + " (the MGA facilities genuinely present in Apex's own book)"); }
+  else console.log("  PASS  MGA directory shows exactly the " + apexMgaCount + " MGA facilities genuinely associated with Apex's own book");
+
+  var brokerCarriersRows = renderDom("carriers", "", "Broker").querySelectorAll("tr").length - 1;
+  if (brokerCarriersRows !== apexCarrierCount || brokerCarriersRows === 0) { fails++; console.log("  FAIL  Carriers directory shows " + brokerCarriersRows + " rows for Broker, expected exactly " + apexCarrierCount); }
+  else console.log("  PASS  Carriers directory shows exactly the " + apexCarrierCount + " carriers genuinely associated with Apex's own book");
+
+  var brokerCustomersRows = renderDom("customers", "", "Broker").querySelectorAll("tr").length - 1;
+  if (brokerCustomersRows !== apexHolderCount || brokerCustomersRows === 0) { fails++; console.log("  FAIL  Customers directory shows " + brokerCustomersRows + " rows for Broker, expected exactly " + apexHolderCount); }
+  else console.log("  PASS  Customers directory shows exactly the " + apexHolderCount + " customers genuinely associated with Apex's own book — not every customer in the full 1087-policy book");
 })();
 
 /* Claims & reserves: real records, not a fabricated loss ratio. Ironwood Steel Works' claim is
@@ -456,11 +492,16 @@ console.log("\n  claims & reserves: real data, internally consistent with the ex
   if (totalClaims === 0) { fails++; console.log("  FAIL  no claims exist anywhere in the active book"); }
   else console.log("  PASS  " + totalClaims + " real claims on file across the active book, $" + totalReserves.toLocaleString("en-US") + " in open reserves");
 
+  /* MGA is scoped to its own book (Cornerstone MGA Partners), so the loss ratio shown in its
+     Claims & reserves panel must be computed over that same subset — the panel's own "this
+     filter" figure covers every status (not just Active, since the state/LOB filters default to
+     unrestricted), so the expectation matches that same unfiltered-by-status scope. */
+  var cornerstoneAll5 = book5.filter(function (p) { return p.mga === "Cornerstone MGA Partners"; });
   var mgaDom2 = renderDom("dashboard", "", "MGA");
   var mgaTxt2 = mgaDom2.textContent.replace(/\s+/g, " ");
-  var expectedRatio = Math.round(PAS5.lossRatio(active5) * 100) + "%";
-  if (mgaTxt2.indexOf(expectedRatio) === -1) { fails++; console.log('  FAIL  MGA dashboard does not show the real portfolio loss ratio "' + expectedRatio + '"'); }
-  else console.log("  PASS  MGA dashboard's Loss ratio KPI (" + expectedRatio + ") matches the real computed figure from " + totalClaims + " claims");
+  var expectedRatio = Math.round(PAS5.lossRatio(cornerstoneAll5) * 100) + "%";
+  if (mgaTxt2.indexOf(expectedRatio) === -1) { fails++; console.log('  FAIL  MGA dashboard does not show its own book\'s real loss ratio "' + expectedRatio + '"'); }
+  else console.log("  PASS  MGA dashboard's Claims & reserves panel (" + expectedRatio + ") matches the real computed figure for its own scoped book");
 })();
 
 /* Refund-wise breakdown on the Cancellation desk: grouped totals must reconcile to the same sum
@@ -486,6 +527,56 @@ console.log("\n  refund-wise breakdown: grouped totals reconcile to the real sum
   var moneyStr = PAS6.money(realTotal);
   if (cancelTxt.indexOf(moneyStr) === -1) { fails++; console.log('  FAIL  Cancellation desk does not show the real total refunded "' + moneyStr + '" anywhere on the page'); }
   else console.log("  PASS  Cancellation desk shows the real total refunded (" + moneyStr + ") — same figure as summing every completed cancellation's own recorded refund");
+})();
+
+/* The Cancellation desk's pending-requests table now carries a search box plus LOB and
+   Submitted-date filters (same as Endorsements/Reinstatement/Renewal) — these must genuinely
+   narrow the rendered rows, not just exist as inert controls. */
+console.log("\n  cancellation desk: LOB and date filters genuinely narrow the pending table");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS7 = stub.PAS;
+  var bookC = PAS7.seedPolicies();
+  var pendC = PAS7.pendingOf(bookC, "Cancellation");
+
+  var out = renderDom("cancellation");
+  /* Two tables exist on this page — the static Reason/notice reference table first, then the
+     pending-requests table — so the *second* tbody is the one the filters act on. sortableTable's
+     rebuild() replaces the whole <table> (tableWrap.innerHTML = "" then a fresh dataTable), so
+     the tbody must be re-queried after every filter change rather than captured once. */
+  function rowCount() {
+    var tbodies = out.querySelectorAll("tbody");
+    if (tbodies.length !== 2) throw new Error("expected exactly 2 tables (reference + pending requests), found " + tbodies.length + " tbody elements");
+    return tbodies[1].querySelectorAll("tr").length;
+  }
+  if (rowCount() !== pendC.length) { fails++; console.log("  FAIL  Cancellation desk baseline expected " + pendC.length + " pending rows, got " + rowCount()); }
+  else console.log("  PASS  baseline shows all " + pendC.length + " pending cancellation requests");
+
+  var selects = out.querySelectorAll("select");
+  if (selects.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 LOB filter select on the Cancellation desk, found " + selects.length); return; }
+  var productSelect = selects[0];
+  var sampleProduct = pendC[0].p.product;
+  var expectedProduct = pendC.filter(function (t) { return t.p.product === sampleProduct; }).length;
+  setValue(productSelect, sampleProduct);
+  if (rowCount() !== expectedProduct) { fails++; console.log("  FAIL  LOB filter '" + sampleProduct + "' expected " + expectedProduct + " rows, got " + rowCount()); }
+  else console.log("  PASS  LOB filter narrows to the " + expectedProduct + " real '" + sampleProduct + "' pending requests");
+  setValue(productSelect, "All");
+
+  var dateInputs = out.querySelectorAll("input").filter(function (el) { return el.getAttribute("type") === "date"; });
+  if (dateInputs.length !== 2) { fails++; console.log("  FAIL  expected exactly 2 (from/to) date filter inputs on the Cancellation desk, found " + dateInputs.length); return; }
+  dateInputs[0].value = "2099-01-01";
+  dateInputs[0].dispatchEvent({ type: "change" });
+  /* A 0-row match still renders one <tr> — dataTable's own "nothing here" placeholder row — so
+     the real check is that the surviving row is that empty-state row, not a genuine data row. */
+  var emptyMsg = "No cancellation requests match that search.";
+  var afterFuture = out.querySelectorAll("tbody")[1].querySelectorAll("tr");
+  if (afterFuture.length !== 1 || afterFuture[0].textContent.indexOf(emptyMsg) === -1) { fails++; console.log("  FAIL  a Submitted-from date far in the future should leave 0 real pending rows (just the empty-state placeholder), got " + afterFuture.length + " row(s)"); }
+  else console.log("  PASS  the Submitted-date filter genuinely excludes every pending request when set beyond any real submission date");
 })();
 
 /* Coverage-wise breakdown: each policy's line items must sum back to exactly its own premium —
@@ -705,13 +796,37 @@ console.log("\n  configurable terms & conditions: edits genuinely persist, reset
   if (afterReset.edited || afterReset.text !== afterReset.defaultText) { fails++; console.log("  FAIL  resetTermClause did not restore the default text"); }
   else console.log("  PASS  resetting a clause genuinely restores the original default text");
 
-  /* Nav: Terms & Conditions is an edit capability — the three read-only/external roles must not
-     see it in their sidebar, even though they can browse other Records pages. */
-  ["MGA", "Carrier", "Customer"].forEach(function (role) {
-    var hidden = PAS11.NAV_HIDDEN_FOR_ROLE[role] || [];
-    if (hidden.indexOf("terms") === -1) { fails++; console.log("  FAIL  " + role + " can still see Terms & Conditions in nav — it's an edit capability, should be hidden for read-only/external roles"); }
+  /* Nav: Terms & Conditions and Admin Configuration are edit/admin capabilities — Broker and MGA
+     must not see them in their sidebar, even though they can browse other Records pages. */
+  ["Broker", "MGA"].forEach(function (role) {
+    var visible = (PAS11.ROLES[role] || {}).visibleNav || [];
+    if (visible.indexOf("terms") !== -1) { fails++; console.log("  FAIL  " + role + " can still see Terms & Conditions in nav — it's an edit capability, should be hidden for it"); }
+    if (visible.indexOf("admin-config") !== -1) { fails++; console.log("  FAIL  " + role + " can still see Admin Configuration in nav — only roles with canManageRoles/canManageUsers should reach it"); }
   });
-  console.log("  PASS  Terms & Conditions is hidden from MGA, Carrier and Customer nav — an edit capability, not a read-only records view");
+  console.log("  PASS  Terms & Conditions and Admin Configuration are hidden from Broker and MGA nav");
+
+  ["Super Admin", "Admin"].forEach(function (role) {
+    var visible = (PAS11.ROLES[role] || {}).visibleNav;
+    var canSeeIt = visible === "*" || (visible || []).indexOf("admin-config") !== -1;
+    if (!canSeeIt) { fails++; console.log("  FAIL  " + role + " cannot see Admin Configuration in nav — it should have full access by default"); }
+  });
+  console.log("  PASS  Super Admin and Admin both see Admin Configuration by default");
+
+  /* Roles are genuinely admin-manageable: a custom role round-trips through PAS.ROLES, a default
+     role refuses deletion, and an invited user (with its own distinct scoping identity) round-trips
+     through PAS.getUsers(). */
+  PAS11.saveRole("Auditor", { label: "Auditor", icon: "list-checks", tone: "gray", identity: "Compliance Team", scope: "all", canDecide: false, canRequest: false, canManageUsers: false, canManageRoles: false, visibleNav: ["dashboard"], isSystem: false });
+  if (!PAS11.ROLES.Auditor || PAS11.ROLES.Auditor.label !== "Auditor") { fails++; console.log("  FAIL  a custom role saved via PAS.saveRole does not round-trip through PAS.ROLES"); }
+  else console.log("  PASS  a custom role saved via PAS.saveRole round-trips through PAS.ROLES");
+
+  var refusedDelete = PAS11.deleteRole("Super Admin");
+  if (refusedDelete.allowed) { fails++; console.log("  FAIL  PAS.deleteRole allowed deleting the default \"Super Admin\" role"); }
+  else console.log("  PASS  PAS.deleteRole refuses to delete a default (isSystem) role");
+
+  var invited = PAS11.inviteUser({ name: "Jane Cooper", email: "jane@example.com", roleKey: "Broker", identity: "Jane's Brokerage" });
+  var users11 = PAS11.getUsers();
+  if (!users11.some(function (u) { return u.id === invited.id && u.identity === "Jane's Brokerage"; })) { fails++; console.log("  FAIL  an invited user does not round-trip through PAS.getUsers()"); }
+  else console.log("  PASS  an invited user (with a distinct scoping identity) round-trips through PAS.getUsers()");
 })();
 
 /* Platform-wide interactive filters: these must genuinely narrow the rendered rows, not just

@@ -6,7 +6,7 @@
   var STATUSES = ["All", "Completed", "Pending", "Rejected", "Reversed"];
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var all = PAS.allTxns(policies);
     var typeF = "All", statusF = "All";
 

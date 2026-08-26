@@ -4,7 +4,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var pend = PAS.pendingOf(policies, "Endorsement");
     var done = policies.reduce(function (acc, p) {
       p.history.filter(function (h) { return h.type === "Endorsement" && h.status !== "Pending"; }).forEach(function (h) { acc.push({ p: p, h: h }); });
@@ -69,10 +69,14 @@
       if (t.h.meta && t.h.meta.outOfSequence) flags.push(ui.pill("red", "OOS"));
       return ui.h("span", {}, flags.length ? flags : [ui.pill("gray", "—")]);
     }
-    var q = "";
+    function submittedOf(t) { return (t.h.meta && t.h.meta.submittedOn) || t.h.date || ""; }
+    var q = "", productF = "All", fromDate = "", toDate = "";
+    var products = ["All"].concat(Array.from(new Set(pend.map(function (t) { return t.p.product; }).filter(Boolean))).sort());
     function matchSearch(t) {
       var needle = q.toLowerCase();
-      return !needle || t.p.holder.toLowerCase().indexOf(needle) !== -1 || t.p.id.toLowerCase().indexOf(needle) !== -1;
+      return (!needle || t.p.holder.toLowerCase().indexOf(needle) !== -1 || t.p.id.toLowerCase().indexOf(needle) !== -1)
+        && (productF === "All" || t.p.product === productF)
+        && (!fromDate || submittedOf(t) >= fromDate) && (!toDate || submittedOf(t) <= toDate);
     }
 
     page.appendChild(ui.tipLabel({ text: "REQUESTS AWAITING DECISION (" + pend.length + ")", what: "Already-submitted change requests, ordered newest first.", className: "label-11 block mb-9" }));
@@ -83,6 +87,16 @@
     var searchInput = ui.h("input", { class: "register-search-input", type: "search", placeholder: "Search by insured name or policy number…", autocomplete: "off" });
     searchWrap.appendChild(searchInput);
     toolbar.appendChild(searchWrap);
+
+    var filters = ui.h("div", { class: "register-filters" });
+    var productSelect = ui.h("select", { class: "register-select", title: "Line of business" });
+    products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All LOBs" : p)); });
+    filters.appendChild(productSelect);
+    var fromInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Submitted from" });
+    filters.appendChild(fromInput);
+    var toInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Submitted to" });
+    filters.appendChild(toInput);
+    toolbar.appendChild(filters);
 
     var endorsementTable = ui.sortableTable({
       storageKey: "pas.endorsement.columns.v1",
@@ -120,10 +134,13 @@
 
     function refresh() {
       var filtered = pend.filter(matchSearch);
-      noteEl.textContent = q ? "Showing " + filtered.length + " of " + pend.length + " requests." : "";
+      noteEl.textContent = (q || productF !== "All" || fromDate || toDate) ? "Showing " + filtered.length + " of " + pend.length + " requests." : "";
       endorsementTable.rebuild();
     }
     searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
+    productSelect.addEventListener("change", function () { productF = productSelect.value; refresh(); });
+    fromInput.addEventListener("change", function () { fromDate = fromInput.value; refresh(); });
+    toInput.addEventListener("change", function () { toDate = toInput.value; refresh(); });
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

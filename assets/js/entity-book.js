@@ -21,7 +21,7 @@
 
   PAS.renderEntityBook = function (opts) {
     var ui = PAS.ui;
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var params = new URLSearchParams(location.search);
     var selected = params.get(opts.paramName);
 

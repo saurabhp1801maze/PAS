@@ -85,11 +85,70 @@
     { type: "Issuance", label: "New business issued", tone: "indigo" },
   ];
 
-  /* The dashboard is the one screen every role lands on, so it's the one screen that has to
-     genuinely look different per role rather than the same operational view with a label
-     changed. Underwriter keeps the full operational dashboard below unchanged; MGA and Carrier
-     share a read-only portfolio-analytics view (renderPortfolioDashboard); Broker/Producer gets
-     their own book only, scoped by the real `producer` field already on every policy. */
+  var SVG_NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    var el = document.createElementNS(SVG_NS, tag);
+    if (attrs) Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+    return el;
+  }
+  /* Line/area trend graph — shared by the full operational dashboard and the scoped MGA/Broker
+     dashboard, both period-toggled (month / quarter / year / custom range) — both just hand it
+     pre-bucketed rows and a label function, so the SVG drawing itself only has to exist once.
+     Mark spec: 2px line, round join/cap; >=8px (r=4)
+     markers with a surface-color ring; a soft ~10% area wash under the line; hairline recessive
+     gridlines. Every point carries a native hover tooltip; only the most recent point gets a
+     permanent value label, per "never a number on every point". */
+  function drawTrendGraph(container, seriesList, data, periodLabelFn, noteText) {
+    var maxVal = Math.max.apply(null, data.reduce(function (acc, row) { seriesList.forEach(function (s) { acc.push(row[s.type]); }); return acc; }, [1]));
+    var niceMax = Math.max(1, maxVal);
+    var n = data.length;
+
+    container.innerHTML = "";
+    container.appendChild(ui.h("div", { class: "faint-note", style: { marginBottom: "10px" } }, noteText));
+
+    var W = 640, H = 172, padL = 12, padR = 44, padT = 20, padB = 26;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    function xAt(i) { return n > 1 ? padL + (i / (n - 1)) * plotW : padL + plotW / 2; }
+    function yAt(v) { return padT + plotH - (v / niceMax) * plotH; }
+
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", height: String(H), preserveAspectRatio: "none", class: "trend-graph" });
+
+    [0, 1].forEach(function (frac) {
+      var y = padT + plotH * frac;
+      svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: y, y2: y, class: "trend-grid-line" }));
+    });
+
+    data.forEach(function (row, i) {
+      svg.appendChild(Object.assign(svgEl("text", { x: xAt(i), y: H - 8, "text-anchor": "middle", class: "trend-axis-label-svg" }), { textContent: periodLabelFn(row.key) }));
+    });
+
+    seriesList.forEach(function (s) {
+      var pts = data.map(function (row, i) { return [xAt(i), yAt(row[s.type])]; });
+      var lineD = pts.map(function (p, i) { return (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
+
+      var areaD = lineD + " L" + pts[n - 1][0].toFixed(1) + "," + (padT + plotH).toFixed(1) + " L" + pts[0][0].toFixed(1) + "," + (padT + plotH).toFixed(1) + " Z";
+      svg.appendChild(svgEl("path", { d: areaD, class: "trend-area", style: "fill: var(--" + s.tone + ")" }));
+      svg.appendChild(svgEl("path", { d: lineD, class: "trend-line", style: "stroke: var(--" + s.tone + ")" }));
+
+      pts.forEach(function (p, i) {
+        var v = data[i][s.type];
+        var dot = svgEl("circle", { cx: p[0], cy: p[1], r: 4, class: "trend-dot", style: "fill: var(--" + s.tone + ")" });
+        dot.appendChild(Object.assign(svgEl("title"), { textContent: s.label + " — " + periodLabelFn(data[i].key) + ": " + v }));
+        svg.appendChild(dot);
+        if (i === n - 1) {
+          svg.appendChild(Object.assign(svgEl("text", { x: p[0] + 8, y: p[1] + 3.5, class: "trend-val-label" }), { textContent: String(v) }));
+        }
+      });
+    });
+
+    container.appendChild(svg);
+  }
+  function monthKeyLabel(key) { return MONTH_NAMES[Number(key.slice(5, 7)) - 1] + " '" + key.slice(2, 4); }
+
+  /* The dashboard is the one screen every role lands on. Full-access roles (Super Admin, Admin)
+     get the operational view below unchanged; any role scoped to less than the whole book (MGA,
+     Broker, or a future custom role) gets the shared scoped analytics view instead
+     (renderScopedDashboard) — same layout for every scoped role, real data per role's own book. */
   function renderUnderwriterDashboard(page, allPolicies) {
     var period = "month"; /* default: current month, per the toggle's spec */
     /* How many periods back from today the selected month/quarter/year is — 0 = current,
@@ -293,7 +352,7 @@
       kpiContainer.innerHTML = "";
       kpiContainer.appendChild(ui.kpiRow([
         { label: "Total policies", value: policies.length, href: "registry.html", tip: "Every record in the register" + filterNote() + ".", why: "Portfolio size — not period-scoped, the book has no past-state snapshots to filter this against." },
-        { label: "Active policies", value: active.length, tone: "green", href: "registry.html", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
+        { label: "Active policies", value: active.length, tone: "green", href: "registry.html?status=Active", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
         { label: "Renewed", value: renewed, tone: "blue", href: "renewal.html", tip: "Renewals completed " + periodNote + "." },
         { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: "Active policies whose term ends " + periodNote + "." },
         { label: "Endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html", tip: "Endorsement requests awaiting decision, right now.", why: "Operational queue, not period-scoped — same reasoning as Awaiting decision." },
@@ -375,63 +434,12 @@
       container.appendChild(legend);
     }
 
-    var SVG_NS = "http://www.w3.org/2000/svg";
-    function svgEl(tag, attrs) {
-      var el = document.createElementNS(SVG_NS, tag);
-      if (attrs) Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
-      return el;
-    }
-
     /* Right panel — an actual line/area graph, for reading one series' trend rather than comparing
-       several. Mark spec: 2px line, round join/cap; ≥8px (r=4) markers with a surface-color ring;
-       a soft ~10% area wash under the line; hairline recessive gridlines. Every point carries a
-       native hover tooltip; only the most recent point gets a permanent value label, per "never a
-       number on every point" — a single series needs no legend box, the panel title names it. */
+       several — a single series needs no legend box, the panel title names it. Drawing itself
+       lives in the module-level `drawTrendGraph`, shared with the scoped MGA/Broker dashboard's
+       own issuance graph. */
     function renderTrendGraph(container, seriesList) {
-      var data = bucketData(seriesList);
-      var maxVal = Math.max.apply(null, data.reduce(function (acc, row) { seriesList.forEach(function (s) { acc.push(row[s.type]); }); return acc; }, [1]));
-      var niceMax = Math.max(1, maxVal);
-      var n = data.length;
-
-      container.innerHTML = "";
-      container.appendChild(ui.h("div", { class: "faint-note", style: { marginBottom: "10px" } }, windowNote()));
-
-      var W = 640, H = 172, padL = 12, padR = 44, padT = 20, padB = 26;
-      var plotW = W - padL - padR, plotH = H - padT - padB;
-      function xAt(i) { return n > 1 ? padL + (i / (n - 1)) * plotW : padL + plotW / 2; }
-      function yAt(v) { return padT + plotH - (v / niceMax) * plotH; }
-
-      var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", height: String(H), preserveAspectRatio: "none", class: "trend-graph" });
-
-      [0, 1].forEach(function (frac) {
-        var y = padT + plotH * frac;
-        svg.appendChild(svgEl("line", { x1: padL, x2: W - padR, y1: y, y2: y, class: "trend-grid-line" }));
-      });
-
-      data.forEach(function (row, i) {
-        svg.appendChild(Object.assign(svgEl("text", { x: xAt(i), y: H - 8, "text-anchor": "middle", class: "trend-axis-label-svg" }), { textContent: periodLabel(row.key) }));
-      });
-
-      seriesList.forEach(function (s) {
-        var pts = data.map(function (row, i) { return [xAt(i), yAt(row[s.type])]; });
-        var lineD = pts.map(function (p, i) { return (i === 0 ? "M" : "L") + p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ");
-
-        var areaD = lineD + " L" + pts[n - 1][0].toFixed(1) + "," + (padT + plotH).toFixed(1) + " L" + pts[0][0].toFixed(1) + "," + (padT + plotH).toFixed(1) + " Z";
-        svg.appendChild(svgEl("path", { d: areaD, class: "trend-area", style: "fill: var(--" + s.tone + ")" }));
-        svg.appendChild(svgEl("path", { d: lineD, class: "trend-line", style: "stroke: var(--" + s.tone + ")" }));
-
-        pts.forEach(function (p, i) {
-          var v = data[i][s.type];
-          var dot = svgEl("circle", { cx: p[0], cy: p[1], r: 4, class: "trend-dot", style: "fill: var(--" + s.tone + ")" });
-          dot.appendChild(Object.assign(svgEl("title"), { textContent: s.label + " — " + periodLabel(data[i].key) + ": " + v }));
-          svg.appendChild(dot);
-          if (i === n - 1) {
-            svg.appendChild(Object.assign(svgEl("text", { x: p[0] + 8, y: p[1] + 3.5, class: "trend-val-label" }), { textContent: String(v) }));
-          }
-        });
-      });
-
-      container.appendChild(svg);
+      drawTrendGraph(container, seriesList, bucketData(seriesList), periodLabel, windowNote());
     }
 
     function buildChart() {
@@ -507,7 +515,7 @@
       }).sort(function (a, b) { return b.v - a.v; });
       var maxP = Math.max.apply(null, byProduct.map(function (x) { return x.v; }).concat([1]));
       prodBody.innerHTML = "";
-      byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " pol", tone: x.v === maxP ? "indigo" : "blue" })); });
+      byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " pol", tone: x.v === maxP ? "indigo" : "blue", onClick: function () { location.href = "registry.html?product=" + encodeURIComponent(x.pr); } })); });
 
       compBody.innerHTML = "";
       /* Every one of the seven real statuses a policy can carry, not just the five most common —
@@ -616,40 +624,31 @@
     buildAll();
   }
 
-  /* Shared by MGA and Carrier: both are portfolio-wide, read-only, no decision buttons anywhere.
-     They differ only in framing (MGA = "the whole book across every state and broker", Carrier =
-     "the paper written on my behalf") and which KPIs lead — Carrier's own risk exposure and loss
-     activity lead for them, revenue/broker mix leads for MGA. Claims and Reserves are real now
-     (PAS.CLAIMS_BY_ID / PAS.lossRatio / PAS.reservesTotal in store.js) — six seeded claims across
-     the active book, including one deliberately consistent with the "adverse loss ratio... 140%"
-     narrative already on Bharat Steel Works' cancellation record, so the two screens agree
-     instead of one silently contradicting the other. */
-  function renderPortfolioDashboard(page, allPolicies, role) {
+  /* The shared "own book" analytics view for every scoped, mostly-read-only role — MGA and Broker
+     today, and any future read-only/request-only custom role an admin creates (written generically
+     off `role`/`PAS.ROLES[role]`, never a hardcoded role name). Same layout for both so switching
+     between them reads as "the same dashboard, different data," not two unrelated screens — only
+     the second breakdown panel's dimension and the header copy adapt to what's actually meaningful
+     for that role's scope. Claims and Reserves are real (PAS.CLAIMS_BY_ID / PAS.lossRatio /
+     PAS.reservesTotal in store.js) — six seeded claims across the active book, including one
+     deliberately consistent with the "adverse loss ratio... 140%" narrative already on Bharat
+     Steel Works' cancellation record, so the two screens agree instead of one silently
+     contradicting the other. */
+  function renderScopedDashboard(page, allPolicies, role) {
     var spec = PAS.ROLES[role];
-    /* MGA sees the whole portfolio; Carrier is genuinely scoped to the paper placed with them
-       (PAS.PRODUCT_CARRIER) — a real filter, not the same data with a different label. */
+    /* Genuinely scoped to this role's own book (PAS.scopePolicies) — a real filter, not the same
+       book with a different label. */
+    var identity = PAS.getActingIdentity();
     var policies = PAS.scopePolicies(allPolicies, role);
     var active = policies.filter(function (p) { return p.status === "Active"; });
-    var cancelled = policies.filter(function (p) { return p.status === "Cancelled"; });
-    var declined = policies.filter(function (p) { return p.status === "Declined"; });
     var inForcePremium = sum(active, function (p) { return p.premium; });
-
-    /* Conversion: every policy in this book passed through Submission — "initiated" is the whole
-       book; "converted" is whatever made it past underwriting into Bound or further, i.e.
-       everything except still-Referred or Declined. Real, computed from status alone. */
-    var referred = policies.filter(function (p) { return p.status === "Referred"; });
-    var converted = policies.length - referred.length - declined.length;
-    var conversionRate = policies.length ? Math.round((converted / policies.length) * 100) : 0;
 
     page.appendChild(ui.pageHeader({
       icon: spec.icon, tone: spec.tone, title: spec.label + " Dashboard",
-      sub: role === "Carrier" ? "The book written on " + spec.identity + "'s paper — premium, loss activity and reserves" : "Portfolio-wide — revenue, state, broker, LOB and conversion",
-      what: spec.desc, why: "Read-only: " + spec.label + " sees the book; decisions stay with underwriting.",
+      sub: "The business placed through " + identity + " — premium, loss activity and reserves",
+      what: spec.desc,
+      why: spec.canRequest ? "Scoped to " + identity + "'s own book — can raise a request here, but not decide one." : "Read-only: " + spec.label + " sees its own book; decisions stay with an admin.",
     }));
-
-    var portfolioLossRatio = PAS.lossRatio(active);
-    var portfolioReserves = PAS.reservesTotal(active);
-    var allClaimsList = PAS.allClaims(active);
 
     page.appendChild(ui.kpiRow([
       { label: "In-force premium", value: PAS.moneyShort(inForcePremium), tone: "green", tip: "Sum of annual premium across in-force policies, as of today." },
@@ -657,30 +656,37 @@
       { label: "Avg premium", value: PAS.moneyShort(active.length ? inForcePremium / active.length : 0), tip: "Mean annual premium per in-force policy." },
       { label: "Product lines", value: Array.from(new Set(policies.map(function (p) { return p.product; }))).length, tip: "Distinct LOBs written." },
       { label: "States", value: Array.from(new Set(policies.map(function (p) { return p.state; }))).length, tip: "Distinct states with business on the books." },
-      { label: "Initiated", value: policies.length, tone: "blue", tip: "Every submission that ever entered underwriting." },
-      { label: "Converted", value: converted, tone: "green", tip: "Made it past underwriting into Bound or further — the complement of still-Referred or Declined." },
-      { label: "Conversion rate", value: conversionRate + "%", tone: conversionRate >= 70 ? "green" : conversionRate >= 40 ? "amber" : "red", tip: converted + " converted ÷ " + policies.length + " initiated." },
-      { label: "Loss ratio", value: Math.round(portfolioLossRatio * 100) + "%", tone: portfolioLossRatio > 1 ? "red" : portfolioLossRatio > 0.6 ? "amber" : "green", tip: "Incurred claims ÷ premium, across the active book — " + allClaimsList.length + " claims on file." },
-      { label: "Open reserves", value: PAS.moneyShort(portfolioReserves), tone: portfolioReserves > 0 ? "amber" : "gray", tip: "Sum of reserved amounts on claims still open — the carrier's current exposure to unsettled loss." },
     ], true));
 
-    /* Filters: state and LOB, both multi-select (empty selection = "All"), applied to every chart
-       below — not just decoration, `renderCharts()` rebuilds every panel body against the
-       filtered set. */
+    /* Filters: state, LOB, the counterpart distribution entity, and carrier, all multi-select
+       (empty selection = "All"), plus a period toggle (Monthly/Quarterly/Yearly/custom range) —
+       applied to every chart below, not just decoration: `refresh()` rebuilds every panel body
+       against the filtered/period-scoped set. */
     var filterBlock = ui.h("div", { class: "filter-block" });
     page.appendChild(filterBlock);
 
+    /* The second breakdown panel is whichever distribution-chain dimension this role's own scope
+       ISN'T — a Broker (scoped by producer, i.e. themselves) sees premium by MGA facility instead
+       of premium by broker, which would otherwise be one bar, always themselves. Everyone else
+       (MGA, and any future scoped role) sees the traditional broker breakdown. */
+    var secondDim = spec.scope === "producer" ? "mga" : "producer";
+    var secondLabel = spec.scope === "producer" ? "MGA" : "Broker";
+    var secondTitle = spec.scope === "producer" ? "Premium by MGA" : "Premium by broker";
+    var secondWhat = spec.scope === "producer" ? "In-force premium per MGA facility this book is placed through." : "In-force premium per placing broker, Direct included.";
+    var secondWhy = spec.scope === "producer" ? "Shows which wholesale facilities this book actually depends on." : "Shows which distribution channel the book actually depends on.";
+
     var stateGrid = ui.h("div", { class: "two-col-grid" });
-    var statePanel = ui.panel({ title: "Premium by state", what: "In-force premium per state, largest first.", why: "State-level concentration matters for regulatory exposure and catastrophe accumulation." }, []);
+    var stateTopOnly = spec.scope === "producer";
+    var statePanel = ui.panel({ title: stateTopOnly ? "Premium by state (top 5)" : "Premium by state", what: stateTopOnly ? "Top 5 states by in-force premium, largest first." : "In-force premium per state, largest first.", why: "State-level concentration matters for regulatory exposure and catastrophe accumulation." }, []);
     var stateBody = statePanel.querySelector(".panel-body");
     stateGrid.appendChild(statePanel);
-    var brokerPanel = ui.panel({ title: "Premium by broker", what: "In-force premium per placing broker, Direct included.", why: "Shows which distribution channel the book actually depends on." }, []);
+    var brokerPanel = ui.panel({ title: secondTitle, what: secondWhat, why: secondWhy }, []);
     var brokerBody = brokerPanel.querySelector(".panel-body");
     stateGrid.appendChild(brokerPanel);
     page.appendChild(stateGrid);
 
     var lobGrid = ui.h("div", { class: "two-col-grid" });
-    var lobPanel = ui.panel({ title: "Premium by LOB", what: "In-force premium per product line, largest first.", why: "Line concentration is the risk an MGA and its carrier partners watch first." }, []);
+    var lobPanel = ui.panel({ title: "Written premium by product", what: "In-force premium per product line, largest first.", why: "Concentration in one line is a portfolio risk this book's own concentration watches too." }, []);
     var lobBody = lobPanel.querySelector(".panel-body");
     lobGrid.appendChild(lobPanel);
     var claimsPanel = ui.panel({ title: "Claims & reserves", what: "Every claim on file, incurred/paid/reserved, filtered the same as the charts above.", why: "The two numbers a carrier partner asks for first — loss ratio and open exposure — computed from real claim records, not asserted." }, []);
@@ -688,11 +694,28 @@
     lobGrid.appendChild(claimsPanel);
     page.appendChild(lobGrid);
 
-    var filterState = [], filterProduct = [];
+    /* Not appended yet — it's added below, after the period toggle that drives it, so the control
+       reads directly above the chart it controls. */
+    var issuancePanel = ui.panel({ title: "New business issued", what: "Policies formally issued, trailing periods.", why: "What's coming into this book, not just what's already on it." }, []);
+    var issuanceBody = issuancePanel.querySelector(".panel-body");
+
+    var filterState = [], filterProduct = [], filterSecondDim = [], filterCarrier = [];
     function matchesMulti(selected, value) { return selected.length === 0 || selected.indexOf(value) !== -1; }
+
+    /* Period toggle — same Monthly/Quarterly/Yearly + custom-range mechanism as the full
+       operational dashboard, reusing its module-level helpers, but scoped down to the one place
+       it's meaningful here: how many trailing periods the "New business issued" trend covers. The
+       other panels (state/second-dim/LOB, claims) stay as-of-today snapshots, same reasoning as
+       Total/Active policies on the operational dashboard's own KPI row. */
+    var period = "month";
+    var periodOffset = 0;
+    var customFrom = PAS.addDays(PAS.todayISO(), -30);
+    var customTo = PAS.todayISO();
+
     function renderCharts() {
       var scoped = policies.filter(function (p) {
-        return matchesMulti(filterState, p.state) && matchesMulti(filterProduct, p.product);
+        return matchesMulti(filterState, p.state) && matchesMulti(filterProduct, p.product)
+          && matchesMulti(filterSecondDim, p[secondDim]) && matchesMulti(filterCarrier, p.carrier);
       });
       var scopedActive = scoped.filter(function (p) { return p.status === "Active"; });
 
@@ -706,15 +729,41 @@
           return { k: k, v: sum(forKey, function (p) { return p.premium; }), n: forKey.length };
         }).sort(function (a, b) { return b.v - a.v; });
       }
-      function fillPanel(body, rows) {
+      function fillPanel(body, rows, onClickField) {
         body.innerHTML = "";
         var max = Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1]));
         if (rows.length === 0 || max === 1 && rows.every(function (r) { return r.v === 0; })) { body.appendChild(ui.h("div", { class: "faint-note" }, "No in-force premium in this filter.")); return; }
-        rows.forEach(function (r) { body.appendChild(ui.hbar({ label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " pol", tone: r.v === max ? "indigo" : "blue" })); });
+        rows.forEach(function (r) {
+          body.appendChild(ui.hbar({
+            label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " pol", tone: r.v === max ? "indigo" : "blue",
+            onClick: onClickField ? function () { location.href = "registry.html?" + onClickField + "=" + encodeURIComponent(r.k); } : undefined,
+          }));
+        });
       }
-      fillPanel(stateBody, byField("state"));
-      fillPanel(brokerBody, byField("producer"));
-      fillPanel(lobBody, byField("product"));
+      fillPanel(stateBody, stateTopOnly ? byField("state").slice(0, 5) : byField("state"));
+      fillPanel(brokerBody, byField(secondDim));
+      fillPanel(lobBody, byField("product"), "product");
+
+      var issuanceKeys = period === "month" ? trailingMonths(6, periodOffset) : period === "quarter" ? trailingQuarters(6, periodOffset)
+        : period === "year" ? trailingYears(4, periodOffset) : ["custom"];
+      var issuanceMatches = period === "month" ? inMonth : period === "quarter" ? inQuarter
+        : period === "year" ? inYear : function (dateStr) { return !!dateStr && dateStr >= customFrom && dateStr <= customTo; };
+      var issuanceData = issuanceKeys.map(function (key) {
+        var row = { key: key };
+        ISSUANCE_SERIES.forEach(function (s) { row[s.type] = txnsOfType(scoped, s.type, "Completed").filter(function (x) { return issuanceMatches(x.h.date, key); }).length; });
+        return row;
+      });
+      function issuanceLabel(key) {
+        if (period === "month") return monthKeyLabel(key);
+        if (period === "quarter") return "Q" + key.slice(6) + " '" + key.slice(2, 4);
+        if (period === "year") return key;
+        return customFrom + " – " + customTo;
+      }
+      var issuanceNote = period === "month" ? "Trailing 6 months, completed transactions by their effective date."
+        : period === "quarter" ? "Trailing 6 quarters, completed transactions by their effective date."
+        : period === "year" ? "Trailing 4 years, completed transactions by their effective date."
+        : "From " + customFrom + " to " + customTo + ", completed transactions by their effective date.";
+      drawTrendGraph(issuanceBody, ISSUANCE_SERIES, issuanceData, issuanceLabel, issuanceNote);
 
       claimsBody.innerHTML = "";
       var scopedClaims = PAS.allClaims(scoped);
@@ -740,133 +789,107 @@
 
     var states = Array.from(new Set(policies.map(function (p) { return p.state; }))).sort();
     var products = Array.from(new Set(policies.map(function (p) { return p.product; }))).sort();
+    var secondDimOptions = Array.from(new Set(policies.map(function (p) { return p[secondDim]; }).filter(Boolean))).sort();
+    var carrierOptions = Array.from(new Set(policies.map(function (p) { return p.carrier; }).filter(Boolean))).sort();
 
     var stateGroup = ui.h("div", {});
     stateGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "State"));
-    stateGroup.appendChild(ui.multiSelect({ options: states, selected: filterState, allLabel: "All states", onChange: function (sel) { filterState = sel; renderCharts(); } }));
+    stateGroup.appendChild(ui.multiSelect({ options: states, selected: filterState, allLabel: "All states", onChange: function (sel) { filterState = sel; refresh(); } }));
     filterBlock.appendChild(stateGroup);
 
     var lobGroup = ui.h("div", {});
     lobGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Line of business"));
-    lobGroup.appendChild(ui.multiSelect({ options: products, selected: filterProduct, allLabel: "All LOBs", onChange: function (sel) { filterProduct = sel; renderCharts(); } }));
+    lobGroup.appendChild(ui.multiSelect({ options: products, selected: filterProduct, allLabel: "All LOBs", onChange: function (sel) { filterProduct = sel; refresh(); } }));
     filterBlock.appendChild(lobGroup);
 
-    renderCharts();
-  }
+    var secondDimGroup = ui.h("div", {});
+    secondDimGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, secondLabel));
+    secondDimGroup.appendChild(ui.multiSelect({ options: secondDimOptions, selected: filterSecondDim, allLabel: "All " + secondLabel.toLowerCase() + "s", onChange: function (sel) { filterSecondDim = sel; refresh(); } }));
+    filterBlock.appendChild(secondDimGroup);
 
-  /* A Broker/Producer sees only the business they placed — real scoping via `producer`, not a
-     cosmetic filter, and there's no decision action anywhere: raising a request is as far as this
-     role goes. */
-  function renderBrokerDashboard(page, policies) {
-    var spec = PAS.ROLES["Broker/Producer"];
-    var own = PAS.scopePolicies(policies, "Broker/Producer");
-    var active = own.filter(function (p) { return p.status === "Active"; });
-    var pending = PAS.allTxns(own).map(function (t) { return t.h; }).filter(function (h) { return h.status === "Pending"; });
-    var premium = sum(active, function (p) { return p.premium; });
+    var carrierGroup = ui.h("div", {});
+    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Carrier"));
+    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: filterCarrier, allLabel: "All carriers", onChange: function (sel) { filterCarrier = sel; refresh(); } }));
+    filterBlock.appendChild(carrierGroup);
 
-    page.appendChild(ui.pageHeader({
-      icon: spec.icon, tone: spec.tone, title: spec.identity + "'s Book",
-      sub: own.length + " polic" + (own.length === 1 ? "y" : "ies") + " placed with Veridex",
-      what: spec.desc, why: "Scoped to policies where producer = \"" + spec.identity + "\" — the same field every desk already records.",
-    }));
+    /* Period toggle for "New business issued" below — Monthly/Quarterly/Yearly chips with ◀/▶
+       period navigation, or a custom date range instead. Same control shape as the operational
+       dashboard's own toggle. */
+    var toggleRow = ui.h("div", { class: "period-toggle-row" });
+    toggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "New business issued"));
+    var toggleAndNav = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "10px" } });
+    var toggle = ui.h("div", { class: "period-toggle" });
+    toggleAndNav.appendChild(toggle);
+    var navWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
+    var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period" }, "◀");
+    var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--text)", minWidth: "108px", textAlign: "center" } });
+    var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period" }, "▶");
+    navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
+    toggleAndNav.appendChild(navWrap);
+    toggleRow.appendChild(toggleAndNav);
+    prevBtn.addEventListener("click", function () { periodOffset -= 1; refresh(); });
+    nextBtn.addEventListener("click", function () { if (periodOffset < 0) { periodOffset += 1; refresh(); } });
+    page.appendChild(toggleRow);
 
-    page.appendChild(ui.kpiRow([
-      { label: "Policies placed", value: own.length, tip: "Every record with this producer on file." },
-      { label: "Active", value: active.length, tone: "green", tip: "In force as of today." },
-      { label: "In-force premium", value: PAS.moneyShort(premium), tone: "green", tip: "Sum of annual premium across this producer's in-force policies." },
-      { label: "Requests pending", value: pending.length, tone: "amber", tip: "Held transactions raised on this producer's book, awaiting an underwriter's decision." },
-    ], true));
+    var customToggleRow = ui.h("div", { class: "period-toggle-row" });
+    customToggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Or a custom range"));
+    var customBtn = ui.h("button", { class: "chip" }, "Custom range");
+    customToggleRow.appendChild(customBtn);
+    customBtn.addEventListener("click", function () { period = period === "custom" ? "month" : "custom"; periodOffset = 0; refresh(); });
+    page.appendChild(customToggleRow);
 
-    var panel = ui.panel({ title: "Policies", what: "Every policy placed by " + spec.identity + ".", pad: 0 }, []);
-    panel.querySelector(".panel-body").appendChild(ui.dataTable({
-      columns: ["Policy", "Insured", "Product", "Status", { label: "Premium", what: "Annual premium." }],
-      rows: own.map(function (p) { return [ui.cellId(p.id), ui.cellName(p.holder), p.product, ui.badge(p.status), PAS.money(p.premium)]; }),
-      emptyText: "No policies on file for this producer.",
-      onRowClick: function (i) { location.href = "policy-detail.html?policy=" + encodeURIComponent(own[i].id); },
-    }));
-    page.appendChild(panel);
-  }
+    var rangeRow = ui.h("div", { class: "period-toggle-row" });
+    rangeRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Date range"));
+    var rangeWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
+    var fromInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customFrom });
+    var toInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customTo });
+    rangeWrap.appendChild(fromInput);
+    rangeWrap.appendChild(ui.h("span", { style: { color: "var(--text-faint)", fontSize: "12px" } }, "to"));
+    rangeWrap.appendChild(toInput);
+    rangeRow.appendChild(rangeWrap);
+    page.appendChild(rangeRow);
+    fromInput.addEventListener("change", function () { if (fromInput.value) customFrom = fromInput.value; refresh(); });
+    toInput.addEventListener("change", function () { if (toInput.value) customTo = toInput.value; refresh(); });
 
-  /* The end-customer portal. A real one would be a separate public-facing app with its own
-     customer accounts — this reuses the internal shell's role system instead, scoped by `holder`
-     the same way Broker/Producer is scoped by `producer`, since the goal here is real, working
-     self-service functionality rather than a second application. First-person throughout: this
-     is the one screen in the whole app written from the policyholder's side of the glass, not
-     operations'. */
-  function renderCustomerPortal(page, policies) {
-    var spec = PAS.ROLES.Customer;
-    var mine = PAS.scopePolicies(policies, "Customer");
+    page.appendChild(issuancePanel);
 
-    page.appendChild(ui.pageHeader({
-      icon: "user", tone: "blue", title: "My Policies",
-      sub: "Welcome back, " + spec.identity,
-      what: "Your own policies only — coverage, documents and activity.", why: "Nothing here reaches any other customer's data or any internal desk.",
-    }));
-
-    if (mine.length === 0) {
-      page.appendChild(ui.callout("info", "No policies found for " + spec.identity + "."));
-      return;
+    function periodLabelText() {
+      if (period === "month") { var mk = trailingMonths(1, periodOffset)[0]; return MONTH_NAMES[Number(mk.slice(5, 7)) - 1] + " " + mk.slice(0, 4); }
+      if (period === "quarter") return quarterKeyOffset(periodOffset);
+      if (period === "year") return String(yearOffset(periodOffset));
+      return customFrom + " to " + customTo;
+    }
+    function renderToggle() {
+      toggle.innerHTML = "";
+      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"]].forEach(function (opt) {
+        var btn = ui.h("button", { class: "chip" + (period === opt[0] ? " active" : "") }, opt[1]);
+        btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; periodOffset = 0; refresh(); } });
+        toggle.appendChild(btn);
+      });
+      customBtn.className = "chip" + (period === "custom" ? " active" : "");
+      navWrap.style.display = period === "custom" ? "none" : "flex";
+      rangeRow.style.display = period === "custom" ? "" : "none";
+      if (period !== "custom") {
+        navLabel.textContent = periodLabelText();
+        nextBtn.disabled = periodOffset >= 0;
+      }
     }
 
-    mine.forEach(function (p) {
-      page.appendChild(ui.kpiRow([
-        { label: "Product", value: p.product, tip: "What this policy covers." },
-        { label: "Status", value: p.status, tone: PAS.STATUS_TONE[p.status], tip: "Current lifecycle state." },
-        { label: "Premium", value: PAS.money(p.premium), tip: "Annual premium for the current term." },
-        { label: "Cover period", value: p.effectiveDate + " → " + p.expirationDate, tip: "Your current term." },
-      ]));
-
-      var grid = ui.h("div", { class: "two-col-grid" });
-
-      var covPanel = ui.panel({ title: "Your coverage", what: p.id + " · " + p.sumInsured, why: "How your premium breaks down across what's actually covered." }, []);
-      var covBody = covPanel.querySelector(".panel-body");
-      var breakdown = PAS.coverageBreakdown(p);
-      if (breakdown.length === 0) covBody.appendChild(ui.h("div", { class: "faint-note" }, "No coverage breakdown available for this product."));
-      else {
-        var maxCov = Math.max.apply(null, breakdown.map(function (c) { return c.premium; }));
-        breakdown.forEach(function (c) { covBody.appendChild(ui.hbar({ label: c.name, value: c.premium, max: maxCov, note: PAS.money(c.premium), tone: c.premium === maxCov ? "indigo" : "blue" })); });
-      }
-      grid.appendChild(covPanel);
-
-      var docPanel = ui.panel({ title: "Your documents", what: "Every schedule, certificate and notice issued to you.", pad: 0 }, []);
-      docPanel.querySelector(".panel-body").appendChild(ui.dataTable({
-        columns: ["Document", "Type", "Version", "Issued"],
-        rows: (p.documents || []).map(function (d) { return [d.name, d.type, "v" + d.version, d.generatedAt]; }),
-        emptyText: "No documents issued yet.",
-      }));
-      grid.appendChild(docPanel);
-      page.appendChild(grid);
-
-      var activityPanel = ui.panel({ title: "Recent activity", what: "Everything that's happened on this policy.", pad: 0 }, []);
-      activityPanel.querySelector(".panel-body").appendChild(ui.dataTable({
-        columns: ["Date", "What happened", "Status"],
-        rows: p.history.slice().sort(function (a, b) { return b.seq - a.seq; }).slice(0, 8).map(function (h) {
-          return [h.date, h.title, ui.txnStatusBadge(h.status)];
-        }),
-      }));
-      page.appendChild(activityPanel);
-    });
-
-    page.appendChild(ui.logRequestForm({
-      policies: mine,
-      typeLabel: "service",
-      initiatorKeys: ["Insured"],
-      extraFields: function () { return null; },
-      onSubmit: function (payload) {
-        PAS.api.call("POST", "/api/v1/policies/" + payload.policyId + "/service-requests", { category: "Customer request", channel: payload.channel, notes: payload.note },
-          { module: "Servicing", policyId: payload.policyId, statusCode: 201, label: "Service request — " + spec.identity, response: { serviceRequestId: PAS.uid("SRV"), status: "logged" } })
-          .then(function () { PAS.logService(payload.policyId, { category: "Customer request", channel: payload.channel, notes: payload.note, sla: 24 }); render(); });
-      },
-    }));
+    function refresh() { renderToggle(); renderCharts(); }
+    refresh();
   }
 
   function render() {
     var role = PAS.getRole();
+    var spec = PAS.ROLES[role] || {};
     var policies = PAS.getPolicies();
     var page = ui.h("div", {});
-    if (role === "MGA" || role === "Carrier") renderPortfolioDashboard(page, policies, role);
-    else if (role === "Broker/Producer") renderBrokerDashboard(page, policies);
-    else if (role === "Customer") renderCustomerPortal(page, policies);
+    /* Any role scoped to less than the whole book (MGA, Broker, or a future custom role an admin
+       creates with the same shape) gets the shared scoped dashboard; full-access roles (Super
+       Admin, Admin) get the operational one. Branching on scope rather than a role name keeps a
+       new custom role from accidentally landing on the full-book view just because its name isn't
+       one of these two. */
+    if (spec.scope && spec.scope !== "all") renderScopedDashboard(page, policies, role);
     else renderUnderwriterDashboard(page, policies);
 
     var root = document.getElementById("page-content");

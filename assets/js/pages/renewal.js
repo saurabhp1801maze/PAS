@@ -4,7 +4,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var pend = PAS.pendingOf(policies, "Renewal");
     var noRequest = policies.filter(function (p) { return p.status === "Active" && !pend.some(function (t) { return t.p.id === p.id; }); })
       .sort(function (a, b) { return PAS.daysBetween(PAS.todayISO(), a.expirationDate) - PAS.daysBetween(PAS.todayISO(), b.expirationDate); });
@@ -33,6 +33,32 @@
       },
     }));
 
+    var q = "", productF = "All", fromDate = "", toDate = "";
+    var products = ["All"].concat(Array.from(new Set(pend.map(function (t) { return t.p.product; }).filter(Boolean))).sort());
+    function matchAll(t) {
+      var needle = q.toLowerCase();
+      return (!needle || t.p.holder.toLowerCase().indexOf(needle) !== -1 || t.p.id.toLowerCase().indexOf(needle) !== -1)
+        && (productF === "All" || t.p.product === productF)
+        && (!fromDate || t.p.expirationDate >= fromDate) && (!toDate || t.p.expirationDate <= toDate);
+    }
+
+    var toolbar = ui.h("div", { class: "register-toolbar" });
+    var searchWrap = ui.h("div", { class: "register-search" });
+    searchWrap.appendChild(PAS.icon("search", { size: 14 }));
+    var searchInput = ui.h("input", { class: "register-search-input", type: "search", placeholder: "Search by insured name or policy number…", autocomplete: "off" });
+    searchWrap.appendChild(searchInput);
+    toolbar.appendChild(searchWrap);
+    var filters = ui.h("div", { class: "register-filters" });
+    var productSelect = ui.h("select", { class: "register-select", title: "Line of business" });
+    products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All LOBs" : p)); });
+    filters.appendChild(productSelect);
+    var fromInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Expires from" });
+    filters.appendChild(fromInput);
+    var toInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Expires to" });
+    filters.appendChild(toInput);
+    toolbar.appendChild(filters);
+    page.appendChild(toolbar);
+
     var reqHead = ui.h("div", { class: "period-toggle-row" });
     reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Confirmed renewal intent, ready for re-underwriting and pricing.", className: "label-11" }));
     var renewalTable = ui.sortableTable({
@@ -46,13 +72,26 @@
         { key: "premium", label: "Premium", what: "Expiring term premium.", sortValue: function (t) { return t.p.premium || 0; }, cell: function (t) { return PAS.moneyShort(t.p.premium); } },
       ],
       trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
-      rows: pend,
+      rows: function () { return pend.filter(matchAll); },
       onRowClick: function (t) { location.href = "renewal-decision.html?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id); },
-      emptyText: "No renewal confirmations awaiting decision.",
+      emptyText: "No renewal confirmations match that search.",
     });
     reqHead.appendChild(renewalTable.columnsControl);
     page.appendChild(reqHead);
+
+    var noteEl = ui.h("div", { class: "faint-note mb-9" });
+    page.appendChild(noteEl);
     page.appendChild(renewalTable.tableWrap);
+
+    function refresh() {
+      var filtered = pend.filter(matchAll);
+      noteEl.textContent = (q || productF !== "All" || fromDate || toDate) ? "Showing " + filtered.length + " of " + pend.length + " requests." : "";
+      renewalTable.rebuild();
+    }
+    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
+    productSelect.addEventListener("change", function () { productF = productSelect.value; refresh(); });
+    fromInput.addEventListener("change", function () { fromDate = fromInput.value; refresh(); });
+    toInput.addEventListener("change", function () { toDate = toInput.value; refresh(); });
 
     if (noRequest.length > 0) {
       var extra = ui.h("div", { class: "mt-18" });

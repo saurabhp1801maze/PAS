@@ -4,7 +4,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var pend = PAS.pendingOf(policies, "Reinstatement");
     var cancelled = policies.filter(function (p) { return p.status === "Cancelled" && !pend.some(function (t) { return t.p.id === p.id; }); });
 
@@ -32,10 +32,36 @@
       },
     }));
 
+    var pendEnriched = pend.map(function (t) { return { t: t, el: PAS.reinstatementEligibility(t.p) }; });
+    var q = "", productF = "All", fromDate = "", toDate = "";
+    var products = ["All"].concat(Array.from(new Set(pendEnriched.map(function (r) { return r.t.p.product; }).filter(Boolean))).sort());
+    function matchAll(r) {
+      var needle = q.toLowerCase();
+      var cancelledOn = r.el.cancelEv.date || "";
+      return (!needle || r.t.p.holder.toLowerCase().indexOf(needle) !== -1 || r.t.p.id.toLowerCase().indexOf(needle) !== -1)
+        && (productF === "All" || r.t.p.product === productF)
+        && (!fromDate || cancelledOn >= fromDate) && (!toDate || cancelledOn <= toDate);
+    }
+
+    var toolbar = ui.h("div", { class: "register-toolbar" });
+    var searchWrap = ui.h("div", { class: "register-search" });
+    searchWrap.appendChild(PAS.icon("search", { size: 14 }));
+    var searchInput = ui.h("input", { class: "register-search-input", type: "search", placeholder: "Search by insured name or policy number…", autocomplete: "off" });
+    searchWrap.appendChild(searchInput);
+    toolbar.appendChild(searchWrap);
+    var filters = ui.h("div", { class: "register-filters" });
+    var productSelect = ui.h("select", { class: "register-select", title: "Line of business" });
+    products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All LOBs" : p)); });
+    filters.appendChild(productSelect);
+    var fromInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Cancelled on, from" });
+    filters.appendChild(fromInput);
+    var toInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Cancelled on, to" });
+    filters.appendChild(toInput);
+    toolbar.appendChild(filters);
+    page.appendChild(toolbar);
+
     var reqHead = ui.h("div", { class: "period-toggle-row" });
     reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted reinstatement requests.", className: "label-11" }));
-    /* Eligibility is computed once per row here rather than inside each column's sortValue/cell —
-       it's the same PAS.reinstatementEligibility call either way, just not run twice per row. */
     var reinstatementTable = ui.sortableTable({
       storageKey: "pas.reinstatement.columns.v1",
       columns: [
@@ -47,13 +73,26 @@
         { key: "eligibility", label: "Eligibility", what: "Whether reinstatement is still available.", rule: "Fraud cancellations are never eligible.", sortValue: function (r) { return r.el.eligible ? "Eligible" : (r.el.fraud ? "Fraud" : "Window closed"); }, cell: function (r) { return ui.pill(r.el.eligible ? "green" : "red", r.el.eligible ? "Eligible" : (r.el.fraud ? "Fraud — barred" : "Window closed"), r.el.eligible ? "check-circle-2" : "alert-triangle"); } },
       ],
       trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
-      rows: pend.map(function (t) { return { t: t, el: PAS.reinstatementEligibility(t.p) }; }),
+      rows: function () { return pendEnriched.filter(matchAll); },
       onRowClick: function (r) { location.href = "reinstatement-decision.html?policy=" + encodeURIComponent(r.t.p.id) + "&txn=" + encodeURIComponent(r.t.h.id); },
-      emptyText: "No reinstatement requests awaiting decision.",
+      emptyText: "No reinstatement requests match that search.",
     });
     reqHead.appendChild(reinstatementTable.columnsControl);
     page.appendChild(reqHead);
+
+    var noteEl = ui.h("div", { class: "faint-note mb-9" });
+    page.appendChild(noteEl);
     page.appendChild(reinstatementTable.tableWrap);
+
+    function refresh() {
+      var filtered = pendEnriched.filter(matchAll);
+      noteEl.textContent = (q || productF !== "All" || fromDate || toDate) ? "Showing " + filtered.length + " of " + pendEnriched.length + " requests." : "";
+      reinstatementTable.rebuild();
+    }
+    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
+    productSelect.addEventListener("change", function () { productF = productSelect.value; refresh(); });
+    fromInput.addEventListener("change", function () { fromDate = fromInput.value; refresh(); });
+    toInput.addEventListener("change", function () { toDate = toInput.value; refresh(); });
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

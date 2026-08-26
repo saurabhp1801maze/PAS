@@ -7,7 +7,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var pend = PAS.pendingOf(policies, "Cancellation");
     var hist = policies.reduce(function (acc, x) {
       x.history.filter(function (h) { return h.type === "Cancellation" && h.status !== "Pending"; }).forEach(function (h) { acc.push({ x: x, h: h }); });
@@ -140,6 +140,33 @@
       var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate);
       return { t: t, meta: meta, reason: reason, effDate: effDate, type: type, refund: Math.round(quote.refund) };
     });
+    var q = "", productF = "All", fromDate = "", toDate = "";
+    var products = ["All"].concat(Array.from(new Set(pendEnriched.map(function (r) { return r.t.p.product; }).filter(Boolean))).sort());
+    function submittedOf(r) { return r.meta.submittedOn || r.t.h.date || ""; }
+    function matchAll(r) {
+      var needle = q.toLowerCase();
+      return (!needle || r.t.p.holder.toLowerCase().indexOf(needle) !== -1 || r.t.p.id.toLowerCase().indexOf(needle) !== -1)
+        && (productF === "All" || r.t.p.product === productF)
+        && (!fromDate || submittedOf(r) >= fromDate) && (!toDate || submittedOf(r) <= toDate);
+    }
+
+    var toolbar = ui.h("div", { class: "register-toolbar" });
+    var searchWrap = ui.h("div", { class: "register-search" });
+    searchWrap.appendChild(PAS.icon("search", { size: 14 }));
+    var searchInput = ui.h("input", { class: "register-search-input", type: "search", placeholder: "Search by insured name or policy number…", autocomplete: "off" });
+    searchWrap.appendChild(searchInput);
+    toolbar.appendChild(searchWrap);
+    var filters = ui.h("div", { class: "register-filters" });
+    var productSelect = ui.h("select", { class: "register-select", title: "Line of business" });
+    products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All LOBs" : p)); });
+    filters.appendChild(productSelect);
+    var fromInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Submitted from" });
+    filters.appendChild(fromInput);
+    var toInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Submitted to" });
+    filters.appendChild(toInput);
+    toolbar.appendChild(filters);
+    page.appendChild(toolbar);
+
     var reqHead = ui.h("div", { class: "period-toggle-row" });
     reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted requests, ordered newest first.", className: "label-11" }));
     var cancellationTable = ui.sortableTable({
@@ -155,14 +182,27 @@
         { key: "premium", label: "Premium", what: "Refund due if this request is approved.", why: "Same live quote shown as Refund due on the decision screen — derived from type, term dates and effective date.", sortValue: function (r) { return r.refund; }, cell: function (r) { return PAS.money(r.refund); } },
       ],
       trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
-      rows: pendEnriched,
+      rows: function () { return pendEnriched.filter(matchAll); },
       onRowClick: function (r) { location.href = "cancellation-decision.html?policy=" + encodeURIComponent(r.t.p.id) + "&txn=" + encodeURIComponent(r.t.h.id); },
-      emptyText: "No cancellation requests awaiting decision.",
+      emptyText: "No cancellation requests match that search.",
       wrapCells: true,
     });
     reqHead.appendChild(cancellationTable.columnsControl);
     page.appendChild(reqHead);
+
+    var noteEl = ui.h("div", { class: "faint-note mb-9" });
+    page.appendChild(noteEl);
     page.appendChild(cancellationTable.tableWrap);
+
+    function refresh() {
+      var filtered = pendEnriched.filter(matchAll);
+      noteEl.textContent = (q || productF !== "All" || fromDate || toDate) ? "Showing " + filtered.length + " of " + pendEnriched.length + " requests." : "";
+      cancellationTable.rebuild();
+    }
+    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
+    productSelect.addEventListener("change", function () { productF = productSelect.value; refresh(); });
+    fromInput.addEventListener("change", function () { fromDate = fromInput.value; refresh(); });
+    toInput.addEventListener("change", function () { toDate = toInput.value; refresh(); });
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

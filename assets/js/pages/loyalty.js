@@ -6,7 +6,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies().filter(function (p) { return p.status === "Active"; });
+    var policies = PAS.getScopedPolicies().filter(function (p) { return p.status === "Active"; });
     var scored = policies.map(function (p) { return { p: p, s: PAS.loyaltyScore(p) }; })
       .sort(function (a, b) { return b.s.score - a.s.score; });
 

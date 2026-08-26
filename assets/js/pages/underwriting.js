@@ -4,7 +4,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var q = policies.filter(function (p) { return p.status === "Referred"; });
     var page = ui.deskList({
       icon: "clipboard-check", tone: "violet", title: "Underwriting Desk", sub: "Submissions referred out of automatic authority",

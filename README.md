@@ -121,6 +121,7 @@ The activity feed in the demo shows: **request → response → event → consum
 |---|---|
 | **Dashboard** | Operational view — pending work, renewal pipeline, bound/issue queue, book KPIs |
 | **Pending approvals** | Single queue of all held policy transactions awaiting admin decision |
+| **Admin Configuration** | Roles, permissions and invited users — Super Admin/Admin see and manage everything, Broker/MGA are scoped to their own book by default, and both are fully editable (plus custom roles). Client-side only: no real auth, server-side enforcement, or email delivery — see the callout on the screen itself. |
 | **Decision desks** | Issue, Endorsement, Cancellation, Reinstatement, Renewal, Transfer, Servicing |
 | **Transaction workbench** | Full ledger across the book; reversal action |
 | **Documents** | Policy document register with search and filters |

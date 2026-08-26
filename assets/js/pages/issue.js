@@ -15,7 +15,7 @@
   }
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var q = policies.filter(function (p) { return p.status === "Bound"; });
     var rows = q.map(function (p) {
       var unmet = ((p.binder && p.binder.subjectivities) || []).filter(function (s) { return !s.met; }).length;

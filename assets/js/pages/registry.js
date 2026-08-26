@@ -6,10 +6,14 @@
   var STATUS_BUCKETS = PAS.STATUS_BUCKETS, BUCKET_TONE = PAS.BUCKET_TONE, statusBucket = PAS.statusBucket;
 
   function render() {
-    var policies = PAS.getPolicies();
-    var q = "", sf = "All", pf = "All", stf = "All";
+    var policies = PAS.getScopedPolicies();
+    var params = new URLSearchParams(location.search);
+    var statusParam = params.get("status");
     var products = ["All"].concat(Array.from(new Set(policies.map(function (p) { return p.product; }))).sort());
     var states = ["All"].concat(Array.from(new Set(policies.map(function (p) { return p.state; }))).sort());
+    var productParam = params.get("product");
+    var q = "", sf = (statusParam && STATUS_BUCKETS.indexOf(statusParam) !== -1) ? statusParam : "All",
+        pf = (productParam && products.indexOf(productParam) !== -1) ? productParam : "All", stf = "All";
 
     var page = ui.h("div", {});
     page.appendChild(ui.pageHeader({
@@ -41,10 +45,12 @@
     ["All"].concat(STATUS_BUCKETS).forEach(function (s) {
       statusSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All statuses" : s));
     });
+    statusSelect.value = sf;
     filters.appendChild(statusSelect);
 
     var productSelect = ui.h("select", { class: "register-select", title: "Product" });
     products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All products" : p)); });
+    productSelect.value = pf;
     filters.appendChild(productSelect);
 
     var stateSelect = ui.h("select", { class: "register-select", title: "State" });

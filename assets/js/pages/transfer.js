@@ -6,7 +6,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var pend = PAS.pendingOf(policies, "Transfer");
     var hist = policies.reduce(function (acc, x) {
       x.history.filter(function (h) { return h.type === "Transfer" && h.status !== "Pending"; }).forEach(function (h) { acc.push({ x: x, h: h }); });

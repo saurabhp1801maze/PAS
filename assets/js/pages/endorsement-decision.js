@@ -27,12 +27,22 @@
     left.push(ui.h("div", { class: "mt-13" }, ui.callout("warn", h.detail)));
 
     var right = [];
-    right.push(ui.tipLabel({ text: "Financial impact", what: "What approving this does to premium and billing.", className: "label-11 block mb-10" }));
-    right.push(ui.kv({ k: "Current premium", v: PAS.money(p.premium), what: "Premium before the change." }));
+    right.push(ui.tipLabel({ text: "Financial impact", what: "What approving this does to premium and cover — before vs. after, line by line.", className: "label-11 block mb-10" }));
     var impact = h.meta.premiumImpact || 0;
-    var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)" } }, (impact >= 0 ? "+" : "") + PAS.money(impact));
-    right.push(ui.kv({ k: "Premium delta", v: impactSpan, what: "Prorated for the remainder of the term.", why: "Published to Billing as an adjustment once approved." }));
-    right.push(ui.kv({ k: "Premium after", v: PAS.money(p.premium + impact), what: "Revised annual premium." }));
+    var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, (impact >= 0 ? "+" : "") + PAS.money(impact));
+    var beforeCoverage = PAS.coverageBreakdown(p);
+    var afterCoverage = PAS.coverageBreakdown({ product: p.product, premium: p.premium + impact });
+    var compareRows = [["Premium", PAS.money(p.premium), PAS.money(p.premium + impact), impactSpan]];
+    beforeCoverage.forEach(function (c, i) {
+      var afterLine = afterCoverage[i] || { premium: c.premium };
+      var lineDelta = afterLine.premium - c.premium;
+      var deltaSpan = ui.h("span", { style: { color: lineDelta > 0 ? "var(--green)" : lineDelta < 0 ? "var(--red)" : "var(--text-faint)", fontWeight: "700" } }, (lineDelta > 0 ? "+" : "") + PAS.money(lineDelta));
+      compareRows.push([c.name, PAS.money(c.premium), PAS.money(afterLine.premium), deltaSpan]);
+    });
+    right.push(ui.dataTable({
+      columns: ["Item", "Before", "After", { label: "Change", what: "What this endorsement moves the figure by, prorated for the remainder of the term.", why: "Published to Billing as an adjustment once approved." }],
+      rows: compareRows,
+    }));
     var effWrap = ui.h("div", { class: "mt-15" });
     effWrap.appendChild(ui.tipLabel({ text: "What approval will do", what: "Side effects of committing this change.", className: "label-11 block mb-10" }));
     [["Transaction status → Completed", "check-circle-2"], ["Policy version incremented", "git-branch"], ["Premium delta published to Billing", "trending-up"], ["Endorsement wording regenerated", "file-check-2"], ["policyEndorsed event published", "zap"]].forEach(function (pair) {
@@ -57,9 +67,13 @@
         });
     }
     function hold(action) {
-      return function (comment) {
-        PAS.recordHeldDecision(p.id, h.id, action, comment, "Endorsement");
-        ui.renderToast(flash(action));
+      return function (result) {
+        var comment = result && typeof result === "object" ? result.comment : result;
+        var email = (result && typeof result === "object" && result.email) || "";
+        PAS.recordHeldDecision(p.id, h.id, action, comment, "Endorsement", email);
+        ui.renderToast(email
+          ? { title: action + " recorded", detail: "Notification queued via SMTP to " + email, tone: "blue" }
+          : flash(action));
         render();
       };
     }
@@ -67,8 +81,8 @@
     page.appendChild(ui.decisionLayout(left, right, [
       ui.confirmable(p.id, h.id, "Approve", { label: "Approve & apply", tone: "green", icon: "check-circle-2", onRun: function (c) { return act(true, c); } }),
       ui.confirmable(p.id, h.id, "Decline", { label: "Decline", tone: "red", icon: "ban", onRun: function (c) { return act(false, c); } }),
-      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
-      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
+      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", showEmail: true, emailPlaceholder: "underwriting.supervisor@veridex.com", onRun: hold("Escalate") }),
+      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", showEmail: true, emailPlaceholder: "broker@example.com", onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("endorsement-desk", page));

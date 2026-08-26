@@ -628,6 +628,12 @@
       modal.appendChild(field({ label: "Decision comment", hint: "Stored on the ledger with your name and the time of confirmation. Required." }, ta));
       modal.appendChild(counter);
 
+      var emailInput = null;
+      if (opts.showEmail) {
+        emailInput = h("input", { class: "field-input", type: "email", placeholder: opts.emailPlaceholder || "name@company.com", value: opts.emailDefault || "" });
+        modal.appendChild(field({ label: "Notify by email (optional)", hint: "Sent via the notification service (SMTP) the moment you confirm — leave blank to skip." }, emailInput));
+      }
+
       var actions = h("div", { class: "decision-modal-actions" });
       var cancelBtn = h("button", { class: "btn", type: "button" }, "Cancel");
       actions.appendChild(confirmBtn);
@@ -654,13 +660,13 @@
       confirmBtn.addEventListener("click", function () {
         var comment = ta.value.trim();
         if (!comment) return;
-        close(comment);
+        close(opts.showEmail ? { comment: comment, email: emailInput.value.trim() } : comment);
       });
     });
   }
   function confirmable(policyNo, txnNo, action, spec) {
     return Object.assign({}, spec, {
-      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning },
+      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning, showEmail: spec.showEmail, emailPlaceholder: spec.emailPlaceholder, emailDefault: spec.emailDefault },
     });
   }
   function decisionTrail(rows) {

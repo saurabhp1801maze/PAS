@@ -942,9 +942,16 @@
     });
     return rows;
   };
-  /* Escalate / Request More Information: stamp the held row, append a completed note, leave status Pending. */
-  PAS.recordHeldDecision = function (id, txnId, action, comment, typeHint) {
-    var audit = PAS.makeAudit(action, comment);
+  /* Escalate / Request More Information: stamp the held row, append a completed note, leave status Pending.
+     emailTo is optional — when the decision modal's email field was filled in, the notification note
+     rides along on the same audit comment (so it shows up in the existing Decision trail for free,
+     no separate UI needed) and the address itself is kept on the txn's own meta too. There is no real
+     mail transport here — a static frontend can't originate SMTP — this simulates the notification
+     step the way the rest of the ledger narrates other backend effects (e.g. "policyEndorsed event
+     published") without a live integration behind it. */
+  PAS.recordHeldDecision = function (id, txnId, action, comment, typeHint, emailTo) {
+    var noteText = comment + (emailTo ? "\n\nNotification emailed to " + emailTo + " via SMTP." : "");
+    var audit = PAS.makeAudit(action, noteText);
     return patch(id, function (p) {
       var held = txnId ? p.history.find(function (h) { return h.id === txnId; }) : null;
       var history = held
@@ -954,7 +961,7 @@
         date: todayISO(), type: (held && held.type) || typeHint || "Underwriting",
         title: ((held && held.type) || typeHint || "Underwriting") + ": " + action,
         detail: audit.comment, user: audit.user,
-        meta: { audit: audit, noteOnly: true },
+        meta: emailTo ? { audit: audit, noteOnly: true, emailTo: emailTo } : { audit: audit, noteOnly: true },
       });
     });
   };

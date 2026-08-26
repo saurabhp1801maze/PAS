@@ -644,9 +644,95 @@
     }
     return JSON.parse(JSON.stringify(global.PAS_SEED_POLICIES));
   }
+  /* Every record should have at least one document on file — a submission that's only Referred
+     has a quote, not a schedule; a Bound risk has an application; only an issued/lapsed/declined
+     policy has the real schedule. Only backfills records the seed JSON left empty — anything
+     already carrying real documents (an issued policy's schedule + certificate) is untouched. */
+  var STATUS_DOC = {
+    Referred: ["Quote", "Quote"], Bound: ["Application form", "Application"],
+    Declined: ["Decline notice", "Notice"],
+  };
+  /* A modest, deterministic slice of the active book gets one *completed* mid-term change already
+     on its ledger — real policies that have been in force a while often have had one. Not every
+     policy: most personal lines genuinely never get endorsed, so this only touches active records
+     over a small premium floor, roughly a third of them (hash32-selected, so it's stable across
+     reseeds), using the same structured meta shapes (drivers/coverageChange/limitChange/
+     addressChange) the Endorsement desk and decision screen already know how to render — not
+     just a text blob. Minor materiality throughout: a "Completed" entry with no pending step
+     behind it should never claim to be a material change, since the domain rule is material
+     changes are never auto-applied. */
+  var ENDORSE_TEMPLATES = {
+    "Comprehensive Auto": function (p, seed) {
+      var name = DRIVER_FIRST[seed % DRIVER_FIRST.length] + " " + DRIVER_LAST[hash32(p.id + "-endname") % DRIVER_LAST.length];
+      return {
+        changeType: "Add/remove driver", premiumImpact: 80 + (seed % 12) * 15,
+        requestNote: "Add " + name + " as a named driver.", detail: "Named driver " + name + " added to the policy.",
+        extra: { drivers: [{ action: "Add", name: name, relationship: "Household member", licenseNumber: "D" + (1000000 + seed % 8999999), licenseState: PAS.stateAbbr(p.state), yearsLicensed: 2 + (seed % 15) }] },
+      };
+    },
+    "Home Owners": function (p, seed) {
+      return {
+        changeType: "Coverage change", premiumImpact: 60 + (seed % 10) * 20,
+        requestNote: "Increase contents coverage after a home improvement.", detail: "Contents coverage limit increased.",
+        extra: { coverageChange: { coverage: "Contents", action: "Increase limit", limit: "$" + (20000 + (seed % 8) * 5000).toLocaleString(), deductible: "$1,000" } },
+      };
+    },
+    "Commercial Property": function (p, seed) {
+      return {
+        changeType: "Limit change", premiumImpact: 200 + (seed % 10) * 60,
+        requestNote: "Raise building limit following a valuation update.", detail: "Building limit increased following revaluation.",
+        extra: { limitChange: { coverage: "Building limit", from: "$" + (500000 + seed % 400000).toLocaleString(), to: "$" + (900000 + seed % 400000).toLocaleString() } },
+      };
+    },
+    "Marine Cargo": function (p, seed) {
+      return {
+        changeType: "Limit change", premiumImpact: 150 + (seed % 10) * 40,
+        requestNote: "Raise per-shipment cargo limit for a larger consignment.", detail: "Per-shipment cargo limit increased.",
+        extra: { limitChange: { coverage: "Cargo limit (per shipment)", from: "$250,000", to: "$400,000" } },
+      };
+    },
+    "Group Health": function () {
+      return {
+        changeType: "Address change", premiumImpact: 0,
+        requestNote: "Group registered address updated.", detail: "Registered address on file updated.",
+        extra: { addressChange: { from: "Prior registered address on file", to: "Updated registered address on file" } },
+      };
+    },
+    "Term Life": function () {
+      return {
+        changeType: "Address change", premiumImpact: 0,
+        requestNote: "Insured's address updated.", detail: "Registered address on file updated.",
+        extra: { addressChange: { from: "Prior registered address on file", to: "Updated registered address on file" } },
+      };
+    },
+  };
+  function backfillEndorsementTrail(p) {
+    if (p.status !== "Active" || (p.premium || 0) < 3000) return;
+    if (p.history.some(function (h) { return h.type === "Endorsement"; })) return;
+    var tmpl = ENDORSE_TEMPLATES[p.product];
+    if (!tmpl) return;
+    var seed = hash32(p.id + "-endorse");
+    if (seed % 3 !== 0) return;
+    var edate = addDays(p.effectiveDate, 30 + (seed % 200));
+    if (edate > todayISO()) return;
+    var data = tmpl(p, seed);
+    p.history.push(Object.assign({
+      id: uid("TXN"), seq: p.history.length + 1, date: edate, recordedAt: edate + "T09:30:00.000Z",
+      type: "Endorsement", status: "Completed", user: "Broker portal",
+      title: "Endorsement applied: " + data.changeType, detail: data.detail,
+      meta: Object.assign({ changeType: data.changeType, materiality: "Minor", premiumImpact: data.premiumImpact, initiatedBy: "Broker/Producer", channel: "Broker portal", submittedOn: edate, requestNote: data.requestNote }, data.extra),
+    }));
+  }
   function seedPolicies() {
     var list = fetchSeedRecords();
-    list.forEach(function (p) { p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; p.mga = mgaForPolicy(p); });
+    list.forEach(function (p) {
+      p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; p.mga = mgaForPolicy(p);
+      if (!p.documents || !p.documents.length) {
+        var docShape = STATUS_DOC[p.status] || ["Policy schedule", "Schedule"];
+        p.documents = [{ id: uid("DOC"), name: docShape[0], version: 1, generatedAt: p.submittedOn || p.effectiveDate, type: docShape[1] }];
+      }
+      backfillEndorsementTrail(p);
+    });
     return list;
   }
   PAS.seedPolicies = seedPolicies;
@@ -1122,7 +1208,11 @@
     });
     return Object.assign({}, t, {
       status: "Active",
-      documents: (p.documents || []).concat([
+      /* A pre-issue Quote/Application (the placeholder backfilled onto every Referred/Bound
+         record so nothing shows zero documents) is superseded the moment the real contract
+         issues — it doesn't belong on an Active policy's document list alongside the actual
+         schedule and certificate. */
+      documents: (p.documents || []).filter(function (d) { return d.type !== "Quote" && d.type !== "Application"; }).concat([
         { id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: todayISO(), type: "Schedule" },
         { id: uid("DOC"), name: "Certificate of insurance", version: 1, generatedAt: todayISO(), type: "Certificate" },
       ]),

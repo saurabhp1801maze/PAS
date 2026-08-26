@@ -53618,7 +53618,11 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Broker/Producer",
           "channel": "Broker portal",
           "submittedOn": "2026-08-12",
-          "requestNote": "Add 2 new company trucks to the fleet."
+          "requestNote": "Add 2 new company trucks to the fleet.",
+          "vehicles": [
+            { "unit": "Truck 1", "type": "Tractor unit", "make": "Freightliner", "model": "Cascadia", "year": 2026, "vin": "1FUJGHDV6RLBX4021", "value": 168000 },
+            { "unit": "Truck 2", "type": "Tractor unit", "make": "Peterbilt", "model": "579", "year": 2025, "vin": "1XPBDP9X8SD304417", "value": 154000 }
+          ]
         }
       }
     ]
@@ -53882,7 +53886,10 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Broker/Producer",
           "channel": "Broker portal",
           "submittedOn": "2026-08-15",
-          "requestNote": "Add 1 refrigerated trailer unit to the fleet."
+          "requestNote": "Add 1 refrigerated trailer unit to the fleet.",
+          "vehicles": [
+            { "unit": "Trailer 1", "type": "Refrigerated trailer", "make": "Great Dane", "model": "Everest", "year": 2026, "vin": "1GRAA0620PW018554", "value": 71000 }
+          ]
         }
       }
     ]

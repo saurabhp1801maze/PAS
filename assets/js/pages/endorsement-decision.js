@@ -13,9 +13,12 @@
       || p.history.find(function (x) { return x.type === "Endorsement" && x.status === "Pending"; });
     if (!h) { root.appendChild(ui.h("div", { class: "faint-note" }, "Transaction not found.")); return; }
 
+    var viewPolicyBtn = ui.h("button", { class: "btn small" }, [document.createTextNode("View policy details "), PAS.icon("arrow-right", { size: 12 })]);
+    viewPolicyBtn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(p.id); });
+
     var page = ui.h("div", {});
     page.appendChild(ui.backLink("Endorsement desk", function () { location.href = "endorsement.html"; }));
-    page.appendChild(ui.recordHead(p, ui.txnStatusBadge(h.status)));
+    page.appendChild(ui.recordHead(p, [viewPolicyBtn, ui.txnStatusBadge(h.status)]));
 
     var left = [];
     left.push(ui.requestOrigin(h.meta));
@@ -25,6 +28,15 @@
     left.push(ui.kv({ k: "Requested", v: h.date, what: "Business date the change was requested." }));
     left.push(ui.kv({ k: "Transaction", v: "#" + h.seq, mono: true, what: "Position in the policy ledger." }));
     left.push(ui.h("div", { class: "mt-13" }, ui.callout("warn", h.detail)));
+    if (h.meta.vehicles && h.meta.vehicles.length) {
+      left.push(ui.tipLabel({ text: "Vehicles in this request (" + h.meta.vehicles.length + ")", what: "Each unit being added to (or changed on) the fleet under this endorsement.", className: "label-11 block mt-15 mb-9" }));
+      left.push(ui.dataTable({
+        columns: ["Unit", "Type", "Make / Model", "Year", { label: "VIN", what: "Vehicle identification number." }, "Value"],
+        rows: h.meta.vehicles.map(function (v) {
+          return [v.unit, v.type, v.make + " " + v.model, String(v.year), ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11px" } }, v.vin), PAS.money(v.value)];
+        }),
+      }));
+    }
 
     var right = [];
     right.push(ui.tipLabel({ text: "Financial impact", what: "What approving this does to premium and cover — before vs. after, line by line.", className: "label-11 block mb-10" }));

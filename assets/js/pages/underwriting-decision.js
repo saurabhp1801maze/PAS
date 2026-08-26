@@ -13,9 +13,12 @@
     var factors = PAS.riskFactors(p);
     var score = factors.score;
     var dec = PAS.underwritingDecision(p, score);
+    var held = p.history.find(function (x) { return x.type === "Underwriting" && x.status === "Pending"; })
+      || (sp.get("txn") && p.history.find(function (x) { return x.id === sp.get("txn"); }));
+    var txnNo = held ? held.id : (sp.get("txn") || "—");
 
     var page = ui.h("div", {});
-    page.appendChild(ui.backLink("Underwriting desk", function () { location.href = "underwriting.html"; }));
+    page.appendChild(ui.queueNav({ deskLabel: "Underwriting desk", deskHome: "underwriting.html", policyId: p.id, txnId: held ? held.id : sp.get("txn") }));
     page.appendChild(ui.recordHead(p, ui.pill(score < PAS.LOW_SCORE_REFER ? "red" : "green", "Score " + score)));
 
     var left = [];
@@ -41,9 +44,6 @@
     right.push(ui.scoreDial(score));
     right.push(ui.kv({ k: "Authority tier", v: dec.tier, what: "Who may bind this risk.", rule: "Premium above " + PAS.money(PAS.AUTHORITY_LIMIT) + " always refers to a senior underwriter." }));
 
-    var held = p.history.find(function (x) { return x.type === "Underwriting" && x.status === "Pending"; });
-    var txnNo = held ? held.id : "—";
-
     var trailWrap = ui.decisionTrailSide(PAS.decisionTrailFor(p, held && held.id));
     right.push(trailWrap);
 
@@ -57,14 +57,14 @@
         { module: "Underwriting", policyId: p.id, statusCode: 200, label: outcome + " — " + p.holder, response: { decisionId: PAS.uid("UWD"), outcome: outcome.toLowerCase(), authorityTier: dec.tier, nextState: outcome === "Approve" ? "bound" : outcome === "Decline" ? "declined" : "referred" } })
         .then(function () {
           PAS.decide(p.id, outcome, { score: score, tier: dec.tier, note: comment, audit: audit });
-          ui.flashThenGo("underwriting.html", flash(outcome));
+          ui.flashThenGo(PAS.afterDecisionHref("underwriting.html"), flash(outcome));
         });
     }
     function hold(action) {
       return function (comment) {
         PAS.recordHeldDecision(p.id, held && held.id, action, comment, "Underwriting");
-        ui.renderToast(flash(action));
-        render();
+        if (PAS.fromApprovalsQueue()) ui.flashThenGo("approvals.html", flash(action));
+        else { ui.renderToast(flash(action)); render(); }
       };
     }
 

@@ -23,7 +23,7 @@
     var effDate = h.date || PAS.todayISO();
 
     var page = ui.h("div", {});
-    page.appendChild(ui.backLink("Cancellation desk", function () { location.href = "cancellation.html"; }));
+    page.appendChild(ui.queueNav({ deskLabel: "Cancellation desk", deskHome: "cancellation.html", policyId: p.id, txnId: txnId }));
     var headContainer = ui.h("div", {});
     var layoutContainer = ui.h("div", {});
     page.appendChild(headContainer);
@@ -95,6 +95,10 @@
           { module: "Cancellation", policyId: p.id, statusCode: 200, label: (approve ? "Approve" : "Decline") + " cancellation — " + p.holder, response: approve ? { txnId: txnId, status: "completed", premiumMethod: q.type, refundAmount: Math.round(q.refund), events: ["policyCancelled"] } : { txnId: txnId, status: "rejected" } })
           .then(function () {
             PAS.decideCancellation(p.id, txnId, approve, effDate, q, audit);
+            if (PAS.fromApprovalsQueue()) {
+              ui.flashThenGo("approvals.html", flash(approve ? "Approve" : "Decline"));
+              return;
+            }
             ui.renderToast(flash(approve ? "Approve" : "Decline"));
             buildContent();
           });
@@ -102,13 +106,13 @@
       function hold(action) {
         return function (comment) {
           PAS.recordHeldDecision(p.id, txnId, action, comment, "Cancellation");
-          ui.renderToast(flash(action));
-          buildContent();
+          if (PAS.fromApprovalsQueue()) ui.flashThenGo("approvals.html", flash(action));
+          else { ui.renderToast(flash(action)); buildContent(); }
         };
       }
 
       var actions = decided
-        ? [{ label: "Back to cancellation desk", icon: "arrow-left", onRun: function () { location.href = "cancellation.html"; } }]
+        ? [{ label: PAS.fromApprovalsQueue() ? "Back to queue" : "Back to cancellation desk", icon: "arrow-left", onRun: function () { location.href = PAS.afterDecisionHref("cancellation.html"); } }]
         : [
           ui.confirmable(p.id, txnId, "Approve", { label: "Approve cancellation", tone: "red", icon: "x-circle", onRun: function (c) { return decide(true, c); } }),
           ui.confirmable(p.id, txnId, "Decline", { label: "Decline request", icon: "ban", onRun: function (c) { return decide(false, c); } }),

@@ -96,12 +96,11 @@
     }
 
     function openReview(t) {
-      var desk = PAS.TYPE_TO_DESK[t.h.type];
-      if (!desk) {
-        location.href = "advanced-admin-decision.html?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id);
-        return;
-      }
-      location.href = PAS.DETAIL_URL_OF[desk] + "?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id);
+      location.href = PAS.reviewHrefFor ? PAS.reviewHrefFor(t) : (function () {
+        var desk = PAS.TYPE_TO_DESK[t.h.type];
+        if (!desk) return "advanced-admin-decision.html?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id);
+        return PAS.DETAIL_URL_OF[desk] + "?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id);
+      })();
     }
 
     function buildTable() {

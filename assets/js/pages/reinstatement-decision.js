@@ -16,7 +16,7 @@
     var e = PAS.reinstatementEligibility(p);
 
     var page = ui.h("div", {});
-    page.appendChild(ui.backLink("Reinstatement desk", function () { location.href = "reinstatement.html"; }));
+    page.appendChild(ui.queueNav({ deskLabel: "Reinstatement desk", deskHome: "reinstatement.html", policyId: p.id, txnId: h.id }));
     page.appendChild(ui.recordHead(p, ui.pill(e.eligible ? "green" : "red", e.eligible ? "Eligible" : (e.fraud ? "Fraud — barred" : "Window closed"))));
 
     var left = [];
@@ -56,14 +56,14 @@
         { module: "Reinstatement", policyId: p.id, statusCode: 200, label: (approve ? "Approve" : "Decline") + " reinstatement — " + p.holder, response: approve ? { txnId: h.id, status: "active", gapDays: e.daysSince, disclosureRequired: true, events: ["policyReinstated"] } : { txnId: h.id, status: "rejected" } })
         .then(function () {
           PAS.decideReinstatement(p.id, h.id, approve, { gapDays: e.daysSince, outstanding: outstanding }, audit);
-          ui.flashThenGo("reinstatement.html", flash(approve ? "Approve" : "Decline"));
+          ui.flashThenGo(PAS.afterDecisionHref("reinstatement.html"), flash(approve ? "Approve" : "Decline"));
         });
     }
     function hold(action) {
       return function (comment) {
         PAS.recordHeldDecision(p.id, h.id, action, comment, "Reinstatement");
-        ui.renderToast(flash(action));
-        render();
+        if (PAS.fromApprovalsQueue()) ui.flashThenGo("approvals.html", flash(action));
+        else { ui.renderToast(flash(action)); render(); }
       };
     }
 

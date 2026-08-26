@@ -14,7 +14,7 @@
     if (!h) { root.appendChild(ui.h("div", { class: "faint-note" }, "Transaction not found.")); return; }
 
     var page = ui.h("div", {});
-    page.appendChild(ui.backLink("Endorsement desk", function () { location.href = "endorsement.html"; }));
+    page.appendChild(ui.queueNav({ deskLabel: "Endorsement desk", deskHome: "endorsement.html", policyId: p.id, txnId: h.id }));
     page.appendChild(ui.recordHead(p, ui.txnStatusBadge(h.status)));
 
     var left = [];
@@ -53,14 +53,14 @@
         { module: "Endorsement", policyId: p.id, statusCode: 200, label: (ok ? "Approve" : "Decline") + " endorsement — " + p.holder, response: { txnId: h.id, status: ok ? "completed" : "rejected", premiumDelta: { amount: h.meta.premiumImpact || 0, currency: "INR" }, policyVersion: p.history.length + 1 } })
         .then(function () {
           PAS.decideTxn(p.id, h.id, ok, audit);
-          ui.flashThenGo("endorsement.html", flash(ok ? "Approve" : "Decline"));
+          ui.flashThenGo(PAS.afterDecisionHref("endorsement.html"), flash(ok ? "Approve" : "Decline"));
         });
     }
     function hold(action) {
       return function (comment) {
         PAS.recordHeldDecision(p.id, h.id, action, comment, "Endorsement");
-        ui.renderToast(flash(action));
-        render();
+        if (PAS.fromApprovalsQueue()) ui.flashThenGo("approvals.html", flash(action));
+        else { ui.renderToast(flash(action)); render(); }
       };
     }
 

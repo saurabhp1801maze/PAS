@@ -17,7 +17,7 @@
     var sod = PAS.checkSegregationOfDuties(h);
 
     var page = ui.h("div", {});
-    page.appendChild(ui.backLink("Advanced PAS", function () { location.href = "advanced-admin.html"; }));
+    page.appendChild(ui.queueNav({ deskLabel: "Advanced PAS", deskHome: "advanced-admin.html", policyId: p.id, txnId: h.id }));
     page.appendChild(ui.recordHead(p, ui.txnStatusBadge(h.status)));
 
     var left = [];
@@ -42,7 +42,7 @@
         .then(function () {
           if (req && approve && (req.current + 1) < req.steps) PAS.approveTxnStep(p.id, h.id);
           else PAS.decideAdvancedTxn(p.id, h.id, approve);
-          location.href = "advanced-admin.html";
+          location.href = PAS.afterDecisionHref("advanced-admin.html");
         });
     }
 

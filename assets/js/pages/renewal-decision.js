@@ -23,7 +23,7 @@
     var suggested = Math.round(p.premium * (score < 60 ? 1.12 : score > 85 ? 0.97 : 1.05));
 
     var page = ui.h("div", {});
-    page.appendChild(ui.backLink("Renewal desk", function () { location.href = "renewal.html"; }));
+    page.appendChild(ui.queueNav({ deskLabel: "Renewal desk", deskHome: "renewal.html", policyId: p.id, txnId: h.id }));
     page.appendChild(ui.recordHead(p, ui.pill(rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red", rc.status)));
 
     var left = [];
@@ -82,14 +82,14 @@
         { module: "Renewal", policyId: p.id, statusCode: 200, label: (approve ? "Approve renewal" : "Decline renewal") + " — " + p.holder, response: response })
         .then(function () {
           PAS.decideRenewal(p.id, h.id, approve, prem, audit);
-          ui.flashThenGo("renewal.html", flash(approve ? "Approve" : "Decline"));
+          ui.flashThenGo(PAS.afterDecisionHref("renewal.html"), flash(approve ? "Approve" : "Decline"));
         });
     }
     function hold(action) {
       return function (comment) {
         PAS.recordHeldDecision(p.id, h.id, action, comment, "Renewal");
-        ui.renderToast(flash(action));
-        render();
+        if (PAS.fromApprovalsQueue()) ui.flashThenGo("approvals.html", flash(action));
+        else { ui.renderToast(flash(action)); render(); }
       };
     }
 

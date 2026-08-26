@@ -321,6 +321,39 @@
     return { hours: hours, deadline: new Date(deadline).toISOString(), remainingHours: remaining, breached: remaining < 0 };
   };
 
+  /* Phase 3 — return-to-queue when a decision desk was opened from Pending Approvals. */
+  PAS.fromApprovalsQueue = function () {
+    try { return new URLSearchParams(location.search || "").get("from") === "approvals"; }
+    catch (e) { return false; }
+  };
+  PAS.afterDecisionHref = function (deskHome) {
+    return PAS.fromApprovalsQueue() ? "approvals.html" : deskHome;
+  };
+  PAS.pendingQueueSorted = function () {
+    var pending = PAS.allTxns(PAS.getPolicies()).filter(function (t) { return t.h.status === "Pending"; });
+    return pending.slice().sort(function (a, b) {
+      var sa = PAS.getTxnSla(a.h), sb = PAS.getTxnSla(b.h);
+      if (sa.breached !== sb.breached) return sa.breached ? -1 : 1;
+      if (sa.remainingHours !== sb.remainingHours) return sa.remainingHours - sb.remainingHours;
+      var da = a.h.recordedAt || a.h.date || "";
+      var db = b.h.recordedAt || b.h.date || "";
+      if (da < db) return -1;
+      if (da > db) return 1;
+      return (a.h.seq || 0) - (b.h.seq || 0);
+    });
+  };
+  PAS.reviewHrefFor = function (t) {
+    var desk = PAS.TYPE_TO_DESK[t.h.type];
+    var base = desk && PAS.DETAIL_URL_OF[desk] ? PAS.DETAIL_URL_OF[desk] : "advanced-admin-decision.html";
+    return base + "?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id) + "&from=approvals";
+  };
+  PAS.nextPendingReviewHref = function (policyId, txnId) {
+    var list = PAS.pendingQueueSorted();
+    var others = list.filter(function (t) { return !(t.p.id === policyId && t.h.id === txnId); });
+    if (!others.length) return "approvals.html";
+    return PAS.reviewHrefFor(others[0]);
+  };
+
   PAS.approveTxnStep = function (policyId, txnId) {
     return PAS._patchPolicy(policyId, function (p) {
       var txn = p.history.find(function (h) { return h.id === txnId; });

@@ -219,6 +219,23 @@
     btn.addEventListener("click", onClick);
     return btn;
   }
+  /* When opened from Pending Approvals (?from=approvals): Back to queue + Next pending. */
+  function queueNav(opts) {
+    opts = opts || {};
+    var row = h("div", { class: "queue-nav-row", style: { display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", marginBottom: "2px" } });
+    if (PAS.fromApprovalsQueue && PAS.fromApprovalsQueue()) {
+      row.appendChild(backLink("Back to queue", function () { location.href = "approvals.html"; }));
+      var nextHref = PAS.nextPendingReviewHref && PAS.nextPendingReviewHref(opts.policyId, opts.txnId);
+      if (nextHref && nextHref !== "approvals.html") {
+        var nextBtn = h("button", { class: "btn ghost-link", type: "button" }, "Next pending →");
+        nextBtn.addEventListener("click", function () { location.href = nextHref; });
+        row.appendChild(nextBtn);
+      }
+    } else {
+      row.appendChild(backLink(opts.deskLabel || "Back", function () { location.href = opts.deskHome || "approvals.html"; }));
+    }
+    return row;
+  }
 
   /* ================= KV / panel ================= */
   function kv(opts) {
@@ -806,7 +823,7 @@
     codeBlock: codeBlock, dataTable: dataTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
     backLink: backLink, kv: kv, panel: panel, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow,
     callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
-    decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, decisionTrailSide: decisionTrailSide, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
+    decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, decisionTrailSide: decisionTrailSide, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm, queueNav: queueNav,
     renderToast: renderToast, notifRow: notifRow, lifecycleStage: lifecycleStage,
     apiLifecycle: apiLifecycle, screen: screen, TONE_HEX: TONE_HEX,
   };

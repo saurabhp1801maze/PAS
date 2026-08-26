@@ -15,7 +15,7 @@
 
     var meta = h.meta || {};
     var page = ui.h("div", {});
-    page.appendChild(ui.backLink("Transfer desk", function () { location.href = "transfer.html"; }));
+    page.appendChild(ui.queueNav({ deskLabel: "Transfer desk", deskHome: "transfer.html", policyId: p.id, txnId: h.id }));
     page.appendChild(ui.recordHead(p, ui.txnStatusBadge(h.status)));
 
     var left = [];
@@ -48,14 +48,14 @@
         { module: "Transfer", policyId: p.id, statusCode: 200, label: (approve ? "Approve" : "Decline") + " transfer — " + p.holder, response: approve ? { txnId: h.id, status: "completed", previousHolder: p.holder, newHolder: meta.newHolder, events: ["policyTransferred"] } : { txnId: h.id, status: "rejected" } })
         .then(function () {
           PAS.decideTransfer(p.id, h.id, approve, meta.newHolder, audit);
-          ui.flashThenGo("transfer.html", flash(approve ? "Approve" : "Decline"));
+          ui.flashThenGo(PAS.afterDecisionHref("transfer.html"), flash(approve ? "Approve" : "Decline"));
         });
     }
     function hold(action) {
       return function (comment) {
         PAS.recordHeldDecision(p.id, h.id, action, comment, "Transfer");
-        ui.renderToast(flash(action));
-        render();
+        if (PAS.fromApprovalsQueue()) ui.flashThenGo("approvals.html", flash(action));
+        else { ui.renderToast(flash(action)); render(); }
       };
     }
 

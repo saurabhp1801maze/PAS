@@ -22,7 +22,7 @@
   }
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var pending = PAS.allTxns(policies).filter(function (t) { return t.h.status === "Pending"; });
     var types = ["All"].concat(Array.from(new Set(pending.map(function (t) { return t.h.type; }))).sort());
     var q = "", typeF = "All", slaF = "All";

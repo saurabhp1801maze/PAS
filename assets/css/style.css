@@ -257,6 +257,8 @@ table.data-table tr.has-row-click:hover { background: var(--surface-alt); }
 .hbar { margin-bottom: 11px; }
 .hbar-head { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; margin-bottom: 4px; }
 .hbar-label { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-label-link { background: none; border: none; padding: 0; font-family: inherit; font-size: inherit; text-align: left; cursor: pointer; }
+.hbar-label-link:hover { color: var(--primary); text-decoration: underline; }
 .hbar-note { color: var(--text-faint); white-space: nowrap; font-weight: 600; }
 .hbar-track { height: 8px; background: var(--surface-alt); border-radius: 4px; overflow: hidden; }
 .hbar-fill { height: 100%; border-radius: 4px; background: var(--tone-fg); }

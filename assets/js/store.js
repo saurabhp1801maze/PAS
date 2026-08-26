@@ -867,6 +867,7 @@
   PAS.PAGE_APIS = {
     dashboard: [["GET", "/api/v1/policies/kpis", "Portfolio aggregates for the KPI strip"], ["GET", "/api/v1/policies?limit=50", "The register behind every panel"]],
     approvals: [["GET", "/api/v1/transactions?status=pending", "Held transactions across the book"], ["POST", "/api/v1/transactions/{txnId}/approve", "Commits a held transaction"]],
+    "admin-config": [["GET", "/api/v1/admin/roles", "Every role and its permission grid"], ["POST", "/api/v1/admin/roles", "Creates or updates a role"], ["DELETE", "/api/v1/admin/roles/{roleKey}", "Deletes a custom role"], ["GET", "/api/v1/admin/users", "Every invited user and their role"], ["POST", "/api/v1/admin/users/invite", "Invites a user under a role"]],
     "uw-desk": [["GET", "/api/v1/underwriting/queue", "Submissions referred out of auto authority"], ["POST", "/api/v1/submissions/{id}/underwriting-decision", "Records approve / decline / refer"]],
     "issue-desk": [["GET", "/api/v1/policies?status=bound", "Bound but not yet issued"], ["POST", "/api/v1/policies/{policyId}/issue", "Runs issue gates, generates the pack"]],
     "endorsement-desk": [["GET", "/api/v1/endorsements?status=requested", "Change requests awaiting a decision"], ["POST", "/api/v1/transactions/{txnId}/approve", "Applies the held change"]],
@@ -929,20 +930,32 @@
       ["GET", "/api/v1/loyalty", "Every active policy's computed tier and score.", "Computed on read from renewal count, claims and cancellation history — never a stored points balance."],
       ["GET", "/api/v1/loyalty/criteria", "The current weight table.", "What earns points and how much — configurable, not hardcoded into the scoring logic itself."],
     ] },
+    { resource: "Admin", base: "/api/v1/admin", endpoints: [
+      ["GET", "/api/v1/admin/roles", "Every role, default or custom, with its permission grid.", "Backs the Admin Configuration screen's Roles tab."],
+      ["POST", "/api/v1/admin/roles", "Creates or updates a role.", "The four default roles can be edited but not deleted."],
+      ["DELETE", "/api/v1/admin/roles/{roleKey}", "Deletes a custom role.", "Refused for a default role, or for the last role that can manage roles."],
+      ["GET", "/api/v1/admin/users", "Every invited user, their role and scoping identity.", ""],
+      ["POST", "/api/v1/admin/users/invite", "Invites a user under a role.", "Simulated — no real email is sent in this prototype."],
+    ] },
   ];
 
-  /* Sidebar nav: [pageKey, label, iconName, href] */
+  /* Sidebar nav: [pageKey, label, iconName, href]. Items commented out here (uw-desk, issue-desk,
+     servicing-desk, transfer-desk, documents, loyalty, terms) are deliberately off the sidebar —
+     the pages themselves still exist and stay reachable by direct URL/links elsewhere (e.g. the
+     Pending Approvals queue still routes to servicing/transfer), only the persistent nav entry is
+     gone. Admin Configuration is its own trailing group so it always renders last, below every
+     other section, matching where an admin/settings entry conventionally sits. */
   PAS.NAV = [
     { label: "Workspace", items: [["dashboard", "Dashboard", "layout-dashboard", "index.html"], ["approvals", "Pending approvals", "inbox", "approvals.html"]] },
     { label: "Decision desks", items: [
       // ["uw-desk", "Issue Policy", "clipboard-check", "underwriting.html"],
-      ["issue-desk", "Issue", "stamp", "issue.html"],
+      // ["issue-desk", "Issue", "stamp", "issue.html"],
       ["endorsement-desk", "Endorsements", "edit-3", "endorsement.html"],
       ["cancellation-desk", "Cancellation", "x-circle", "cancellation.html"],
       ["reinstatement-desk", "Reinstatement", "rotate-ccw", "reinstatement.html"],
       ["renewal-desk", "Renewal", "refresh-cw", "renewal.html"],
-      ["servicing-desk", "Servicing", "headphones", "servicing.html"],
-      ["transfer-desk", "Transfer", "send", "transfer.html"],
+      // ["servicing-desk", "Servicing", "headphones", "servicing.html"],
+      // ["transfer-desk", "Transfer", "send", "transfer.html"],
     ] },
     { label: "Records", items: [
       ["registry", "Policy register", "list-checks", "registry.html"],
@@ -951,9 +964,9 @@
       ["carriers", "Carriers", "shield-check", "carriers.html"],
       ["customers", "Customers", "user", "customers.html"],
       ["workbench", "Transaction workbench", "git-branch", "workbench.html"],
-      ["documents", "Documents", "file-check-2", "documents.html"],
-      ["loyalty", "Loyalty", "award", "loyalty.html"],
-      ["terms", "Terms & Conditions", "edit-3", "terms.html"],
+      // ["documents", "Documents", "file-check-2", "documents.html"],
+      // ["loyalty", "Loyalty", "award", "loyalty.html"],
+      // ["terms", "Terms & Conditions", "edit-3", "terms.html"],
     ] },
     { label: "Reference", items: [
       ["domain-model", "Domain model", "git-branch", "domain-model.html"],
@@ -961,6 +974,7 @@
       ["api-reference", "API reference", "braces", "api-reference.html"],
       ["architecture", "Architecture", "layers", "architecture.html"],
     ] },
+    { label: "Admin", items: [["admin-config", "Admin Configuration", "key-round", "admin-config.html"]] },
   ];
 
   /* Per-page metadata: which nav item to highlight + the breadcrumb title.
@@ -969,6 +983,7 @@
   PAS.PAGE_META = {
     dashboard: { nav: "dashboard", title: "Workspace / Dashboard" },
     approvals: { nav: "approvals", title: "Workspace / Pending approvals" },
+    "admin-config": { nav: "admin-config", title: "Workspace / Admin Configuration" },
     "uw-desk": { nav: "uw-desk", title: "Decision desks / Underwriting" },
     "uw-detail": { nav: "uw-desk", title: "Decision desks / Underwriting" },
     "issue-desk": { nav: "issue-desk", title: "Decision desks / Issue" },
@@ -1018,76 +1033,162 @@
   PAS.TYPE_TO_DESK = { Underwriting: "uw-desk", Endorsement: "endorsement-desk", Cancellation: "cancellation-desk", Renewal: "renewal-desk", Reinstatement: "reinstatement-desk", Transfer: "transfer-desk" };
 
   /* ================= roles ================= */
-  /* Four roles, one demo identity per role (this prototype has no real auth — switching role
-     switches who you're seeing the platform as, not who's logged in). Nav visibility and
-     dashboard content both branch on this; decision desks are hidden entirely for the two
-     read-only roles rather than shown-but-disabled, since neither can act on a held transaction. */
-  var ROLES = {
-    Underwriter: {
-      label: "Underwriter", icon: "clipboard-check", tone: "violet", identity: "A. Bennett",
-      scope: "all", canDecide: true, canRequest: true,
-      desc: "Full operational access — every desk, every policy, every decision.",
+  /* Roles are admin-manageable, not hardcoded: seeded with four defaults the first time this
+     loads, then persisted to sessionStorage (`pas.rolesConfig.v1`) exactly like policies/terms —
+     an admin's edits and any custom roles they add survive navigation for the rest of the demo
+     session (see Admin Configuration). PAS.ROLES is a live snapshot of that store, reassigned on
+     every load/save so every existing call site that reads PAS.ROLES[key] — the role-switcher
+     panel, scopePolicies, the dashboards, the Domain Model directory — keeps working unchanged.
+       "Nav visibility" is now literally per-role: `visibleNav` lists exactly which PAS.NAV keys
+     a role can see, replacing the old static allow/deny map; layout.js filters the sidebar
+     against it directly. The literal string "*" (rather than an array) means "every nav key,
+     including ones added later" — used by Super Admin/Admin so they stay genuinely full-access
+     even as pas-extensions.js (loaded right after this file) appends more nav groups/items of its
+     own; an explicit array taken here would go stale the moment that happens. canDecide/canRequest
+     stay editable/documentary — this prototype's permission boundary has always been "hidden from
+     nav", not a real per-action check (see the callout on Domain Model), and that stays true here
+     too. */
+  var ALL_NAV_KEYS = [];
+  PAS.NAV.forEach(function (g) { g.items.forEach(function (it) { ALL_NAV_KEYS.push(it[0]); }); });
+  var OPS_DESK_KEYS = ["endorsement-desk", "cancellation-desk", "reinstatement-desk", "renewal-desk", "servicing-desk", "transfer-desk"];
+  var BROKER_NAV = ALL_NAV_KEYS.filter(function (k) { return ["approvals", "terms", "admin-config"].indexOf(k) === -1; });
+  var MGA_NAV = ALL_NAV_KEYS.filter(function (k) { return OPS_DESK_KEYS.concat(["approvals", "terms", "admin-config"]).indexOf(k) === -1; });
+
+  var DEFAULT_ROLES = {
+    "Super Admin": {
+      label: "Super Admin", icon: "shield-check", tone: "violet", identity: "A. Bennett",
+      scope: "all", canDecide: true, canRequest: true, canManageUsers: true, canManageRoles: true,
+      visibleNav: "*", isSystem: true,
+      desc: "Full operational access — every desk, every policy, every decision — plus role, permission and user management.",
     },
-    MGA: {
-      label: "MGA", icon: "building-2", tone: "indigo", identity: "Jordan Blake",
-      scope: "all", canDecide: false, canRequest: false,
-      desc: "Portfolio-wide analytics across every product line, broker and state. Read-only — an MGA sees the book, underwriters decide it.",
+    Admin: {
+      label: "Admin", icon: "clipboard-check", tone: "indigo", identity: "R. Alvarez",
+      scope: "all", canDecide: true, canRequest: true, canManageUsers: true, canManageRoles: true,
+      visibleNav: "*", isSystem: true,
+      desc: "The same full access as Super Admin by default — a separate role so it can be scoped down later without touching Super Admin itself.",
     },
-    Carrier: {
-      label: "Carrier", icon: "shield-check", tone: "green", identity: "Meridian Assurance Co.",
-      scope: "carrier", canDecide: false, canRequest: false,
-      desc: "The risk-bearing partner's view of the paper written on their behalf — premium, loss activity, reserves. Read-only, and genuinely scoped to their own book (PAS.PRODUCT_CARRIER), not the whole portfolio.",
-    },
-    "Broker/Producer": {
-      label: "Broker / Producer", icon: "users", tone: "amber", identity: "Apex Insurance Brokers",
-      scope: "producer", canDecide: false, canRequest: true,
+    Broker: {
+      label: "Broker", icon: "users", tone: "amber", identity: "Apex Insurance Brokers",
+      scope: "producer", canDecide: false, canRequest: true, canManageUsers: false, canManageRoles: false,
+      visibleNav: BROKER_NAV, isSystem: true,
       desc: "The business this producer placed, and nothing else. Can raise a request (a cancellation, an endorsement); cannot decide one.",
     },
-    Customer: {
-      label: "Customer", icon: "user", tone: "blue", identity: "Marcus Whitfield",
-      scope: "holder", canDecide: false, canRequest: true,
-      desc: "The end-customer portal — a named insured's own policy, documents and coverage, and the ability to raise a self-service request. Nothing else on the platform is visible from here.",
+    MGA: {
+      label: "MGA", icon: "building-2", tone: "green", identity: "Cornerstone MGA Partners",
+      scope: "mga", canDecide: false, canRequest: false, canManageUsers: false, canManageRoles: false,
+      visibleNav: MGA_NAV, isSystem: true,
+      desc: "The business placed through this MGA, and nothing else. Read-only, and genuinely scoped to its own book — an MGA sees its own business; decisions stay with an admin.",
     },
   };
-  PAS.ROLES = ROLES;
-  /* Desks a read-only role (MGA, Carrier) can't reach — decisions live with the Underwriter. A
-     Broker/Producer keeps the request-raising desks (Cancellation, Reinstatement, Renewal,
-     Endorsement, Servicing, Transfer all accept a logged request) but loses Underwriting/Issue,
-     which are internal decision points a producer never sees into. Customer is the narrowest of
-     all — a real customer portal is ordinarily a separate public-facing application, not a role
-     inside the internal ops shell; modeled as a role here so it can reuse the same scoping,
-     request-raising and document infrastructure everything else already has, with the sidebar
-     reduced to just Dashboard (which is where their whole portal view lives). */
-  var OPS_ONLY_DESKS = ["uw-desk", "issue-desk", "endorsement-desk", "cancellation-desk", "reinstatement-desk", "renewal-desk", "servicing-desk", "transfer-desk", "approvals"];
-  PAS.NAV_HIDDEN_FOR_ROLE = {
-    MGA: OPS_ONLY_DESKS.concat(["terms"]),
-    Carrier: OPS_ONLY_DESKS.concat(["terms"]),
-    "Broker/Producer": ["uw-desk", "issue-desk", "approvals", "terms"],
-    Customer: OPS_ONLY_DESKS.concat(["registry", "brokers", "mgas", "carriers", "customers", "workbench", "documents", "loyalty", "terms", "domain-model", "data-model", "api-reference", "architecture"]),
+
+  var ROLES_KEY = "pas.rolesConfig.v1";
+  function loadRolesConfig() {
+    var raw;
+    try { raw = sessionStorage.getItem(ROLES_KEY); } catch (e) { raw = null; }
+    if (raw) { try { return JSON.parse(raw); } catch (e) { /* fall through to reseed */ } }
+    saveRolesConfig(DEFAULT_ROLES);
+    return DEFAULT_ROLES;
+  }
+  function saveRolesConfig(map) {
+    try { sessionStorage.setItem(ROLES_KEY, JSON.stringify(map)); } catch (e) { /* storage unavailable */ }
+    PAS.ROLES = map;
+  }
+  PAS.ROLES = loadRolesConfig();
+  PAS.getRolesConfig = function () { return loadRolesConfig(); };
+  PAS.saveRole = function (key, spec) {
+    var map = loadRolesConfig();
+    map[key] = Object.assign({}, map[key], spec);
+    saveRolesConfig(map);
+    return map[key];
+  };
+  PAS.deleteRole = function (key) {
+    var map = loadRolesConfig();
+    var spec = map[key];
+    if (!spec) return { allowed: false, reason: "Role does not exist." };
+    if (spec.isSystem) return { allowed: false, reason: "Default roles can't be deleted — edit its permissions instead." };
+    var remainingManagers = Object.keys(map).filter(function (k) { return k !== key && map[k].canManageRoles; });
+    if (spec.canManageRoles && remainingManagers.length === 0) return { allowed: false, reason: "Can't delete the last role that can manage roles — that would lock everyone out of this screen." };
+    delete map[key];
+    saveRolesConfig(map);
+    if (PAS.getRole() === key) PAS.setRole("Super Admin");
+    return { allowed: true };
   };
 
   var ROLE_KEY = "pas.role.v1";
   PAS.getRole = function () {
     var r;
     try { r = sessionStorage.getItem(ROLE_KEY); } catch (e) { r = null; }
-    return (r && ROLES[r]) ? r : "Underwriter";
+    return (r && PAS.ROLES[r]) ? r : "Super Admin";
   };
   PAS.setRole = function (role) {
-    if (!ROLES[role]) return;
+    if (!PAS.ROLES[role]) return;
     try { sessionStorage.setItem(ROLE_KEY, role); } catch (e) { /* ignore */ }
   };
-  /* A policy belongs to the current Broker/Producer identity if its `producer` field matches —
-     real scoping, not a fake filter, since `producer` is already on every seed record. Carrier
-     scoping has no real second dimension to filter on yet (this prototype models one implicit
-     carrier for the whole book) — `scopePolicies` is a no-op for Carrier until that exists;
-     see the Domain model screen's note on this gap. */
+
+  /* An acting identity lets "View as" scope the platform to one specific invited user's own book
+     instead of just their role's shared demo identity — e.g. two different Brokers, each genuinely
+     scoped to a different book. Falls back to the role's own identity when nothing is overridden. */
+  var IDENTITY_OVERRIDE_KEY = "pas.identityOverride.v1";
+  PAS.getActingIdentity = function () {
+    var spec = PAS.ROLES[PAS.getRole()];
+    var override;
+    try { override = sessionStorage.getItem(IDENTITY_OVERRIDE_KEY); } catch (e) { override = null; }
+    return override || (spec && spec.identity);
+  };
+  PAS.setActingIdentity = function (identity) {
+    try {
+      if (identity) sessionStorage.setItem(IDENTITY_OVERRIDE_KEY, identity);
+      else sessionStorage.removeItem(IDENTITY_OVERRIDE_KEY);
+    } catch (e) { /* ignore */ }
+  };
+
+  /* A policy belongs to the current identity if the matching field equals it — real scoping, not
+     a fake filter, since producer/mga/carrier/holder are already on every seed record. */
   PAS.scopePolicies = function (policies, role) {
-    var spec = ROLES[role];
+    var spec = PAS.ROLES[role];
     if (!spec || spec.scope === "all") return policies;
-    if (spec.scope === "producer") return policies.filter(function (p) { return p.producer === spec.identity; });
-    if (spec.scope === "carrier") return policies.filter(function (p) { return p.carrier === spec.identity; });
-    if (spec.scope === "holder") return policies.filter(function (p) { return p.holder === spec.identity; });
+    if (spec.scope === "none") return [];
+    var identity = PAS.getActingIdentity();
+    if (spec.scope === "producer") return policies.filter(function (p) { return p.producer === identity; });
+    if (spec.scope === "mga") return policies.filter(function (p) { return p.mga === identity; });
+    if (spec.scope === "carrier") return policies.filter(function (p) { return p.carrier === identity; });
+    if (spec.scope === "holder") return policies.filter(function (p) { return p.holder === identity; });
     return policies;
+  };
+  /* The book, pre-scoped to the current role — what every desk list/register/workbench page
+     should build its table from, so a Broker or MGA only ever sees their own book in a list, not
+     just on the dashboard. `PAS.getPolicies()` itself stays the raw/unscoped accessor for pages
+     that legitimately need the whole book (reference/documentation screens, per-entity rollups). */
+  PAS.getScopedPolicies = function () { return PAS.scopePolicies(PAS.getPolicies(), PAS.getRole()); };
+
+  /* ================= users (invited, not authenticated) ================= */
+  /* No real backend exists to send mail from, so "invite" is simulated: a row is added with
+     status "Invited" and the action is logged through PAS.api.call like every other write in this
+     app, but nothing is actually emailed. See Admin Configuration's Users tab. */
+  var USERS_KEY = "pas.users.v1";
+  function loadUsers() {
+    var raw;
+    try { raw = sessionStorage.getItem(USERS_KEY); } catch (e) { raw = null; }
+    if (raw) { try { return JSON.parse(raw); } catch (e) { /* fall through */ } }
+    return [];
+  }
+  function saveUsers(list) {
+    try { sessionStorage.setItem(USERS_KEY, JSON.stringify(list)); } catch (e) { /* storage unavailable */ }
+  }
+  PAS.getUsers = function () { return loadUsers(); };
+  PAS.inviteUser = function (data) {
+    var list = loadUsers();
+    var user = {
+      id: uid("USR"), name: data.name, email: data.email, roleKey: data.roleKey,
+      identity: data.identity || (PAS.ROLES[data.roleKey] || {}).identity || "",
+      status: "Invited", invitedOn: todayISO(),
+    };
+    list = [user].concat(list);
+    saveUsers(list);
+    return user;
+  };
+  PAS.revokeUser = function (id) {
+    saveUsers(loadUsers().filter(function (u) { return u.id !== id; }));
   };
 
   /* ================= persistence ================= */
@@ -1120,8 +1221,7 @@
   /* ---------- decision audit (who / when / action / comment) ---------- */
   PAS.COMMENT_MIN_RECOMMENDED = 20;
   PAS.actorName = function () {
-    var spec = ROLES[PAS.getRole()];
-    return (spec && spec.identity) || "You";
+    return PAS.getActingIdentity() || "You";
   };
   PAS.makeAudit = function (action, comment) {
     return {

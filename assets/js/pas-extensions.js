@@ -543,7 +543,7 @@
   /* =============================================================================
      SECTION K — PAS admin security & audit
      ============================================================================= */
-  PAS.PAS_ADMIN_ROLES = ["Underwriter"];
+  PAS.PAS_ADMIN_ROLES = ["Super Admin", "Admin"];
   PAS.PAS_AUTHORITY = { cancellation: 10000000, endorsement: 5000000, renewal: 20000000 };
 
   PAS.getPasAdminIdentity = function () {
@@ -639,7 +639,13 @@
       deskGroup.items.push(["advanced-desk", "Advanced PAS", "layers", "advanced-admin.html"]);
     }
     if (!PAS.NAV.some(function (g) { return g.label === "Integration"; })) {
-      PAS.NAV.push({ label: "Integration", items: [["integration-hub", "PAS integration hub", "braces", "integration-hub.html"]] });
+      /* Inserted before "Admin" (if present) rather than pushed to the very end, so Admin
+         Configuration stays the last thing in the sidebar regardless of what else this file
+         appends to PAS.NAV. */
+      var integrationGroup = { label: "Integration", items: [["integration-hub", "PAS integration hub", "braces", "integration-hub.html"]] };
+      var adminIdx = PAS.NAV.findIndex(function (g) { return g.label === "Admin"; });
+      if (adminIdx === -1) PAS.NAV.push(integrationGroup);
+      else PAS.NAV.splice(adminIdx, 0, integrationGroup);
     }
   }
   PAS.PAGE_META["advanced-desk"] = { nav: "advanced-desk", title: "Decision desks / Advanced PAS" };

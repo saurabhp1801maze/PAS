@@ -155,7 +155,7 @@
       pill.setAttribute("data-tone", spec.tone);
       pill.innerHTML = "";
       pill.appendChild(PAS.icon(spec.icon, { size: 11 }));
-      pill.appendChild(document.createTextNode(" " + spec.identity + " · " + spec.label));
+      pill.appendChild(document.createTextNode(" " + PAS.getActingIdentity() + " · " + spec.label));
     }
     renderPill();
 
@@ -187,6 +187,7 @@
           e.stopPropagation();
           if (key === current) { closePanel(); return; }
           PAS.setRole(key);
+          PAS.setActingIdentity(null);
           location.reload();
         });
         panelEl.appendChild(row);
@@ -198,17 +199,19 @@
     document.addEventListener("click", function (e) { if (panelEl && !panelEl.contains(e.target) && !pill.contains(e.target)) closePanel(); });
   }
 
-  /* Decision desks a read-only role can't reach are removed from the sidebar entirely, not just
-     disabled — MGA and Carrier never decide anything, and a Broker/Producer never sees into the
-     internal Underwriting/Issue queues. PAS.NAV supplies the href for every nav key, so this
-     never has to hardcode a URL. */
+  /* Nav visibility is a per-role allow-list (`spec.visibleNav`, editable in Admin Configuration)
+     rather than a hardcoded deny-list — a page's nav item is shown only if the current role's
+     permission grid explicitly includes its key. PAS.NAV supplies the href for every nav key, so
+     this never has to hardcode a URL. */
   function wireNavForRole() {
-    var hidden = PAS.NAV_HIDDEN_FOR_ROLE[PAS.getRole()];
-    if (!hidden || !hidden.length) return;
+    var spec = PAS.ROLES[PAS.getRole()];
+    var visible = (spec && spec.visibleNav) || [];
     var hrefSet = {};
-    PAS.NAV.forEach(function (group) {
-      group.items.forEach(function (it) { if (hidden.indexOf(it[0]) !== -1) hrefSet[it[3]] = true; });
-    });
+    if (visible !== "*") {
+      PAS.NAV.forEach(function (group) {
+        group.items.forEach(function (it) { if (visible.indexOf(it[0]) === -1) hrefSet[it[3]] = true; });
+      });
+    }
     document.querySelectorAll(".nav-item").forEach(function (a) {
       if (hrefSet[a.getAttribute("href")]) a.style.display = "none";
     });
@@ -224,13 +227,14 @@
     if (!sidebar || !footer || !PAS.NAV) return;
     sidebar.querySelectorAll(".nav-group").forEach(function (g) { g.remove(); });
     var pageKey = document.body.getAttribute("data-page");
-    var hidden = PAS.NAV_HIDDEN_FOR_ROLE[PAS.getRole()] || [];
+    var spec = PAS.ROLES[PAS.getRole()];
+    var visible = (spec && spec.visibleNav) || [];
     PAS.NAV.forEach(function (group) {
       var g = ui.h("div", { class: "nav-group" });
       g.appendChild(ui.h("div", { class: "nav-group-label" }, group.label));
       var any = false;
       group.items.forEach(function (it) {
-        if (hidden.indexOf(it[0]) !== -1) return;
+        if (visible !== "*" && visible.indexOf(it[0]) === -1) return;
         any = true;
         var active = PAS.PAGE_META[pageKey] && PAS.PAGE_META[pageKey].nav === it[0];
         var a = ui.h("a", { class: "nav-item" + (active ? " active" : ""), href: it[3] });

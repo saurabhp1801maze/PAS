@@ -4,7 +4,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var docs = policies.reduce(function (acc, p) { (p.documents || []).forEach(function (d) { acc.push({ p: p, d: d }); }); return acc; }, []);
     var q = "", typeF = "All";
     var TYPES = ["All", "Schedule", "Certificate", "Notice"];

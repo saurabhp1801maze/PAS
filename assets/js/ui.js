@@ -556,7 +556,13 @@
     var pct = opts.max ? Math.max(1.5, (opts.value / opts.max) * 100) : 0;
     var wrap = h("div", { class: "hbar" });
     var headRow = h("div", { class: "hbar-head" });
-    headRow.appendChild(h("span", { class: "hbar-label" }, opts.label));
+    if (opts.onClick) {
+      var labelBtn = h("button", { class: "hbar-label hbar-label-link", type: "button" }, opts.label);
+      labelBtn.addEventListener("click", opts.onClick);
+      headRow.appendChild(labelBtn);
+    } else {
+      headRow.appendChild(h("span", { class: "hbar-label" }, opts.label));
+    }
     headRow.appendChild(h("span", { class: "hbar-note" }, opts.note));
     wrap.appendChild(headRow);
     var track = h("div", { class: "hbar-track", "data-tone": opts.tone || "indigo" });

@@ -7,7 +7,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var pend = PAS.pendingOf(policies, "Cancellation");
     var hist = policies.reduce(function (acc, x) {
       x.history.filter(function (h) { return h.type === "Cancellation" && h.status !== "Pending"; }).forEach(function (h) { acc.push({ x: x, h: h }); });
@@ -190,11 +190,13 @@
         dnocIssueDate: dnocIssueDate, dnocExpireDate: dnocExpireDate, dnocBucket: dnocBucket,
       };
     });
-
     var q = "";
     var reasonF = "All";
     var initiatorF = "All";
     var dnocF = "All";
+    var productF = "All";
+    var fromDate = "", toDate = "";
+    var products = ["All"].concat(Array.from(new Set(pendEnriched.map(function (r) { return r.t.p.product; }).filter(Boolean))).sort());
 
     function matchRow(r) {
       var needle = q.toLowerCase();
@@ -205,7 +207,9 @@
       var reasonOk = reasonF === "All" || r.reason === reasonF;
       var initiatorOk = initiatorF === "All" || r.initiatedBy === initiatorF;
       var dnocOk = dnocF === "All" || r.dnocBucket === dnocF;
-      return textOk && reasonOk && initiatorOk && dnocOk;
+      var productOk = productF === "All" || r.t.p.product === productF;
+      var dateOk = (!fromDate || r.submittedOn >= fromDate) && (!toDate || r.submittedOn <= toDate);
+      return textOk && reasonOk && initiatorOk && dnocOk && productOk && dateOk;
     }
 
     function filteredRows() {
@@ -252,6 +256,15 @@
       dnocSelect.appendChild(ui.h("option", { value: opt[0] }, opt[1]));
     });
     filters.appendChild(dnocSelect);
+
+    var productSelect = ui.h("select", { class: "register-select", title: "Line of business" });
+    products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All LOBs" : p)); });
+    filters.appendChild(productSelect);
+
+    var fromInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Submitted from" });
+    filters.appendChild(fromInput);
+    var toInput = ui.h("input", { class: "field-input select-fixed", type: "date", title: "Submitted to" });
+    filters.appendChild(toInput);
     toolbar.appendChild(filters);
 
     var cancellationTable = ui.sortableTable({
@@ -292,7 +305,7 @@
     var filterNote = ui.h("div", { class: "faint-note mb-9" });
     function refreshFilterNote() {
       var n = filteredRows().length;
-      var active = q || reasonF !== "All" || initiatorF !== "All" || dnocF !== "All";
+      var active = q || reasonF !== "All" || initiatorF !== "All" || dnocF !== "All" || productF !== "All" || fromDate || toDate;
       filterNote.textContent = active ? ("Showing " + n + " of " + pendEnriched.length + " pending.") : "";
       filterNote.style.display = active ? "" : "none";
     }
@@ -309,6 +322,9 @@
     reasonSelect.addEventListener("change", function () { reasonF = reasonSelect.value; onFilterChange(); });
     initiatorSelect.addEventListener("change", function () { initiatorF = initiatorSelect.value; onFilterChange(); });
     dnocSelect.addEventListener("change", function () { dnocF = dnocSelect.value; onFilterChange(); });
+    productSelect.addEventListener("change", function () { productF = productSelect.value; onFilterChange(); });
+    fromInput.addEventListener("change", function () { fromDate = fromInput.value; onFilterChange(); });
+    toInput.addEventListener("change", function () { toDate = toInput.value; onFilterChange(); });
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

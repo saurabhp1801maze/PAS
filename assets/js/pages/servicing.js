@@ -4,7 +4,7 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function render() {
-    var policies = PAS.getPolicies();
+    var policies = PAS.getScopedPolicies();
     var log = policies.reduce(function (acc, x) {
       x.history.filter(function (h) { return h.type === "Servicing"; }).forEach(function (h) { acc.push({ x: x, h: h }); });
       return acc;

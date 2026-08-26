@@ -634,10 +634,13 @@
 
   /* Extend NAV */
   if (PAS.NAV) {
-    var deskGroup = PAS.NAV.find(function (g) { return g.label === "Decision desks"; });
-    if (deskGroup && !deskGroup.items.some(function (it) { return it[0] === "advanced-desk"; })) {
-      deskGroup.items.push(["advanced-desk", "Advanced PAS", "layers", "advanced-admin.html"]);
-    }
+    /* Advanced PAS hidden from the sidebar (still reachable directly at advanced-admin.html —
+       PAGE_META/PAGE_APIS below stay wired). Same hide-from-nav-but-keep-functional convention
+       as servicing-desk/transfer-desk/documents/loyalty/terms in store.js's PAS.NAV. */
+    // var deskGroup = PAS.NAV.find(function (g) { return g.label === "Decision desks"; });
+    // if (deskGroup && !deskGroup.items.some(function (it) { return it[0] === "advanced-desk"; })) {
+    //   deskGroup.items.push(["advanced-desk", "Advanced PAS", "layers", "advanced-admin.html"]);
+    // }
     if (!PAS.NAV.some(function (g) { return g.label === "Integration"; })) {
       /* Inserted before "Admin" (if present) rather than pushed to the very end, so Admin
          Configuration stays the last thing in the sidebar regardless of what else this file

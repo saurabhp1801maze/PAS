@@ -3,6 +3,46 @@
   "use strict";
   var PAS = window.PAS, ui = PAS.ui;
 
+  /* What's actually changing, beyond the free-text note — shape depends on changeType, so this
+     dispatches on whichever structured field the request's meta actually carries. Requests without
+     one of these (logged before this existed, or a changeType this doesn't cover yet) fall back to
+     just the request note above — nothing breaks, there's simply nothing more to show. */
+  function changeDetailBlocks(meta) {
+    var blocks = [];
+    if (meta.vehicles && meta.vehicles.length) {
+      blocks.push(ui.tipLabel({ text: "Vehicles in this request (" + meta.vehicles.length + ")", what: "Each unit being added to (or changed on) the fleet under this endorsement.", className: "label-11 block mt-15 mb-9" }));
+      blocks.push(ui.dataTable({
+        columns: ["Unit", "Type", "Make / Model", "Year", { label: "VIN", what: "Vehicle identification number." }, "Value"],
+        rows: meta.vehicles.map(function (v) { return [v.unit, v.type, v.make + " " + v.model, String(v.year), ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11px" } }, v.vin), PAS.money(v.value)]; }),
+      }));
+    }
+    if (meta.drivers && meta.drivers.length) {
+      blocks.push(ui.tipLabel({ text: "Drivers in this request (" + meta.drivers.length + ")", what: "Each driver being added to or removed from the policy.", className: "label-11 block mt-15 mb-9" }));
+      blocks.push(ui.dataTable({
+        columns: ["Action", "Name", "Relationship", { label: "License", what: "License number and issuing state." }, "Years licensed"],
+        rows: meta.drivers.map(function (d) {
+          return [ui.pill(d.action === "Remove" ? "red" : "green", d.action), d.name, d.relationship || "—", (d.licenseNumber || "—") + " (" + (d.licenseState || "—") + ")", d.yearsLicensed != null ? String(d.yearsLicensed) : "—"];
+        }),
+      }));
+    }
+    if (meta.addressChange) {
+      blocks.push(ui.tipLabel({ text: "Address change", what: "Registered address on file, before and after.", className: "label-11 block mt-15 mb-9" }));
+      blocks.push(ui.dataTable({ columns: ["Field", "Before", "After"], rows: [["Address", meta.addressChange.from, meta.addressChange.to]] }));
+    }
+    if (meta.limitChange) {
+      blocks.push(ui.tipLabel({ text: "Limit change", what: "The specific coverage limit being raised or lowered.", className: "label-11 block mt-15 mb-9" }));
+      blocks.push(ui.dataTable({ columns: ["Coverage", "Before", "After"], rows: [[meta.limitChange.coverage, meta.limitChange.from, meta.limitChange.to]] }));
+    }
+    if (meta.coverageChange) {
+      blocks.push(ui.tipLabel({ text: "Coverage change", what: "The new coverage being added to the policy.", className: "label-11 block mt-15 mb-9" }));
+      blocks.push(ui.kv({ k: "Coverage", v: meta.coverageChange.coverage }));
+      blocks.push(ui.kv({ k: "Action", v: meta.coverageChange.action }));
+      if (meta.coverageChange.limit) blocks.push(ui.kv({ k: "Limit", v: meta.coverageChange.limit }));
+      if (meta.coverageChange.deductible) blocks.push(ui.kv({ k: "Deductible", v: meta.coverageChange.deductible }));
+    }
+    return blocks;
+  }
+
   function render() {
     var sp = new URLSearchParams(location.search);
     var root = document.getElementById("page-content");
@@ -28,15 +68,7 @@
     left.push(ui.kv({ k: "Requested", v: h.date, what: "Business date the change was requested." }));
     left.push(ui.kv({ k: "Transaction", v: "#" + h.seq, mono: true, what: "Position in the policy ledger." }));
     left.push(ui.h("div", { class: "mt-13" }, ui.callout("warn", h.detail)));
-    if (h.meta.vehicles && h.meta.vehicles.length) {
-      left.push(ui.tipLabel({ text: "Vehicles in this request (" + h.meta.vehicles.length + ")", what: "Each unit being added to (or changed on) the fleet under this endorsement.", className: "label-11 block mt-15 mb-9" }));
-      left.push(ui.dataTable({
-        columns: ["Unit", "Type", "Make / Model", "Year", { label: "VIN", what: "Vehicle identification number." }, "Value"],
-        rows: h.meta.vehicles.map(function (v) {
-          return [v.unit, v.type, v.make + " " + v.model, String(v.year), ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11px" } }, v.vin), PAS.money(v.value)];
-        }),
-      }));
-    }
+    changeDetailBlocks(h.meta).forEach(function (b) { left.push(b); });
 
     var right = [];
     right.push(ui.tipLabel({ text: "Financial impact", what: "What approving this does to premium and cover — before vs. after, line by line.", className: "label-11 block mb-10" }));

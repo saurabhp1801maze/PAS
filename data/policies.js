@@ -577,7 +577,10 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Broker/Producer",
           "channel": "Broker portal",
           "submittedOn": "2026-08-18",
-          "requestNote": "Please add Ryan Cole as a named driver from next week."
+          "requestNote": "Please add Ryan Cole as a named driver from next week.",
+          "drivers": [
+            { "action": "Add", "name": "Ryan Cole", "relationship": "Household member", "licenseNumber": "D4821906", "licenseState": "CA", "yearsLicensed": 6 }
+          ]
         }
       }
     ]
@@ -635,7 +638,8 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Broker/Producer",
           "channel": "Broker portal",
           "submittedOn": "2026-08-14",
-          "requestNote": "Client wants flood cover added given this year's storm forecast."
+          "requestNote": "Client wants flood cover added given this year's storm forecast.",
+          "coverageChange": { "coverage": "Flood", "action": "Add new coverage", "limit": "$250,000", "deductible": "$5,000" }
         }
       }
     ]
@@ -693,7 +697,8 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Insured",
           "channel": "Self-service portal",
           "submittedOn": "2026-08-17",
-          "requestNote": "Moved house last week, please update my address on file."
+          "requestNote": "Moved house last week, please update my address on file.",
+          "addressChange": { "from": "482 Sagebrush Lane, Sparks, NV 89431", "to": "1275 Riverwalk Drive, Reno, NV 89502" }
         }
       }
     ]
@@ -53710,7 +53715,12 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Broker/Producer",
           "channel": "Broker portal",
           "submittedOn": "2026-08-13",
-          "requestNote": "Add 3 new drivers to the fleet policy."
+          "requestNote": "Add 3 new drivers to the fleet policy.",
+          "drivers": [
+            { "action": "Add", "name": "Marcus Bell", "relationship": "Employee driver — CDL-A", "licenseNumber": "CDL-IL-208473", "licenseState": "IL", "yearsLicensed": 9 },
+            { "action": "Add", "name": "Dana Whitfield", "relationship": "Employee driver — CDL-A", "licenseNumber": "CDL-IL-551029", "licenseState": "IL", "yearsLicensed": 4 },
+            { "action": "Add", "name": "Omar Reyes", "relationship": "Employee driver — CDL-A", "licenseNumber": "CDL-IL-390215", "licenseState": "IL", "yearsLicensed": 12 }
+          ]
         }
       }
     ]
@@ -53798,7 +53808,8 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Broker/Producer",
           "channel": "Broker portal",
           "submittedOn": "2026-08-14",
-          "requestNote": "Raise cargo coverage limit for the fleet."
+          "requestNote": "Raise cargo coverage limit for the fleet.",
+          "limitChange": { "coverage": "Cargo limit (ACV)", "from": "$1,200,000", "to": "$1,500,000" }
         }
       }
     ]
@@ -53977,7 +53988,8 @@ window.PAS_SEED_POLICIES = [
           "initiatedBy": "Broker/Producer",
           "channel": "Broker portal",
           "submittedOn": "2026-08-16",
-          "requestNote": "Increase liability limit ahead of a new long-haul contract."
+          "requestNote": "Increase liability limit ahead of a new long-haul contract.",
+          "limitChange": { "coverage": "Third-party liability limit", "from": "$1,000,000", "to": "$2,000,000" }
         }
       }
     ]

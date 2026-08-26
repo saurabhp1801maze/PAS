@@ -3,21 +3,7 @@
   "use strict";
   var PAS = window.PAS, ui = PAS.ui;
 
-  /* The record's real lifecycle status (7 values: Referred, Bound, Active, Cancelled, Expired,
-     Declined, Non-renewed) is what every other screen and rule in this app keys off of — that
-     stays untouched. This register just displays a coarser 4-bucket view on top of it: Active
-     stays itself; Referred/Bound (still moving through underwriting or awaiting issue, nothing
-     decided yet) become "On Hold"; Cancelled/Declined (terminated, whether by request or by
-     never being accepted) become "Canceled"; Expired/Non-renewed (the term simply ran out)
-     become "Expired". */
-  var STATUS_BUCKETS = ["Active", "On Hold", "Expired", "Canceled"];
-  var BUCKET_TONE = { Active: "green", "On Hold": "amber", Expired: "gray", Canceled: "red" };
-  function statusBucket(status) {
-    if (status === "Active") return "Active";
-    if (status === "Referred" || status === "Bound") return "On Hold";
-    if (status === "Cancelled" || status === "Declined") return "Canceled";
-    return "Expired"; /* Expired, Non-renewed */
-  }
+  var STATUS_BUCKETS = PAS.STATUS_BUCKETS, BUCKET_TONE = PAS.BUCKET_TONE, statusBucket = PAS.statusBucket;
 
   function render() {
     var policies = PAS.getPolicies();

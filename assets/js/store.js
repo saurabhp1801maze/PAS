@@ -982,6 +982,17 @@
     try { sessionStorage.removeItem(STORAGE_KEY); sessionStorage.removeItem("pas.api.v1"); sessionStorage.removeItem(FLASH_KEY); } catch (e) { /* ignore */ }
     location.href = "index.html";
   };
+  /* The record's real lifecycle status (7 values) is what every rule in this app keys off of —
+     this is only a coarser 4-bucket *display* grouping layered on top, shared by every screen
+     that lists policies (Policy Register, and the Brokers/MGA/Carrier/Customer detail tables). */
+  PAS.STATUS_BUCKETS = ["Active", "On Hold", "Expired", "Canceled"];
+  PAS.BUCKET_TONE = { Active: "green", "On Hold": "amber", Expired: "gray", Canceled: "red" };
+  PAS.statusBucket = function (status) {
+    if (status === "Active") return "Active";
+    if (status === "Referred" || status === "Bound") return "On Hold";
+    if (status === "Cancelled" || status === "Declined") return "Canceled";
+    return "Expired"; /* Expired, Non-renewed */
+  };
   PAS.pendingOf = function (policies, type) {
     return policies.reduce(function (acc, p) {
       p.history.filter(function (h) { return h.type === type && h.status === "Pending"; })

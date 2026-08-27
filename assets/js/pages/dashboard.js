@@ -693,14 +693,24 @@
         summary.appendChild(ui.kv({ k: "Open reserves", v: PAS.money(openReserves), what: "Held against open claims, this filter." }));
         summary.appendChild(ui.kv({ k: "Loss ratio", v: Math.round(PAS.lossRatio(policies) * 1000) / 10 + "%", what: "Total incurred ÷ in-force premium, this filter." }));
         claimsDetailBody.appendChild(summary);
-        claimsDetailBody.appendChild(ui.dataTable({
-          columns: ["Policy", "Product", "State", { label: "Type", what: "Peril / claim cause." }, { label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid." }, { label: "Incurred", what: "Paid plus reserved — the total cost estimate." }, "Reserved"],
-          rows: sortedClaims.map(function (x) {
-            return [ui.cellId(x.p.id), x.p.product, x.p.state, x.c.type, ui.pill(x.c.status === "Open" ? "amber" : "green", x.c.status), PAS.money(x.c.incurred), x.c.reserved ? PAS.money(x.c.reserved) : "—"];
-          }),
+        var claimsTable = ui.sortableTable({
+          storageKey: "pas.dashboard.claims.columns.v1",
+          pageSize: 10,
           wrapCells: true,
-          onRowClick: function (i) { location.href = "policy-detail.html?policy=" + encodeURIComponent(sortedClaims[i].p.id); },
-        }));
+          columns: [
+            { key: "policy", label: "Policy", locked: true, sortValue: function (x) { return x.p.id; }, cell: function (x) { return ui.cellId(x.p.id); } },
+            { key: "product", label: "Product", sortValue: function (x) { return x.p.product; }, cell: function (x) { return x.p.product; } },
+            { key: "state", label: "State", sortValue: function (x) { return x.p.state; }, cell: function (x) { return x.p.state; } },
+            { key: "type", label: "Type", what: "Peril / claim cause.", sortValue: function (x) { return x.c.type; }, cell: function (x) { return x.c.type; } },
+            { key: "status", label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid.", sortValue: function (x) { return x.c.status; }, cell: function (x) { return ui.pill(x.c.status === "Open" ? "amber" : "green", x.c.status); } },
+            { key: "incurred", label: "Incurred", what: "Paid plus reserved — the total cost estimate.", sortValue: function (x) { return x.c.incurred; }, cell: function (x) { return PAS.money(x.c.incurred); } },
+            { key: "reserved", label: "Reserved", sortValue: function (x) { return x.c.reserved || 0; }, cell: function (x) { return x.c.reserved ? PAS.money(x.c.reserved) : "—"; } },
+          ],
+          rows: function () { return sortedClaims; },
+          onRowClick: function (x) { location.href = "policy-detail.html?policy=" + encodeURIComponent(x.p.id); },
+          emptyText: "No claims on file in this filter.",
+        });
+        claimsDetailBody.appendChild(claimsTable.tableWrap);
       }
     }
 

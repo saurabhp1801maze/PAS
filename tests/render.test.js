@@ -203,7 +203,7 @@ console.log("\n  content spot-checks");
   ["api-reference", ["Idempotency-Key", "policyCancelled", "412", "at-least-once"]],
   ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected carriers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
-  ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Endorsement requests", "Reinstated", "Cancelled", "Awaiting decision", "Monthly", "Yearly", "New business issued", "Cancelled policy requests"]],
+  ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Endorsement requests", "Reinstated", "Cancelled", "Pending transactions", "Bound, awaiting issue", "Monthly", "Yearly", "New business issued", "Cancelled policy requests"]],
   ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason"]],
 ].forEach(function (c) {
   var txt = renderText(c[0]);
@@ -236,12 +236,16 @@ console.log("\n  reinstatement-decision: original cancellation's Initiated By + 
 })();
 
 /* Dashboard-specific regressions:
-   - F-15 (double-counted "Awaiting decision") must stay fixed.
+   - F-15 (double-counted "Awaiting decision") must stay fixed. The combined "Awaiting decision"
+     tile itself is gone — it linked to Pending Approvals as if its number matched, but that page
+     only ever lists held transactions, and a Bound policy has none (it auto-issues once nothing
+     is outstanding, never appearing there). Split into "Pending transactions" (matches Pending
+     Approvals exactly) and its own unlinked "Bound, awaiting issue" tile.
    - F-16 (mislabeled GWP + hardcoded retention/deltas) must stay fixed.
-   - The redesign that replaced the sectioned KPI groups with a single 8-card strip (Total/Active/
-     Renewed/Expiring soon/Endorsement requests/Reinstated/Cancelled/Awaiting decision) plus the
-     Monthly/Yearly period toggle and the 4 "open desk" work-cards must not silently regress to
-     the previous layout. */
+   - The redesign that replaced the sectioned KPI groups with a 9-card strip (Total/Active/
+     Renewed/Expiring soon/Endorsement requests/Reinstated/Cancelled/Pending transactions/Bound
+     awaiting issue) plus the Monthly/Yearly period toggle and the 4 "open desk" work-cards must
+     not silently regress to the previous layout. */
 console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
 (function () {
   var txt = renderText("dashboard");
@@ -274,22 +278,27 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   var policies = PAS.getPolicies();
   var bound = policies.filter(function (p) { return p.status === "Bound"; });
   var referred = policies.filter(function (p) { return p.status === "Referred"; });
-  var pending = PAS.allTxns(policies).map(function (t) { return t.h; }).filter(function (h) { return h.status === "Pending"; });
-  var fixedTotal = pending.length + bound.length;
+  /* Underwriting referrals excluded — decided from the Underwriting desk, not the Pending
+     Approvals link this KPI points to (same exclusion as approvals.js's own pending list). */
+  var pending = PAS.allTxns(policies).map(function (t) { return t.h; }).filter(function (h) { return h.status === "Pending" && h.type !== "Underwriting"; });
   var oldDoubleCountedTotal = referred.length + bound.length + pending.length;
-  if (fixedTotal === oldDoubleCountedTotal) { fails++; console.log("  FAIL  fixed formula coincides with the old double-counted one — test is not discriminating"); }
-  var m = txt.match(/Awaiting decision(\d+)/);
-  if (!m) { fails++; console.log('  FAIL  could not find rendered "Awaiting decision" value'); }
-  else if (Number(m[1]) !== fixedTotal) { fails++; console.log("  FAIL  Awaiting decision renders " + m[1] + ", expected " + fixedTotal + " (pending " + pending.length + " + bound " + bound.length + ", NOT +referred " + referred.length + ")"); }
-  else console.log("  PASS  Awaiting decision = " + fixedTotal + " (pending " + pending.length + " + bound " + bound.length + "), not the old double-counted " + oldDoubleCountedTotal);
+  if (pending.length + bound.length === oldDoubleCountedTotal) { fails++; console.log("  FAIL  split totals coincide with the old double-counted formula — test is not discriminating"); }
+  var mPending = txt.match(/Pending transactions(\d+)/);
+  if (!mPending) { fails++; console.log('  FAIL  could not find rendered "Pending transactions" value'); }
+  else if (Number(mPending[1]) !== pending.length) { fails++; console.log("  FAIL  Pending transactions renders " + mPending[1] + ", expected " + pending.length); }
+  else console.log("  PASS  Pending transactions = " + pending.length + " (excludes Underwriting, matches Pending Approvals exactly)");
+  var mBound = txt.match(/Bound, awaiting issue(\d+)/);
+  if (!mBound) { fails++; console.log('  FAIL  could not find rendered "Bound, awaiting issue" value'); }
+  else if (Number(mBound[1]) !== bound.length) { fails++; console.log("  FAIL  Bound, awaiting issue renders " + mBound[1] + ", expected " + bound.length); }
+  else console.log("  PASS  Bound, awaiting issue = " + bound.length + " — its own queue, not folded into Pending transactions, not the old double-counted " + oldDoubleCountedTotal);
 
   var dom = renderDom("dashboard");
   var kpiRow = dom.querySelector(".kpi-row");
   if (!kpiRow || !kpiRow.classList.contains("wrap")) { fails++; console.log("  FAIL  KPI row is missing the 4-per-row \"wrap\" layout class"); }
   else console.log('  PASS  KPI row uses the fixed 4-per-row grid (".kpi-row.wrap")');
   var kpiCards = dom.querySelectorAll(".kpi-card");
-  if (kpiCards.length !== 8) { fails++; console.log("  FAIL  expected exactly 8 KPI cards, found " + kpiCards.length); }
-  else console.log("  PASS  exactly 8 KPI cards render (2 rows of 4)");
+  if (kpiCards.length !== 9) { fails++; console.log("  FAIL  expected exactly 9 KPI cards, found " + kpiCards.length); }
+  else console.log("  PASS  exactly 9 KPI cards render (2 full rows of 4 plus a trailing card)");
   /* Left panel: a bar chart (3 series × 6 trailing months = 18 bars), with a legend. */
   var barChart = dom.querySelectorAll(".trend-bar-chart");
   var barFills = dom.querySelectorAll(".trend-bar-fill");

@@ -265,13 +265,61 @@
         if (visible !== "*" && visible.indexOf(it[0]) === -1) return;
         any = true;
         var active = PAS.PAGE_META[pageKey] && PAS.PAGE_META[pageKey].nav === it[0];
-        var a = ui.h("a", { class: "nav-item" + (active ? " active" : ""), href: it[3] });
+        var a = ui.h("a", { class: "nav-item" + (active ? " active" : ""), href: it[3], title: it[1] });
         a.appendChild(PAS.icon(it[2], { size: 13 }));
-        a.appendChild(document.createTextNode(" " + it[1]));
+        a.appendChild(ui.h("span", { class: "nav-item-label" }, " " + it[1]));
         g.appendChild(a);
       });
       if (any) sidebar.insertBefore(g, footer);
     });
+  }
+
+  /* §5: left nav collapses to 64px icon-only via a toggle at the bottom; §10.18: Comfortable/
+     Compact density toggle in the topbar. Both persist per-user in localStorage and apply purely
+     by flipping a class/attribute — no reload, no layout rebuild. */
+  var NAV_COLLAPSE_KEY = "pas.navCollapsed.v1", DENSITY_KEY = "pas.density.v1";
+
+  function wireNavCollapse() {
+    var sidebar = document.getElementById("sidebar");
+    var btn = document.getElementById("nav-collapse-btn");
+    if (!sidebar || !btn) return;
+    var collapsed;
+    try { collapsed = localStorage.getItem(NAV_COLLAPSE_KEY) === "1"; } catch (e) { collapsed = false; }
+    function apply() {
+      sidebar.classList.toggle("collapsed", collapsed);
+      btn.setAttribute("aria-expanded", String(!collapsed));
+      btn.setAttribute("aria-label", collapsed ? "Expand navigation" : "Collapse navigation");
+    }
+    apply();
+    btn.addEventListener("click", function () {
+      collapsed = !collapsed;
+      try { localStorage.setItem(NAV_COLLAPSE_KEY, collapsed ? "1" : "0"); } catch (e) { /* storage unavailable */ }
+      apply();
+    });
+  }
+
+  function wireDensityToggle() {
+    var topbar = document.getElementById("topbar");
+    var bellBtn = document.getElementById("bell-btn");
+    if (!topbar || !bellBtn || document.getElementById("density-btn")) return;
+    var density;
+    try { density = localStorage.getItem(DENSITY_KEY) === "compact" ? "compact" : "comfortable"; } catch (e) { density = "comfortable"; }
+    var btn = ui.h("button", { class: "density-btn", id: "density-btn", type: "button" });
+    function apply() {
+      document.body.setAttribute("data-density", density);
+      btn.setAttribute("aria-label", density === "compact" ? "Switch to comfortable density" : "Switch to compact density");
+      btn.setAttribute("aria-pressed", String(density === "compact"));
+      btn.title = density === "compact" ? "Compact density — click for Comfortable" : "Comfortable density — click for Compact";
+      btn.innerHTML = "";
+      btn.appendChild(PAS.icon(density === "compact" ? "layers" : "list-checks", { size: 14 }));
+    }
+    apply();
+    btn.addEventListener("click", function () {
+      density = density === "compact" ? "comfortable" : "compact";
+      try { localStorage.setItem(DENSITY_KEY, density); } catch (e) { /* storage unavailable */ }
+      apply();
+    });
+    topbar.insertBefore(btn, bellBtn);
   }
 
   function init() {
@@ -280,6 +328,8 @@
     var flash = PAS.takeFlash && PAS.takeFlash();
     if (flash) ui.renderToast(flash);
     wireReset();
+    wireNavCollapse();
+    wireDensityToggle();
     wireSearch();
     wireBell();
     wireRole();

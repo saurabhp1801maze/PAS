@@ -109,6 +109,14 @@
   --color-chip-dark-accent: #8FA6FF;
   --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Consolas, monospace;
   --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* additional: legacy short tone aliases. A handful of call sites build a CSS var name at
+     runtime from a tone keyword (e.g. `"var(--" + s.tone + ")"` for a chart series' color) rather
+     than going through the [data-tone] indirection — these keep that dynamic construction working
+     against the renamed token set instead of resolving to nothing. */
+  --green: var(--color-success); --red: var(--color-danger); --amber: var(--color-warning);
+  --blue: var(--color-info); --violet: var(--outcome-load); --indigo: var(--color-brand);
+  --gray: var(--color-muted);
 }
 
 * { box-sizing: border-box; }
@@ -148,35 +156,49 @@ button { font-family: inherit; }
 [data-tone="indigo"] { --tone-bg: var(--color-brand-light); --tone-fg: var(--color-brand); }
 [data-tone="gray"]   { --tone-bg: var(--status-retired-bg);   --tone-fg: var(--color-muted); }
 
-/* ================= SHELL ================= */
+/* ================= SHELL =================
+   §5: topbar 56px fixed / dark shell bg; left nav 240px fixed / dark shell bg, collapsible to
+   64px icon-only (toggle at the bottom, state in localStorage). */
 .app-shell { display: flex; height: 100vh; overflow: hidden; }
 
-.sidebar { width: 198px; background: var(--color-shell); padding: 15px 9px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.sidebar { width: 240px; background: var(--color-shell); padding: 15px 9px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column; transition: width .15s ease; }
+.sidebar.collapsed { width: 64px; }
+.sidebar.collapsed .sidebar-brand-text, .sidebar.collapsed .nav-group-label,
+.sidebar.collapsed .nav-item-label, .sidebar.collapsed .reset-demo-label, .sidebar.collapsed .nav-collapse-label { display: none; }
+.sidebar.collapsed .nav-item, .sidebar.collapsed .reset-demo-btn, .sidebar.collapsed .nav-collapse-btn { justify-content: center; padding-inline: 0; }
 .sidebar-brand { display: flex; align-items: center; gap: 8px; padding: 0 7px 16px; }
-.sidebar-brand-mark { width: 24px; height: 24px; border-radius: 6px; background: var(--color-brand); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sidebar-brand-mark { width: 24px; height: 24px; border-radius: 6px; background: var(--color-brand-gradient); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .sidebar-brand-name { font-size: 13px; font-weight: 800; color: #fff; line-height: 1.2; }
 .sidebar-brand-sub { font-size: 9px; color: var(--color-shell-text); }
 .nav-group { margin-bottom: 12px; }
-.nav-group-label { font-size: 9px; font-weight: 700; color: var(--color-shell-text); text-transform: uppercase; letter-spacing: 0.7px; padding: 0 8px 4px; }
-.nav-item { width: 100%; display: flex; align-items: center; gap: 8px; background: transparent; border: none; border-radius: 6px; padding: 6.5px 8px; margin-bottom: 1.5px; color: var(--color-shell-text); font-size: 12px; font-weight: 600; cursor: pointer; text-align: left; }
+.nav-group-label { font-size: 11px; font-weight: 600; color: var(--color-shell-text); text-transform: uppercase; letter-spacing: 0.6px; padding: 0 8px 4px; }
+.nav-item { width: 100%; height: 44px; display: flex; align-items: center; gap: 8px; background: transparent; border: none; border-inline-start: 3px solid transparent; border-radius: 6px; padding-inline: 13px; margin-bottom: 1.5px; color: var(--color-shell-text); font-size: 13px; font-weight: 500; cursor: pointer; text-align: left; }
 .nav-item svg { flex-shrink: 0; }
-.nav-item.active { background: var(--color-shell-accent); color: #fff; }
-.nav-item:hover:not(.active) { color: #fff; }
-.sidebar-footer { margin-top: auto; padding-top: 10px; }
+.nav-item.active { background: rgba(255,247,237,0.15); border-inline-start-color: var(--color-brand); color: var(--color-brand); }
+.nav-item:hover:not(.active) { background: var(--color-shell-accent); color: #fff; }
+.sidebar-footer { margin-top: auto; padding-top: 10px; display: flex; flex-direction: column; gap: 6px; }
 .reset-demo-btn { width: 100%; display: flex; align-items: center; gap: 7px; background: transparent; border: 1px dashed var(--color-border-dark); border-radius: 6px; padding: 7px 8px; color: var(--color-shell-text); font-size: 11px; font-weight: 600; cursor: pointer; }
 .reset-demo-btn:hover { color: #fff; border-color: var(--color-muted); }
+.nav-collapse-btn { width: 100%; display: flex; align-items: center; gap: 7px; background: transparent; border: 1px solid var(--color-border-dark); border-radius: 6px; padding: 7px 8px; color: var(--color-shell-text); font-size: 11px; font-weight: 600; cursor: pointer; }
+.nav-collapse-btn:hover { color: #fff; border-color: var(--color-muted); }
+.nav-collapse-btn svg { transition: transform .15s ease; }
+.sidebar.collapsed .nav-collapse-btn svg { transform: rotate(180deg); }
 
 .main-col { flex: 1; display: flex; flex-direction: column; min-width: 0; }
-.topbar { padding: 9px 22px; border-bottom: 1px solid var(--color-border); background: var(--color-panel); display: flex; align-items: center; gap: 10px; position: relative; flex-shrink: 0; }
-.topbar-title { font-size: 12px; color: var(--color-muted); font-weight: 600; flex: 1; }
-.bell-btn { position: relative; background: none; border: 1px solid var(--color-border); border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.topbar { height: 56px; box-sizing: border-box; padding: 0 22px; background: var(--color-shell); display: flex; align-items: center; gap: 10px; position: relative; flex-shrink: 0; }
+.topbar-title { font-size: 12px; color: var(--color-shell-text); font-weight: 600; flex: 1; }
+.bell-btn { position: relative; background: none; border: 1px solid var(--color-border-dark); color: var(--color-shell-text); border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.bell-btn:hover { color: #fff; border-color: var(--color-muted); }
+.density-btn { background: none; border: 1px solid var(--color-border-dark); color: var(--color-shell-text); border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.density-btn:hover, .density-btn[aria-pressed="true"] { color: #fff; border-color: var(--color-muted); }
 .bell-badge { position: absolute; top: -5px; right: -5px; background: var(--color-danger); color: #fff; font-size: 9px; font-weight: 800; border-radius: 999px; min-width: 15px; height: 15px; display: flex; align-items: center; justify-content: center; padding: 0 3px; }
 
 .search-wrap { position: relative; display: flex; align-items: center; }
-.search-btn { background: none; border: 1px solid var(--color-border); border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
-.search-wrap.open .search-btn { border-color: var(--color-brand); }
-.search-input { width: 240px; margin-right: 8px; padding: 6px 10px; border: 1px solid var(--color-border); border-radius: 8px; font-size: 12.5px; background: var(--color-panel-alt); color: var(--color-ink); }
-.search-input:focus { outline: none; border-color: var(--color-brand); background: var(--color-panel); }
+.search-btn { background: none; border: 1px solid var(--color-border-dark); color: var(--color-shell-text); border-radius: 8px; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+.search-btn:hover { color: #fff; border-color: var(--color-muted); }
+.search-wrap.open .search-btn { border-color: var(--color-brand); color: var(--color-brand); }
+.search-input { width: 240px; margin-right: 8px; padding: 6px 10px; border: 1px solid var(--color-border-dark); border-radius: 8px; font-size: 12.5px; background: var(--color-shell-accent); color: #fff; }
+.search-input:focus { outline: none; border-color: var(--color-brand); background: var(--color-panel); color: var(--color-ink); }
 .search-panel { top: 44px; right: 0; width: 340px; padding: 4px; }
 .search-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 9px; border: none; background: none; border-radius: 8px; cursor: pointer; text-align: left; font-family: inherit; border-bottom: 1px solid var(--color-border); }
 .search-row:last-child { border-bottom: none; }
@@ -344,6 +366,20 @@ table.data-table tr.has-row-click:hover { background: var(--color-panel-alt); }
 .cell-id { font-family: var(--mono); font-size: 11.5px; color: var(--color-ink-secondary); }
 .cell-name { font-weight: 700; }
 .cell-open { display: inline-flex; align-items: center; gap: 4px; color: var(--color-link); font-size: 12px; font-weight: 700; }
+
+/* ================= DENSITY (§10.18) =================
+   The app's default layout is already the "Comfortable" mode — this prototype has always packed
+   dense operational data by design (see file-level design notes elsewhere in this codebase), so
+   Comfortable stays exactly as it already renders rather than being padded out to match the
+   framework's literal 48px/14px reference numbers, which would be a much larger, riskier visual
+   change across every table and card in the app. Compact is the one new, tighter mode the toggle
+   switches into. */
+body[data-density="compact"] table.data-table th { padding: 6px 13px; }
+body[data-density="compact"] table.data-table td { padding: 6px 13px; }
+body[data-density="compact"] table.data-table { font-size: 11.5px; }
+body[data-density="compact"] .kpi-card { padding: 7px 10px; }
+body[data-density="compact"] .panel { padding: 11px; }
+body[data-density="compact"] .panel-head { margin-bottom: 8px; }
 
 /* ================= DASHBOARD ================= */
 .dash-kpi-row { grid-template-columns: repeat(6, minmax(0,1fr)); }

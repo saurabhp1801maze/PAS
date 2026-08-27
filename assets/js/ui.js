@@ -417,6 +417,30 @@
     return row;
   }
 
+  /* §10.10 Empty State — centered illustration + heading + description + optional action.
+     `opts: { heading, description, actionLabel, onAction }`. Copy rule from the spec: state what
+     can be done, not what's absent ("Create your first X" rather than "No records found"), left
+     to each call site to phrase — this only supplies the shape. */
+  function emptyState(opts) {
+    var wrap = h("div", { class: "empty-state" });
+    var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", "120"); svg.setAttribute("height", "120"); svg.setAttribute("viewBox", "0 0 120 120");
+    svg.setAttribute("fill", "none"); svg.classList.add("empty-state-illo");
+    svg.innerHTML = '<rect x="28" y="40" width="64" height="48" rx="4" stroke="currentColor" stroke-width="2"/>' +
+      '<path d="M28 56h64" stroke="currentColor" stroke-width="2"/>' +
+      '<circle cx="40" cy="48" r="2.5" fill="currentColor"/><circle cx="49" cy="48" r="2.5" fill="currentColor"/>' +
+      '<path d="M44 70h32M44 78h20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+    wrap.appendChild(svg);
+    wrap.appendChild(h("div", { class: "empty-state-heading" }, opts.heading));
+    if (opts.description) wrap.appendChild(h("div", { class: "empty-state-desc" }, opts.description));
+    if (opts.actionLabel && opts.onAction) {
+      var btn = h("button", { class: "btn tone-primary", type: "button" }, opts.actionLabel);
+      btn.addEventListener("click", opts.onAction);
+      wrap.appendChild(btn);
+    }
+    return wrap;
+  }
+
   /* ================= KV / panel ================= */
   function kv(opts) {
     var row = h("div", { class: "kv-row" });
@@ -775,6 +799,10 @@
       overlay.appendChild(modal);
       document.body.appendChild(overlay);
       sync();
+      /* §13 focus management: capture the trigger so focus returns to it on close, and trap Tab
+         inside the modal while it's open (a plain Escape-listener alone doesn't stop Tab from
+         reaching the page behind the overlay). */
+      var trigger = document.activeElement;
       setTimeout(function () { if (ta.focus) ta.focus(); }, 0);
 
       var settled = false;
@@ -783,9 +811,18 @@
         settled = true;
         document.removeEventListener("keydown", onKey);
         if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+        if (trigger && trigger.focus && document.contains(trigger)) trigger.focus();
         resolve(value);
       }
-      function onKey(e) { if (e.key === "Escape") close(null); }
+      function onKey(e) {
+        if (e.key === "Escape") { close(null); return; }
+        if (e.key !== "Tab") return;
+        var focusable = modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (!focusable.length) return;
+        var first = focusable[0], last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
       document.addEventListener("keydown", onKey);
       overlay.addEventListener("click", function (e) { if (e.target === overlay) close(null); });
       cancelBtn.addEventListener("click", function () { close(null); });
@@ -1137,7 +1174,7 @@
 
   PAS.ui = {
     h: h, append: appendKids, tooltip: tooltip, tipLabel: tipLabel, infoDot: infoDot,
-    pill: pill, statusBadge: statusBadge, badge: badge, txnStatusBadge: txnStatusBadge, outcomeBadge: outcomeBadge, modulePill: modulePill, initiatorPill: initiatorPill, tabs: tabs,
+    pill: pill, statusBadge: statusBadge, badge: badge, txnStatusBadge: txnStatusBadge, outcomeBadge: outcomeBadge, modulePill: modulePill, initiatorPill: initiatorPill, tabs: tabs, emptyState: emptyState,
     cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
     codeBlock: codeBlock, dataTable: dataTable, sortableTable: sortableTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
     backLink: backLink, kv: kv, panel: panel, accordion: accordion, accordionSection: accordionSection, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,

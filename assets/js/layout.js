@@ -322,9 +322,22 @@
     topbar.insertBefore(btn, bellBtn);
   }
 
+  /* §10.11 breadcrumb separator. PAS.PAGE_META titles are authored as "Module / Page" — the
+     static HTML bakes that literal text so the topbar paints before JS runs (same reasoning as
+     the static nav markup), so this only needs to *upgrade* the separator glyph at runtime rather
+     than build the whole breadcrumb from scratch. */
+  function syncBreadcrumb() {
+    var el = document.querySelector(".topbar-title");
+    var pageKey = document.body.getAttribute("data-page");
+    var meta = pageKey && PAS.PAGE_META[pageKey];
+    if (!el || !meta) return;
+    el.textContent = meta.title.split(" / ").join(" › ");
+  }
+
   function init() {
     ensureToastContainer();
     syncNavFromConfig();
+    syncBreadcrumb();
     var flash = PAS.takeFlash && PAS.takeFlash();
     if (flash) ui.renderToast(flash);
     wireReset();

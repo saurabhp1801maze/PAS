@@ -20,15 +20,35 @@
     var lastOfMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
     return y + "-" + pad2(m) + "-" + pad2(Math.min(d, lastOfMonth));
   };
-  var money = function (n) { return "$" + Math.round(n || 0).toLocaleString("en-US"); };
+  /* §34 Data Presentation & Locale Formatting. Seed data is USD-denominated (§27) — that doesn't
+     change — but *how* a number/date renders now follows the viewer's own locale via Intl, with
+     `en-US` only as the fallback when a locale can't be read (this file also runs standalone
+     under Node in tests/render.test.js, where `navigator` doesn't exist at all). Output format is
+     deliberately unchanged for the en-US case (whole-dollar amounts, no cents) so this is a
+     locale-readiness upgrade, not a visual change, for the demo's actual audience today. */
+  var CURRENCY_CODE = "USD";
+  var locale = function () { return (typeof navigator !== "undefined" && navigator.language) || "en-US"; };
+  var money = function (n, currency) {
+    try { return new Intl.NumberFormat(locale(), { style: "currency", currency: currency || CURRENCY_CODE, maximumFractionDigits: 0 }).format(Math.round(n || 0)); }
+    catch (e) { return "$" + Math.round(n || 0).toLocaleString("en-US"); }
+  };
   var moneyShort = function (n) {
     return n >= 1000000 ? "$" + (n / 1000000).toFixed(2) + "M"
       : n >= 1000 ? "$" + (n / 1000).toFixed(1) + "K" : money(n);
   };
-  var fmtTime = function (iso) { return new Date(iso).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" }); };
+  var fmtTime = function (iso) { return new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" }); };
+  /* Renders a stored `YYYY-MM-DD` as a locale-formatted date without ever touching what's stored
+     — the ISO string stays canonical everywhere else (sorting, arithmetic, the query string).
+     opts passed straight to Intl.DateTimeFormat; default is a compact "DD Mon YYYY" style shown
+     in the viewer's own locale conventions. */
+  var fmtDate = function (iso, opts) {
+    if (!iso) return "—";
+    try { return new Intl.DateTimeFormat(locale(), opts || { day: "2-digit", month: "short", year: "numeric" }).format(new Date(iso + "T00:00:00")); }
+    catch (e) { return iso; }
+  };
 
   PAS.uid = uid; PAS.todayISO = todayISO; PAS.addDays = addDays; PAS.addYears = addYears; PAS.daysBetween = daysBetween;
-  PAS.money = money; PAS.moneyShort = moneyShort; PAS.fmtTime = fmtTime;
+  PAS.money = money; PAS.moneyShort = moneyShort; PAS.fmtTime = fmtTime; PAS.fmtDate = fmtDate; PAS.CURRENCY = CURRENCY_CODE;
 
   var REINSTATEMENT_WINDOW_DAYS = 45;
   /* 45 days matches the NAIC model act's nonrenewal-notice convention (most states require at

@@ -48,6 +48,19 @@
       textArea.value = clause.text;
       row.appendChild(textArea);
 
+      /* §10.14: what actually changed from the template, side by side — collapsed by default so
+         an unedited clause (the common case) doesn't grow taller for a comparison nobody needs. */
+      var diffWrap = null;
+      if (clause.edited) {
+        var diffToggle = ui.h("button", { class: "btn small ghost-link", type: "button" }, "See what changed");
+        diffToggle.addEventListener("click", function () {
+          if (diffWrap) { diffWrap.remove(); diffWrap = null; return; }
+          diffWrap = ui.diffPanel({ before: clause.defaultText, after: clause.text, beforeLabel: "Default template", afterLabel: "Current" });
+          row.insertBefore(diffWrap, row.querySelector(".term-row-actions"));
+        });
+        row.appendChild(diffToggle);
+      }
+
       var actions = ui.h("div", { class: "term-row-actions" });
       var saveBtn = ui.h("button", { class: "btn small" }, "Save");
       saveBtn.addEventListener("click", function () {

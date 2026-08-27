@@ -444,6 +444,92 @@
     return wrap;
   }
 
+  /* §10.14 Diff / Version Comparison Panel. opts: { before, after, beforeLabel, afterLabel }.
+     Block-level (whole-value before/after), not a word-level diff — the app's one real consumer
+     (Terms & Conditions' clause reset view) compares whole retyped clause text, where a word-diff
+     algorithm would add real complexity for a comparison a reader does just as well by reading two
+     full paragraphs side by side. */
+  function diffPanel(opts) {
+    var wrap = h("div", { class: "diff-panel" });
+    var before = h("div", { class: "diff-col diff-removed" });
+    before.appendChild(h("div", { class: "diff-col-label" }, opts.beforeLabel || "Before"));
+    before.appendChild(h("div", { class: "diff-col-body" }, opts.before));
+    var after = h("div", { class: "diff-col diff-added" });
+    after.appendChild(h("div", { class: "diff-col-label" }, opts.afterLabel || "After"));
+    after.appendChild(h("div", { class: "diff-col-body" }, opts.after));
+    wrap.appendChild(before);
+    wrap.appendChild(after);
+    return wrap;
+  }
+
+  /* §10.15 Stepper / Progress indicator. opts: steps: [label], activeIndex. */
+  function stepper(opts) {
+    var wrap = h("div", { class: "stepper" });
+    opts.steps.forEach(function (label, i) {
+      var state = i < opts.activeIndex ? "done" : i === opts.activeIndex ? "active" : "upcoming";
+      var step = h("div", { class: "stepper-step", "data-state": state });
+      var circle = h("div", { class: "stepper-circle" }, state === "done" ? "" : String(i + 1));
+      if (state === "done") circle.appendChild(PAS.icon("check-circle-2", { size: 14 }));
+      step.appendChild(circle);
+      step.appendChild(h("div", { class: "stepper-label" }, label));
+      wrap.appendChild(step);
+      if (i < opts.steps.length - 1) wrap.appendChild(h("div", { class: "stepper-connector", "data-state": state === "done" ? "done" : "upcoming" }));
+    });
+    return wrap;
+  }
+
+  /* §10.17 Drawer (side panel). opts: { width: 480|640, header (node/string), body (node),
+     footer (node), onClose }. Returns { open(triggerEl), close() }. Focus management matches
+     confirmDecision's modal: trap Tab inside while open, restore focus to the trigger on close. */
+  function drawer(opts) {
+    var overlay = null, panel = null, trigger = null;
+    function close() {
+      if (!overlay) return;
+      document.removeEventListener("keydown", onKey);
+      if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      overlay = null; panel = null;
+      if (trigger && trigger.focus && document.contains(trigger)) trigger.focus();
+      if (opts.onClose) opts.onClose();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") { close(); return; }
+      if (e.key !== "Tab" || !panel) return;
+      var focusable = panel.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+      if (!focusable.length) return;
+      var first = focusable[0], last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+    function open() {
+      trigger = document.activeElement;
+      overlay = h("div", { class: "drawer-overlay", role: "presentation" });
+      panel = h("div", { class: "drawer-panel" + (opts.width === 640 ? " wide" : ""), role: "dialog", "aria-modal": "true", "aria-labelledby": "drawer-title" });
+      var head = h("div", { class: "drawer-head" });
+      var titleEl = h("div", { class: "drawer-title", id: "drawer-title" });
+      appendKids(titleEl, opts.header);
+      head.appendChild(titleEl);
+      var closeBtn = h("button", { class: "btn icon-only", type: "button", "aria-label": "Close" });
+      closeBtn.appendChild(PAS.icon("x", { size: 16 }));
+      closeBtn.addEventListener("click", close);
+      head.appendChild(closeBtn);
+      panel.appendChild(head);
+      var body = h("div", { class: "drawer-body" });
+      appendKids(body, opts.body);
+      panel.appendChild(body);
+      if (opts.footer) {
+        var footer = h("div", { class: "drawer-footer" });
+        appendKids(footer, opts.footer);
+        panel.appendChild(footer);
+      }
+      overlay.appendChild(panel);
+      overlay.addEventListener("click", function (e) { if (e.target === overlay) close(); });
+      document.addEventListener("keydown", onKey);
+      document.body.appendChild(overlay);
+      setTimeout(function () { closeBtn.focus(); }, 0);
+    }
+    return { open: open, close: close };
+  }
+
   /* ================= KV / panel ================= */
   function kv(opts) {
     var row = h("div", { class: "kv-row" });
@@ -1177,7 +1263,7 @@
 
   PAS.ui = {
     h: h, append: appendKids, tooltip: tooltip, tipLabel: tipLabel, infoDot: infoDot,
-    pill: pill, statusBadge: statusBadge, badge: badge, txnStatusBadge: txnStatusBadge, outcomeBadge: outcomeBadge, modulePill: modulePill, initiatorPill: initiatorPill, tabs: tabs, emptyState: emptyState,
+    pill: pill, statusBadge: statusBadge, badge: badge, txnStatusBadge: txnStatusBadge, outcomeBadge: outcomeBadge, modulePill: modulePill, initiatorPill: initiatorPill, tabs: tabs, emptyState: emptyState, diffPanel: diffPanel, stepper: stepper, drawer: drawer,
     cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
     codeBlock: codeBlock, dataTable: dataTable, sortableTable: sortableTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
     backLink: backLink, kv: kv, panel: panel, accordion: accordion, accordionSection: accordionSection, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,

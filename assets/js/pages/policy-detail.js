@@ -31,12 +31,12 @@
     var endorsements = policy.history.filter(function (h) { return h.type === "Endorsement"; }).sort(function (a, b) { return b.seq - a.seq; });
     var fleet = PAS.vehicleFleetFor(policy);
 
-    var tabsRow = ui.h("div", { class: "tabs" });
+    var tabsRow = ui.h("div", { class: "tabs", role: "tablist" });
     var tabDefs = [["cover", "Cover & parties"], ["ledger", "Transaction ledger"], ["docs", "Documents (" + ((policy.documents && policy.documents.length) || 0) + ")"], ["claims", "Claims & risk (" + ((policy.claims && policy.claims.length) || 0) + ")"], ["endorsements", "Endorsements (" + endorsements.length + ")"]];
     if (fleet) tabDefs.push(["fleet", (fleet.isFleet ? "Fleet" : "Vehicle") + " (" + fleet.vehicles.length + ")"]);
     tabDefs.push(["asof", "As-of view"], ["terms", "Term history"], ["xref", "Cross-references"]);
     tabDefs.forEach(function (td) {
-      var btn = ui.h("button", { class: "tab-btn" + (tab === td[0] ? " active" : "") }, td[1]);
+      var btn = ui.h("button", { class: "tab-btn" + (tab === td[0] ? " active" : ""), role: "tab", "aria-selected": tab === td[0] ? "true" : "false" }, td[1]);
       btn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(policy.id) + "&tab=" + td[0]; });
       tabsRow.appendChild(btn);
     });
@@ -108,7 +108,13 @@
       (policy.parties && policy.parties.certificateHolders || []).forEach(function (n, i) {
         pb.appendChild(ui.kv({ k: "Certificate holder " + (i + 1), v: n }));
       });
-      pb.appendChild(ui.kv({ k: "Producer", v: policy.producer, what: "Broker or channel." }));
+      pb.appendChild(ui.kv({ k: "Producer", v: policy.producer, what: "Broker or channel that placed the risk — the initiator, not the decision-maker." }));
+      var uwDecision = policy.history.filter(function (h) { return h.type === "Underwriting" && h.status === "Completed"; }).sort(function (a, b) { return b.seq - a.seq; })[0];
+      pb.appendChild(ui.kv({
+        k: "Underwritten by", v: uwDecision ? uwDecision.user : "—",
+        what: uwDecision ? "Who actually approved or declined this risk — read from that decision's own audit trail, not the initiator." : "No completed underwriting decision on file yet.",
+        why: "Producer is who asked; this is who accepted the risk and is accountable for it.",
+      }));
       pb.appendChild(ui.kv({ k: "MGA", v: policy.mga || "—", what: "Wholesale facility holding binding authority on this risk." }));
       pb.appendChild(ui.kv({ k: "Carrier", v: policy.carrier || "—", what: "Risk-bearing partner this policy is actually written on." }));
       pb.appendChild(ui.kv({ k: "ETag", v: policy.etag || PAS.getPolicyEtag(policy.id), mono: true, what: "Concurrency token for PAS API writes." }));

@@ -13,6 +13,8 @@
       el = document.createElement("div");
       el.id = "toast-container";
       el.className = "toast-container";
+      el.setAttribute("role", "status");
+      el.setAttribute("aria-live", "polite");
       document.body.appendChild(el);
     }
     return el;
@@ -38,7 +40,7 @@
     if (!topbar || !bellBtn || document.getElementById("search-btn")) return;
 
     var wrap = ui.h("div", { class: "search-wrap" });
-    var btn = ui.h("button", { class: "search-btn", id: "search-btn", type: "button" });
+    var btn = ui.h("button", { class: "search-btn", id: "search-btn", type: "button", "aria-label": "Search" });
     btn.appendChild(PAS.icon("search", { size: 14, color: "var(--text-soft)" }));
     wrap.appendChild(btn);
     topbar.insertBefore(wrap, bellBtn);
@@ -59,21 +61,47 @@
       if (!q.trim()) {
         panelEl.appendChild(ui.h("div", { class: "notif-empty" }, "Search by policy ID, insured name, or broker/producer — across every page."));
       } else {
-        var hits = PAS.getPolicies().filter(function (p) { return matches(p, q); }).slice(0, 8);
+        var allPolicies = PAS.getPolicies();
+        var hits = allPolicies.filter(function (p) { return matches(p, q); });
         if (hits.length === 0) {
-          panelEl.appendChild(ui.h("div", { class: "notif-empty" }, 'No policy matches "' + q + '".'));
+          panelEl.appendChild(ui.h("div", { class: "notif-empty" }, 'No match for "' + q + '".'));
         } else {
-          hits.forEach(function (p) {
-            var row = ui.h("button", { class: "search-row", type: "button" });
-            row.appendChild(ui.cellId(p.id));
-            var body = ui.h("div", { class: "search-row-body" });
-            body.appendChild(ui.h("div", { class: "search-row-name" }, p.holder));
-            body.appendChild(ui.h("div", { class: "search-row-meta" }, p.product + " · " + p.producer));
-            row.appendChild(body);
-            row.appendChild(ui.badge(p.status));
-            row.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(p.id); });
-            panelEl.appendChild(row);
-          });
+          /* Customers first: search should land a real named insured on their own profile
+             (every policy they hold), not force a guess at which one policy row to click —
+             this is the actual gap the MOM 2026-08-26 feedback named ("also support searching
+             for customers"), since a name match used to only ever surface individual policies. */
+          var needle = q.toLowerCase();
+          var customerNames = Array.from(new Set(allPolicies.filter(function (p) { return p.holder.toLowerCase().indexOf(needle) !== -1; }).map(function (p) { return p.holder; })));
+          if (customerNames.length > 0) {
+            panelEl.appendChild(ui.h("div", { class: "search-section-label" }, "Customers"));
+            customerNames.slice(0, 4).forEach(function (name) {
+              var policyCount = allPolicies.filter(function (p) { return p.holder === name; }).length;
+              var row = ui.h("button", { class: "search-row", type: "button" });
+              row.appendChild(PAS.icon("user", { size: 13, color: "var(--text-soft)" }));
+              var body = ui.h("div", { class: "search-row-body" });
+              body.appendChild(ui.h("div", { class: "search-row-name" }, name));
+              body.appendChild(ui.h("div", { class: "search-row-meta" }, policyCount + " polic" + (policyCount === 1 ? "y" : "ies") + " on file"));
+              row.appendChild(body);
+              row.addEventListener("click", function () { location.href = "customers.html?customer=" + encodeURIComponent(name); });
+              panelEl.appendChild(row);
+            });
+          }
+
+          var policyHits = hits.slice(0, 5);
+          if (policyHits.length > 0) {
+            panelEl.appendChild(ui.h("div", { class: "search-section-label" }, "Policies"));
+            policyHits.forEach(function (p) {
+              var row = ui.h("button", { class: "search-row", type: "button" });
+              row.appendChild(ui.cellId(p.id));
+              var body = ui.h("div", { class: "search-row-body" });
+              body.appendChild(ui.h("div", { class: "search-row-name" }, p.holder));
+              body.appendChild(ui.h("div", { class: "search-row-meta" }, p.product + " · " + p.producer));
+              row.appendChild(body);
+              row.appendChild(ui.badge(p.status));
+              row.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(p.id); });
+              panelEl.appendChild(row);
+            });
+          }
         }
       }
       wrap.appendChild(panelEl);
@@ -81,7 +109,7 @@
     function open() {
       if (input) return;
       wrap.classList.add("open");
-      input = ui.h("input", { class: "search-input", type: "text", placeholder: "Search policies, insureds, brokers…" });
+      input = ui.h("input", { class: "search-input", type: "text", placeholder: "Search policies, insureds, brokers…", "aria-label": "Search policies, insureds, brokers" });
       wrap.insertBefore(input, wrap.firstChild);
       input.addEventListener("input", function () { runSearch(input.value); });
       input.addEventListener("keydown", function (e) { if (e.key === "Escape") close(); });

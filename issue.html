@@ -3,12 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none';">
 <title>Issue Desk · Veridex PAS</title>
 <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body data-page="issue-desk">
+  <a class="skip-link" href="#page-content">Skip to main content</a>
   <div class="app-shell">
-    <nav class="sidebar" id="sidebar">
+    <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main">
   <div class="sidebar-brand">
     <div class="sidebar-brand-mark"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:inline-block;vertical-align:middle" ><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg></div>
     <div>
@@ -57,19 +59,20 @@
   </div>
 </nav>
     <div class="main-col">
-      <div class="topbar" id="topbar">
+      <div class="topbar" id="topbar" role="banner">
   <span class="topbar-title">Decision desks / Issue</span>
   <span class="pill" data-tone="gray">Veridex Demo</span>
   <span class="pill" data-tone="indigo">Rahul Verma &middot; Underwriter</span>
-  <button class="bell-btn" id="bell-btn" type="button"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:inline-block;vertical-align:middle" ><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="bell-badge" id="bell-badge" style="display:none"></span></button>
+  <button class="bell-btn" id="bell-btn" type="button" aria-label="Notifications"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-soft)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;display:inline-block;vertical-align:middle" ><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="bell-badge" id="bell-badge" style="display:none"></span></button>
 </div>
-      <div id="page-content" class="page-content"></div>
+      <div id="page-content" class="page-content" role="main"></div>
     </div>
   </div>
   <script src="assets/js/icons.js"></script>
   <script src="data/policies.js"></script>
   <script src="assets/js/store.js"></script>
   <script src="assets/js/pas-extensions.js"></script>
+  <script src="assets/js/i18n.js"></script>
   <script src="assets/js/api.js"></script>
   <script src="assets/js/ui.js"></script>
   <script src="assets/js/layout.js"></script>

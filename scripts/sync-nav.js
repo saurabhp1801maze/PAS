@@ -15,7 +15,7 @@ var stub = {
 };
 stub.window = stub;
 vm.createContext(stub);
-["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js"].forEach(function (f) {
+["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/i18n.js"].forEach(function (f) {
   vm.runInContext(fs.readFileSync(path.join(ROOT, f), "utf8"), stub, { filename: f });
 });
 var PAS = stub.PAS;
@@ -26,7 +26,7 @@ function navItemHtml(pageKey, label, icon, href, active) {
 }
 
 function sidebarHtml(activeNavKey) {
-  var out = ['    <nav class="sidebar" id="sidebar">'];
+  var out = ['    <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main">'];
   out.push('  <div class="sidebar-brand">');
   out.push('    <div class="sidebar-brand-mark">' + PAS.iconHtml("building-2", { size: 13, color: "#fff" }) + "</div>");
   out.push("    <div>");
@@ -38,7 +38,8 @@ function sidebarHtml(activeNavKey) {
     out.push('  <div class="nav-group">');
     out.push('    <div class="nav-group-label">' + group.label + "</div>");
     group.items.forEach(function (it) {
-      out.push(navItemHtml(it[0], it[1], it[2], it[3], it[0] === activeNavKey));
+      var label = PAS.t("nav." + it[0], it[1]);
+      out.push(navItemHtml(it[0], label, it[2], it[3], it[0] === activeNavKey));
     });
     out.push("  </div>");
   });
@@ -61,7 +62,7 @@ files.forEach(function (file) {
   if (!meta) { skipped.push(file + " (data-page=\"" + pageKey + "\" has no PAS.PAGE_META entry)"); return; }
 
   var navBlock = sidebarHtml(meta.nav);
-  var navRe = /    <nav class="sidebar" id="sidebar">[\s\S]*?\n<\/nav>/;
+  var navRe = /    <nav class="sidebar" id="sidebar"[^>]*>[\s\S]*?\n<\/nav>/;
   if (!navRe.test(html)) { skipped.push(file + " (sidebar block not found/matched)"); return; }
   var next = html.replace(navRe, navBlock);
 

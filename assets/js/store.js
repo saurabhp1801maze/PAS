@@ -139,14 +139,33 @@
   }
   PAS.deriveCancelType = deriveCancelType;
 
+  /* "Where permitted" (MOM 2026-08-26): Type stays derived by default, but a decision-maker can
+     override it — never into a combination the domain rule itself forbids. Flat is only ever
+     valid when the effective date lands at/before inception (the insurer was never on risk); an
+     insurer-side initiator (Reinsurer/MGA/System) can never carry a Short-Rate penalty. An
+     override that would violate either rule is simply not valid — the UI never offers it, and
+     cancelQuote silently falls back to the real derived type if one ever slipped through. */
+  function isValidCancelType(type, initiatedBy, atInception) {
+    if (!CANCEL_TYPES[type]) return false;
+    if (atInception) return type === "Flat";
+    if (type === "Flat") return false;
+    if (type === "Short-Rate" && CANCEL_INSURER_SIDE[initiatedBy]) return false;
+    return true;
+  }
+  PAS.isValidCancelType = isValidCancelType;
+
   /* Everything about a cancellation follows from these four attributes plus dates. Nothing is
-     hand-keyed. */
+     hand-keyed, unless a decision-maker has explicitly overridden Type (meta.typeOverride) — and
+     even then, only within what isValidCancelType allows. */
   function cancelQuote(policy, reason, initiatedBy, effectiveDate, meta) {
     meta = meta || {};
     var reasonSpec = CANCEL_REASONS[reason] || CANCEL_REASONS.Other;
     var totalDays = Math.max(1, daysBetween(policy.effectiveDate, policy.expirationDate));
     var atInception = effectiveDate <= policy.effectiveDate;
-    var type = deriveCancelType(reason, initiatedBy, atInception);
+    var derivedType = deriveCancelType(reason, initiatedBy, atInception);
+    var overrideValid = !!meta.typeOverride && isValidCancelType(meta.typeOverride, initiatedBy, atInception);
+    var type = overrideValid ? meta.typeOverride : derivedType;
+    var overridden = overrideValid && type !== derivedType;
     var spec = CANCEL_TYPES[type];
     var remainingDays = Math.max(0, daysBetween(effectiveDate, policy.expirationDate));
     var unearned = policy.premium * (remainingDays / totalDays);
@@ -166,7 +185,8 @@
       ? Math.max(0, noticeRequired - daysBetween(meta.dnocServedOn, todayISO()))
       : noticeRequired;
     return {
-      type: type, spec: spec, reason: reason, initiatedBy: initiatedBy, timing: cancelTiming(effectiveDate),
+      type: type, derivedType: derivedType, overridden: overridden, atInception: atInception,
+      spec: spec, reason: reason, initiatedBy: initiatedBy, timing: cancelTiming(effectiveDate),
       totalDays: totalDays, remainingDays: remainingDays,
       earnedDays: totalDays - remainingDays, gross: gross, penalty: penalty, refund: refund,
       noticeRequired: noticeRequired, noticeProvided: noticeProvided, noticeOk: noticeOk,
@@ -209,6 +229,37 @@
     };
   }
   PAS.dnocState = dnocState;
+
+  /* Manual Type override (MOM 2026-08-26: "Users should be able to change the policy type...
+     where permitted"). "Where permitted" means two things at once: only a role that can already
+     decide this desk may call it (a UI-layer gate — see cancellation-decision.js), and even then
+     only into a type isValidCancelType still allows for this reason/initiator/date. Refused
+     outright rather than silently clamped, so a caller can't mistake a no-op for success. */
+  PAS.setCancelTypeOverride = function (policyId, txnId, type, comment) {
+    var p = PAS.getPolicy(policyId);
+    var held = p && p.history.find(function (h) { return h.id === txnId; });
+    if (!held) return { allowed: false, reason: "Transaction not found." };
+    var meta = held.meta || {};
+    var atInception = (held.date || todayISO()) <= p.effectiveDate;
+    if (!isValidCancelType(type, meta.initiatedBy, atInception)) {
+      return { allowed: false, reason: type + " is not a valid type for this cancellation — the override was not applied." };
+    }
+    var audit = PAS.makeAudit("Override Type", comment || ("Type manually set to " + type + "."));
+    patch(policyId, function (pp) {
+      return Object.assign({}, pp, {
+        history: pp.history.map(function (h) { return h.id === txnId ? withAudit(h, audit, { meta: { typeOverride: type } }) : h; }),
+      });
+    });
+    return { allowed: true };
+  };
+  PAS.clearCancelTypeOverride = function (policyId, txnId, comment) {
+    var audit = PAS.makeAudit("Clear Type Override", comment || "Reverted to the derived type.");
+    patch(policyId, function (pp) {
+      return Object.assign({}, pp, {
+        history: pp.history.map(function (h) { return h.id === txnId ? withAudit(h, audit, { meta: { typeOverride: null } }) : h; }),
+      });
+    });
+  };
 
   PAS.serveDnoc = function (policyId, txnId) {
     return patch(policyId, function (p) {
@@ -351,6 +402,39 @@
   PAS.renewalCompliance = renewalCompliance;
   PAS.lastEvent = lastEvent;
   PAS.reinstatementEligibility = reinstatementEligibility;
+
+  /* ---------- renewal notifications (MOM 2026-08-26) ----------
+     "Renewal notifications should be sent to the customer, underwriter, and lead so the relevant
+     teams can proactively contact the customer and initiate the renewal process." Real recipients,
+     not fabricated ones: the underwriter is read from that policy's own completed Underwriting
+     decision (the same source "Underwritten by" on policy-detail.js reads from), never a made-up
+     name. Same honesty pattern as recordHeldDecision's emailTo — there is no real mail transport
+     in a static frontend, so sending is simulated by appending a real, inspectable ledger entry
+     (visible on the policy's own Transaction ledger tab and in the decision trail), not a toast
+     that vanishes and leaves no trace. */
+  PAS.RENEWAL_LEAD_IDENTITY = "M. Ferreira (Renewal Operations Lead)";
+  PAS.renewalNoticeRecipients = function (policy) {
+    var uw = policy.history.filter(function (h) { return h.type === "Underwriting" && h.status === "Completed"; }).sort(function (a, b) { return b.seq - a.seq; })[0];
+    return {
+      customer: policy.holder,
+      underwriter: uw ? uw.user : "Unassigned — no underwriting decision on file",
+      lead: PAS.RENEWAL_LEAD_IDENTITY,
+    };
+  };
+  PAS.lastRenewalNotice = function (policy) {
+    return policy.history.filter(function (h) { return h.type === "Renewal" && h.meta && h.meta.renewalNotice; }).sort(function (a, b) { return b.seq - a.seq; })[0] || null;
+  };
+  PAS.sendRenewalNotice = function (id) {
+    return patch(id, function (p) {
+      var recipients = PAS.renewalNoticeRecipients(p);
+      var detail = "Renewal notice sent to the customer (" + recipients.customer + "), the underwriter (" + recipients.underwriter + "), and the " + recipients.lead + ".";
+      return pushTxn(p, {
+        date: todayISO(), type: "Renewal", status: "Completed", title: "Renewal notice sent",
+        detail: detail, user: PAS.actorName(),
+        meta: { noteOnly: true, renewalNotice: true, recipients: recipients },
+      });
+    });
+  };
 
   /* ---------- the book of business ----------
      This is the point of a PAS: the data is ALREADY here and the operator makes decisions on it. */

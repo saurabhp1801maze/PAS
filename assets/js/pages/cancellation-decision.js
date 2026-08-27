@@ -59,12 +59,53 @@
       }, dateInput));
 
       var derivedWrap = ui.h("div", { class: "mt-6" });
-      derivedWrap.appendChild(ui.tipLabel({ text: "Derived type", what: "Which of the three cancellation types this maps to — from Reason + Initiated By + whether it lands at inception.", className: "label-11 block mb-9" }));
+      derivedWrap.appendChild(ui.tipLabel({ text: q.overridden ? "Type (manually overridden)" : "Derived type", what: "Which of the three cancellation types this maps to — from Reason + Initiated By + whether it lands at inception.", why: q.overridden ? "Would otherwise derive to " + q.derivedType + " — this is a manual exception, logged in the decision trail." : undefined, className: "label-11 block mb-9" }));
       var derivedCard = ui.h("div", { class: "cancel-type-card", "data-tone": q.spec.tone, style: { background: "var(--tone-bg)", borderColor: "var(--tone-fg)" } });
       derivedCard.appendChild(ui.pill(q.spec.tone, q.type));
+      if (q.overridden) derivedCard.appendChild(ui.pill("gray", "was " + q.derivedType));
       derivedCard.appendChild(ui.h("div", { style: { fontSize: "12px", color: "var(--text)", marginTop: "8px", lineHeight: "1.5" } }, q.spec.when));
       derivedCard.appendChild(ui.h("div", { style: { fontSize: "11.5px", color: "var(--text-soft)", marginTop: "6px", lineHeight: "1.5" } }, q.spec.rate));
       derivedWrap.appendChild(derivedCard);
+
+      /* "Where permitted" (MOM 2026-08-26): only a role that can already decide this desk sees the
+         override control at all, and even then it only ever offers types isValidCancelType allows
+         for this reason/initiator/date — never a combination the domain rule forbids outright. */
+      var canOverride = (PAS.ROLES[PAS.getRole()] || {}).canDecide && !decided;
+      if (canOverride) {
+        var validTypes = Object.keys(PAS.CANCEL_TYPES).filter(function (t) { return PAS.isValidCancelType(t, initiatedBy, q.atInception); });
+        if (validTypes.length > 1) {
+          var overrideWrap = ui.h("div", { class: "mt-9" });
+          var overrideToggle = ui.h("button", { class: "btn ghost-link", type: "button" }, q.overridden ? "Change override…" : "Override type…");
+          var overrideForm = ui.h("div", { class: "mt-6", style: { display: "none" } });
+          var typeSelect = ui.h("select", { class: "field-input select-fixed" });
+          validTypes.forEach(function (t) { typeSelect.appendChild(ui.h("option", { value: t, selected: t === q.type }, t)); });
+          var reasonInput = ui.h("input", { class: "field-input", placeholder: "Why override the derived type? (required)" });
+          var applyBtn = ui.h("button", { class: "btn small", type: "button" }, "Apply override");
+          var clearBtn = ui.h("button", { class: "btn small ghost-link", type: "button" }, "Clear override");
+          overrideForm.appendChild(ui.field({ label: "Override to" }, typeSelect));
+          overrideForm.appendChild(ui.field({ label: "Reason" }, reasonInput));
+          var overrideBtnRow = ui.h("div", { style: { display: "flex", gap: "8px", marginTop: "6px" } });
+          overrideBtnRow.appendChild(applyBtn);
+          if (q.overridden) overrideBtnRow.appendChild(clearBtn);
+          overrideForm.appendChild(overrideBtnRow);
+          overrideToggle.addEventListener("click", function () { overrideForm.style.display = overrideForm.style.display === "none" ? "" : "none"; });
+          applyBtn.addEventListener("click", function () {
+            if (!reasonInput.value.trim()) { reasonInput.focus(); return; }
+            var result = PAS.setCancelTypeOverride(p.id, txnId, typeSelect.value, reasonInput.value.trim());
+            if (!result.allowed) { ui.renderToast({ title: "Override refused", detail: result.reason, tone: "red" }); return; }
+            ui.renderToast({ title: "Type overridden", detail: p.id + " · " + typeSelect.value, tone: "blue" });
+            buildContent();
+          });
+          clearBtn.addEventListener("click", function () {
+            PAS.clearCancelTypeOverride(p.id, txnId, "Reverted to the derived type.");
+            ui.renderToast({ title: "Override cleared", detail: p.id + " · back to " + q.derivedType, tone: "blue" });
+            buildContent();
+          });
+          overrideWrap.appendChild(overrideToggle);
+          overrideWrap.appendChild(overrideForm);
+          derivedWrap.appendChild(overrideWrap);
+        }
+      }
       left.push(derivedWrap);
 
       /* DNOC panel — Direct Notice of Cancellation for System / Carrier / MGA with notice days */

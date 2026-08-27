@@ -95,15 +95,36 @@
 
     if (noRequest.length > 0) {
       var extra = ui.h("div", { class: "mt-18" });
-      extra.appendChild(ui.tipLabel({ text: "Approaching expiry, no confirmation yet", what: "Reference only — nothing to decide until the insured responds to the renewal notice.", className: "label-11 block mb-9" }));
-      extra.appendChild(ui.dataTable({
-        columns: ["Policy", "Insured", "Expires", "Days left", { label: "Notice status", what: "Whether the renewal notice window has been met.", rule: "Notices must go out at least " + PAS.RENEWAL_LEAD_DAYS + " days before expiry." }],
-        rows: noRequest.map(function (x) {
-          var r = PAS.renewalCompliance(x);
-          return [ui.cellId(x.id), ui.cellName(x.holder), x.expirationDate, r.daysToExpiry + "d", ui.pill(r.status === "Compliant" ? "green" : r.status === "Urgent" ? "amber" : "red", r.status)];
-        }),
+      extra.appendChild(ui.tipLabel({
+        text: "Approaching expiry, no confirmation yet",
+        what: "Reference only — nothing to decide until the insured responds to the renewal notice.",
+        why: "Sending the notice here logs a real, inspectable ledger entry to the customer, the underwriter, and the renewal lead — so the relevant teams can proactively reach out, not just watch the clock run down.",
+        className: "label-11 block mb-9",
       }));
+      var noticeBody = ui.h("div", {});
+      extra.appendChild(noticeBody);
       page.appendChild(extra);
+
+      function buildNoticeTable() {
+        noticeBody.innerHTML = "";
+        noticeBody.appendChild(ui.dataTable({
+          columns: ["Policy", "Insured", "Expires", "Days left", { label: "Notice status", what: "Whether the renewal notice window has been met.", rule: "Notices must go out at least " + PAS.RENEWAL_LEAD_DAYS + " days before expiry." }, { label: "Renewal notice", what: "Sends to the customer, the underwriter on file, and the renewal lead — logged on the policy's own ledger, not a toast that vanishes." }],
+          rows: noRequest.map(function (x) {
+            var r = PAS.renewalCompliance(x);
+            var sent = PAS.lastRenewalNotice(x);
+            var noticeCell;
+            if (sent) {
+              noticeCell = ui.h("span", { class: "faint-note" }, "Sent " + sent.date + " to " + sent.meta.recipients.customer + ", " + sent.meta.recipients.underwriter + " & lead");
+            } else {
+              var btn = ui.h("button", { class: "btn small" }, "Send notice");
+              btn.addEventListener("click", function () { PAS.sendRenewalNotice(x.id); render(); });
+              noticeCell = btn;
+            }
+            return [ui.cellId(x.id), ui.cellName(x.holder), x.expirationDate, r.daysToExpiry + "d", ui.pill(r.status === "Compliant" ? "green" : r.status === "Urgent" ? "amber" : "red", r.status), noticeCell];
+          }),
+        }));
+      }
+      buildNoticeTable();
     }
 
     var root = document.getElementById("page-content");

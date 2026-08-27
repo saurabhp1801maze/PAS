@@ -22,7 +22,6 @@
       if (k.indexOf("on") === 0 && typeof v === "function") { el.addEventListener(k.slice(2).toLowerCase(), v); return; }
       if (k === "value") { el.value = v; return; }
       if (k === "checked" || k === "disabled" || k === "selected") { el[k] = !!v; return; }
-      if (k === "html") { el.innerHTML = v; return; }
       if (v === true) { el.setAttribute(k, ""); return; }
       el.setAttribute(k, v);
     });
@@ -693,7 +692,7 @@
       });
       var counter = h("div", { class: "decision-modal-counter" });
       var btnTone = (tone === "red" || tone === "green" || tone === "primary") ? tone : "primary";
-      var confirmBtn = h("button", { class: "btn tone-" + btnTone, type: "button", disabled: true }, "Confirm");
+      var confirmBtn = h("button", { class: "btn tone-" + btnTone, type: "button", disabled: true }, PAS.t("action.confirm", "Confirm"));
       function sync() {
         var n = ta.value.trim().length;
         var ok = n > 0;

@@ -160,7 +160,7 @@ var PAGES = [
   ["customers", "customers"],
 ];
 
-var CORE = ["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/charts.js", "assets/js/entity-book.js"];
+var CORE = ["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/i18n.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/charts.js", "assets/js/entity-book.js"];
 var fails = 0;
 
 PAGES.forEach(function (pair) {
@@ -718,6 +718,151 @@ console.log("\n  coverage-wise breakdown: line items reconcile exactly to the po
     if (detailTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  policy-detail cover tab missing "' + needle + '"'); }
   });
   console.log("  PASS  policy-detail's Cover tab renders the real per-policy coverage breakdown");
+})();
+
+/* Underwritten by (MOM 2026-08-26): the policy must show who actually decided it, not just who
+   initiated the submission — Producer and "Underwritten by" must be two genuinely different real
+   people/entities, read from the completed Underwriting decision's own audit trail. */
+console.log("\n  policy-detail: \"Underwritten by\" shows the real decision-maker, not just the initiator");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS6b = stub.PAS;
+  var withUw = PAS6b.getPolicies().find(function (p) { return p.history.some(function (h) { return h.type === "Underwriting" && h.status === "Completed"; }); });
+  if (!withUw) { fails++; console.log("  FAIL  no seeded policy with a completed Underwriting decision found"); return; }
+  var uwRow = withUw.history.filter(function (h) { return h.type === "Underwriting" && h.status === "Completed"; }).sort(function (a, b) { return b.seq - a.seq; })[0];
+  if (uwRow.user === withUw.producer) { fails++; console.log("  FAIL  test fixture coincidence — decision-maker and producer are the same string, can't prove they're independently sourced"); return; }
+
+  var txt = renderText("policy-detail", "?policy=" + encodeURIComponent(withUw.id) + "&tab=cover");
+  if (txt.indexOf("Underwritten by") === -1) { fails++; console.log('  FAIL  policy-detail missing "Underwritten by"'); }
+  else if (txt.indexOf(uwRow.user) === -1) { fails++; console.log('  FAIL  policy-detail does not show the real decision-maker "' + uwRow.user + '"'); }
+  else if (txt.indexOf(withUw.producer) === -1) { fails++; console.log('  FAIL  policy-detail no longer shows the real Producer "' + withUw.producer + '"'); }
+  else console.log("  PASS  " + withUw.id + " genuinely distinguishes Producer (" + withUw.producer + ") from Underwritten by (" + uwRow.user + ") — read from the decision's own audit trail, not asserted");
+})();
+
+/* Renewal notifications (MOM 2026-08-26): "sent to the customer, underwriter, and lead" — must be
+   a real, inspectable ledger entry with real recipients (the actual underwriter on file, not a
+   fabricated name), not a toast that vanishes. */
+console.log("\n  renewal notifications: real recipients, logged on the policy's own ledger, not a toast");
+(function () {
+  var stub = {
+    sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })(),
+  };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS13 = stub.PAS;
+  var allPolicies13 = PAS13.getPolicies();
+  var pendingIds = PAS13.pendingOf(allPolicies13, "Renewal").map(function (t) { return t.p.id; });
+  var noConfirmation = allPolicies13.filter(function (p) { return p.status === "Active" && pendingIds.indexOf(p.id) === -1 && PAS13.renewalCompliance(p).status !== "Compliant"; });
+  if (noConfirmation.length === 0) { fails++; console.log("  FAIL  no seeded policy in the notice window with no renewal confirmation yet — can't test notification"); return; }
+  var target = noConfirmation[0];
+  if (PAS13.lastRenewalNotice(target)) { fails++; console.log("  FAIL  " + target.id + " already shows a renewal notice before one was ever sent"); return; }
+
+  var recipients = PAS13.renewalNoticeRecipients(target);
+  if (recipients.customer !== target.holder) { fails++; console.log("  FAIL  customer recipient is not the real policyholder"); }
+  if (!recipients.underwriter) { fails++; console.log("  FAIL  underwriter recipient is empty"); }
+  if (!recipients.lead) { fails++; console.log("  FAIL  lead recipient is empty"); }
+  console.log("  PASS  real recipients computed for " + target.id + ": customer=" + recipients.customer + ", underwriter=" + recipients.underwriter + ", lead=" + recipients.lead);
+
+  PAS13.sendRenewalNotice(target.id);
+  var after13 = PAS13.getPolicy(target.id);
+  var notice = PAS13.lastRenewalNotice(after13);
+  if (!notice) { fails++; console.log("  FAIL  sendRenewalNotice did not leave a real ledger entry on the policy"); }
+  else if (notice.detail.indexOf(recipients.customer) === -1 || notice.detail.indexOf(recipients.underwriter) === -1 || notice.detail.indexOf(recipients.lead) === -1) { fails++; console.log("  FAIL  notice detail text doesn't actually name all three real recipients — got: " + notice.detail); }
+  else console.log("  PASS  sending the notice appends a real, inspectable ledger entry naming all three real recipients — not a toast that vanishes without a trace");
+
+  var ledgerType = after13.history[after13.history.length - 1].type;
+  if (ledgerType !== "Renewal") { fails++; console.log("  FAIL  renewal notice entry is filed under \"" + ledgerType + "\", expected \"Renewal\" — it would be invisible on the policy's own Renewal history otherwise"); }
+  else console.log("  PASS  the notice is filed as a real Renewal-type transaction, visible on the policy's own ledger");
+})();
+
+/* i18n seam: a real routing mechanism, not decorative — a second locale must actually change
+   what PAS.t() resolves to, and an unknown key/locale must fail safe to the caller's fallback
+   rather than leaking "undefined" or a raw key onto the screen. */
+console.log("\n  i18n: PAS.t() is a real seam — adding a locale genuinely changes resolved output");
+(function () {
+  var stub = { sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })() };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/i18n.js", "utf8"), stub);
+  var PASi = stub.PAS;
+
+  if (PASi.t("nav.dashboard") !== "Dashboard") { fails++; console.log('  FAIL  PAS.t("nav.dashboard") should resolve to "Dashboard" in the default (en) locale, got "' + PASi.t("nav.dashboard") + '"'); }
+  else console.log("  PASS  a real, defined key resolves correctly in the default locale");
+
+  if (PASi.t("nav.does-not-exist", "Fallback text") !== "Fallback text") { fails++; console.log("  FAIL  an unknown key did not fail safe to the caller's own fallback"); }
+  else console.log("  PASS  an unknown key fails safe to the caller's fallback — never a raw key or \"undefined\" on screen");
+
+  PASi.STRINGS.es = { "nav.dashboard": "Tablero" };
+  PASi.LOCALES = Object.keys(PASi.STRINGS);
+  PASi.setLocale("es");
+  if (PASi.getLocale() !== "es") { fails++; console.log("  FAIL  setLocale/getLocale round-trip failed"); }
+  else if (PASi.t("nav.dashboard") !== "Tablero") { fails++; console.log('  FAIL  adding a second locale did not change what PAS.t() resolves — this is decorative, not a real seam. Got "' + PASi.t("nav.dashboard") + '"'); }
+  else console.log("  PASS  adding a locale and switching to it genuinely changes resolved output — the seam is real, not decorative");
+
+  if (PASi.t("nav.approvals", "Pending approvals") !== "Pending approvals") { fails++; console.log("  FAIL  a key missing from the active (es) locale should fail back to English, not the raw key"); }
+  else console.log("  PASS  a key missing from the active locale falls back to English (not the raw key)");
+})();
+
+/* Cancellation type override "where permitted" (MOM 2026-08-26): a decision-maker can override
+   the derived type, but never into a combination the domain rule itself forbids — an override
+   that would violate that rule must be refused outright, not silently clamped. */
+console.log("\n  cancellation type override: valid overrides apply, forbidden ones are refused");
+(function () {
+  var stub = {
+    sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })(),
+  };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS14 = stub.PAS;
+
+  /* POL-2026-02233: Insured Request / Broker-Producer — derives to Short-Rate, insured-side, so
+     Pro-Rata is a genuinely valid override (never forbidden by the insurer-side rule). */
+  var before14 = PAS14.getPolicy("POL-2026-02233");
+  var pendTxn14 = before14.history.find(function (h) { return h.type === "Cancellation" && h.status === "Pending"; });
+  var quoteBefore = PAS14.cancelQuote(before14, pendTxn14.meta.reason, pendTxn14.meta.initiatedBy, pendTxn14.date, pendTxn14.meta);
+  if (quoteBefore.type !== "Short-Rate" || quoteBefore.overridden) { fails++; console.log("  FAIL  test fixture assumption wrong — POL-2026-02233 should derive to Short-Rate, un-overridden, got " + quoteBefore.type + " overridden=" + quoteBefore.overridden); return; }
+
+  var applied = PAS14.setCancelTypeOverride("POL-2026-02233", pendTxn14.id, "Pro-Rata", "Waiving the short-rate penalty as a retention gesture.");
+  if (!applied.allowed) { fails++; console.log("  FAIL  a genuinely valid override (Short-Rate -> Pro-Rata, insured-side) was refused: " + applied.reason); }
+  else console.log("  PASS  a valid override (Short-Rate -> Pro-Rata) is allowed and applied");
+
+  var after14 = PAS14.getPolicy("POL-2026-02233");
+  var pendTxn14b = after14.history.find(function (h) { return h.id === pendTxn14.id; });
+  var quoteAfter = PAS14.cancelQuote(after14, pendTxn14b.meta.reason, pendTxn14b.meta.initiatedBy, pendTxn14b.date, pendTxn14b.meta);
+  if (quoteAfter.type !== "Pro-Rata" || !quoteAfter.overridden || quoteAfter.derivedType !== "Short-Rate") { fails++; console.log("  FAIL  cancelQuote does not reflect the override — type=" + quoteAfter.type + " overridden=" + quoteAfter.overridden + " derivedType=" + quoteAfter.derivedType); }
+  else if (quoteAfter.refund <= quoteBefore.refund) { fails++; console.log("  FAIL  overriding away the short-rate penalty should genuinely raise the refund — before " + quoteBefore.refund + ", after " + quoteAfter.refund); }
+  else console.log("  PASS  cancelQuote genuinely reflects the override: type=Pro-Rata (was Short-Rate), refund rose from " + PAS14.money(quoteBefore.refund) + " to " + PAS14.money(quoteAfter.refund) + " — real money, not cosmetic");
+
+  PAS14.clearCancelTypeOverride("POL-2026-02233", pendTxn14.id, "Reverting.");
+  var afterClear = PAS14.getPolicy("POL-2026-02233");
+  var pendTxn14c = afterClear.history.find(function (h) { return h.id === pendTxn14.id; });
+  var quoteCleared = PAS14.cancelQuote(afterClear, pendTxn14c.meta.reason, pendTxn14c.meta.initiatedBy, pendTxn14c.date, pendTxn14c.meta);
+  if (quoteCleared.type !== "Short-Rate" || quoteCleared.overridden) { fails++; console.log("  FAIL  clearCancelTypeOverride did not genuinely revert to the derived type — got " + quoteCleared.type + " overridden=" + quoteCleared.overridden); }
+  else console.log("  PASS  clearing the override genuinely reverts to the real derived type (Short-Rate)");
+
+  /* POL-2026-00988: Underwriting / Carrier — insurer-side. Short-Rate must be refused outright,
+     never silently downgraded to something else without saying so. */
+  var carrierPolicy = PAS14.getPolicy("POL-2026-00988");
+  var carrierTxn = carrierPolicy.history.find(function (h) { return h.type === "Cancellation" && h.status === "Pending"; });
+  var refused = PAS14.setCancelTypeOverride("POL-2026-00988", carrierTxn.id, "Short-Rate", "Trying to force a penalty onto an insurer-side cancellation.");
+  if (refused.allowed) { fails++; console.log("  FAIL  Short-Rate on an insurer-side (Carrier-initiated) cancellation was allowed — this is the exact combination the domain rule forbids"); }
+  else console.log("  PASS  Short-Rate on an insurer-side cancellation is refused outright: \"" + refused.reason + "\"");
+  var afterRefused = PAS14.getPolicy("POL-2026-00988");
+  var carrierTxn2 = afterRefused.history.find(function (h) { return h.id === carrierTxn.id; });
+  if (carrierTxn2.meta.typeOverride) { fails++; console.log("  FAIL  the refused override was applied anyway — meta.typeOverride=" + carrierTxn2.meta.typeOverride); }
+  else console.log("  PASS  the refused override left the transaction genuinely untouched — not applied, not partially applied");
 })();
 
 /* Loyalty: every active customer's tier must match what re-running loyaltyScore against their

@@ -40,7 +40,7 @@
     var polSel = ui.h("select", { class: "field-input" });
     PAS.getPolicies().slice(0, 10).forEach(function (p) { polSel.appendChild(ui.h("option", { value: p.id }, p.id)); });
     qb.appendChild(ui.field({ label: "Policy ID" }, polSel));
-    var resultEl = ui.h("pre", { class: "mono", style: { fontSize: "11px", background: "var(--surface-alt)", padding: "12px", borderRadius: "8px", marginTop: "10px" } }, "Click Query…");
+    var resultEl = ui.h("pre", { class: "mono", style: { fontSize: "11px", background: "var(--color-panel-alt)", padding: "12px", borderRadius: "8px", marginTop: "10px" } }, "Click Query…");
     qb.appendChild(resultEl);
     var qBtn = ui.h("button", { class: "btn" }, "Query policy");
     qBtn.addEventListener("click", function () {

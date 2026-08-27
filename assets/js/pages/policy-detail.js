@@ -48,8 +48,8 @@
       body.appendChild(ui.dataTable({
         columns: [{ label: "Seq", what: "Order within this policy's ledger." }, "Date", "Type", { label: "Status", what: "Whether this transaction has been applied." }, "Detail", "By"],
         rows: sorted.map(function (h) {
-          return [ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--text-faint)" } }, "#" + h.seq), h.date, ui.modulePill(h.type), ui.txnStatusBadge(h.status),
-            ui.h("span", { style: { fontSize: "12px", color: "var(--text-soft)", whiteSpace: "normal", display: "inline-block", maxWidth: "420px" } }, h.detail), (h.approvedBy || h.user)];
+          return [ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-muted)" } }, "#" + h.seq), h.date, ui.modulePill(h.type), ui.txnStatusBadge(h.status),
+            ui.h("span", { style: { fontSize: "12px", color: "var(--color-ink-secondary)", whiteSpace: "normal", display: "inline-block", maxWidth: "420px" } }, h.detail), (h.approvedBy || h.user)];
         }),
       }));
     } else if (tab === "docs") {
@@ -66,8 +66,8 @@
       body.appendChild(ui.dataTable({
         columns: ["Document", { label: "Type", what: "Schedule, certificate or notice." }, { label: "Version", what: "Incremented each regeneration.", why: "Lets you prove what the customer held on any date." }, "Generated", { label: "Delivery", what: "PAS document delivery status." }, { label: "Txn", what: "Ledger row that triggered generation." }, ""],
         rows: (policy.documents || []).map(function (d) {
-          var nameSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "7px", fontWeight: "600" } }, [PAS.icon("file-text", { size: 13, color: "var(--primary)" }), document.createTextNode(d.name)]);
-          var dlSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "5px", color: "var(--primary)", fontSize: "12px", fontWeight: "700" } }, [PAS.icon("download", { size: 12 }), document.createTextNode("PDF")]);
+          var nameSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "7px", fontWeight: "600" } }, [PAS.icon("file-text", { size: 13, color: "var(--color-link)" }), document.createTextNode(d.name)]);
+          var dlSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "5px", color: "var(--color-link)", fontSize: "12px", fontWeight: "700" } }, [PAS.icon("download", { size: 12 }), document.createTextNode("PDF")]);
           var delBtn = ui.h("button", { class: "btn small" }, "Mark delivered");
           delBtn.addEventListener("click", function (e) { e.stopPropagation(); PAS.markDocumentDelivered(policy.id, d.id); render(); });
           return [nameSpan, d.type, ui.pill("gray", "v" + d.version), d.generatedAt, ui.pill(d.deliveryStatus === "Delivered" ? "green" : "amber", d.deliveryStatus || "Generated"), d.transactionId ? d.transactionId.slice(0, 12) : "—", delBtn];
@@ -179,11 +179,11 @@
         columns: ["Date", "Status", "Change type", "Materiality", "Premium impact", "Requested by", "Detail"],
         rows: endorsements.map(function (h) {
           var impact = (h.meta && h.meta.premiumImpact) || 0;
-          var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, impact ? (impact >= 0 ? "+" : "") + PAS.money(impact) : "—");
+          var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--color-success)" : "var(--color-danger)", fontWeight: "700" } }, impact ? (impact >= 0 ? "+" : "") + PAS.money(impact) : "—");
           return [h.date, ui.txnStatusBadge(h.status), (h.meta && h.meta.changeType) || "—",
             h.meta && h.meta.materiality ? ui.pill(h.meta.materiality === "Material" ? "red" : "gray", h.meta.materiality) : "—",
             impactSpan, h.meta ? ui.initiatorPill(h.meta) : "—",
-            ui.h("span", { style: { fontSize: "12px", color: "var(--text-soft)" } }, h.detail)];
+            ui.h("span", { style: { fontSize: "12px", color: "var(--color-ink-secondary)" } }, h.detail)];
         }),
         onRowClick: function (i) { location.href = "endorsement-decision.html?policy=" + encodeURIComponent(policy.id) + "&txn=" + encodeURIComponent(endorsements[i].id); },
         emptyText: "No endorsements have been requested on this policy.",

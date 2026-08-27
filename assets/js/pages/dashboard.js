@@ -279,7 +279,7 @@
        custom-range mode, where the date pair below is the only control. */
     var navWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
     var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period" }, "◀");
-    var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--text)", minWidth: "108px", textAlign: "center" } });
+    var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--color-ink)", minWidth: "108px", textAlign: "center" } });
     var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period" }, "▶");
     navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
     toggleAndNav.appendChild(navWrap);
@@ -305,7 +305,7 @@
     var fromInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customFrom });
     var toInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customTo });
     rangeWrap.appendChild(fromInput);
-    rangeWrap.appendChild(ui.h("span", { style: { color: "var(--text-faint)", fontSize: "12px" } }, "to"));
+    rangeWrap.appendChild(ui.h("span", { style: { color: "var(--color-muted)", fontSize: "12px" } }, "to"));
     rangeWrap.appendChild(toInput);
     rangeRow.appendChild(rangeWrap);
     page.appendChild(rangeRow);
@@ -965,7 +965,7 @@
     toggleAndNav.appendChild(toggle);
     var navWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
     var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period" }, "◀");
-    var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--text)", minWidth: "108px", textAlign: "center" } });
+    var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--color-ink)", minWidth: "108px", textAlign: "center" } });
     var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period" }, "▶");
     navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
     toggleAndNav.appendChild(navWrap);
@@ -987,7 +987,7 @@
     var fromInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customFrom });
     var toInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customTo });
     rangeWrap.appendChild(fromInput);
-    rangeWrap.appendChild(ui.h("span", { style: { color: "var(--text-faint)", fontSize: "12px" } }, "to"));
+    rangeWrap.appendChild(ui.h("span", { style: { color: "var(--color-muted)", fontSize: "12px" } }, "to"));
     rangeWrap.appendChild(toInput);
     rangeRow.appendChild(rangeWrap);
     page.appendChild(rangeRow);

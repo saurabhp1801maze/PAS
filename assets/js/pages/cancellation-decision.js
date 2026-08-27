@@ -63,8 +63,8 @@
       var derivedCard = ui.h("div", { class: "cancel-type-card", "data-tone": q.spec.tone, style: { background: "var(--tone-bg)", borderColor: "var(--tone-fg)" } });
       derivedCard.appendChild(ui.pill(q.spec.tone, q.type));
       if (q.overridden) derivedCard.appendChild(ui.pill("gray", "was " + q.derivedType));
-      derivedCard.appendChild(ui.h("div", { style: { fontSize: "12px", color: "var(--text)", marginTop: "8px", lineHeight: "1.5" } }, q.spec.when));
-      derivedCard.appendChild(ui.h("div", { style: { fontSize: "11.5px", color: "var(--text-soft)", marginTop: "6px", lineHeight: "1.5" } }, q.spec.rate));
+      derivedCard.appendChild(ui.h("div", { style: { fontSize: "12px", color: "var(--color-ink)", marginTop: "8px", lineHeight: "1.5" } }, q.spec.when));
+      derivedCard.appendChild(ui.h("div", { style: { fontSize: "11.5px", color: "var(--color-ink-secondary)", marginTop: "6px", lineHeight: "1.5" } }, q.spec.rate));
       derivedWrap.appendChild(derivedCard);
 
       /* "Where permitted" (MOM 2026-08-26): only a role that can already decide this desk sees the

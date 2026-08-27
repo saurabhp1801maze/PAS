@@ -70,13 +70,13 @@
           { label: "Recorded", what: "System date it was entered.", why: "Storing both makes the ledger bitemporal and as-of queryable." },
           "By", { label: "Action", what: "Reverse appends a compensating transaction.", rule: "The ledger is append-only — nothing is deleted." }],
         rows: rows.map(function (t) {
-          var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--text-faint)" } }, "#" + t.h.seq);
+          var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-muted)" } }, "#" + t.h.seq);
           var policyBtn = ui.h("button", { class: "btn ghost-link", style: { fontFamily: "var(--mono)", fontSize: "11.5px" } }, t.p.id);
           policyBtn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(t.p.id); });
-          var recordedSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11px", color: "var(--text-faint)" } }, (t.h.recordedAt || "").slice(0, 10));
+          var recordedSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11px", color: "var(--color-muted)" } }, (t.h.recordedAt || "").slice(0, 10));
           var actionCell;
           if ((t.h.status || "Completed") === "Completed") {
-            var revBtn = ui.h("button", { class: "btn small", style: { color: "var(--violet)" } }, "Reverse");
+            var revBtn = ui.h("button", { class: "btn small", style: { color: "var(--outcome-load)" } }, "Reverse");
             revBtn.addEventListener("click", function () {
               PAS.api.call("POST", "/api/v1/transactions/" + t.h.id + "/reverse", { reason: "keyedInError" },
                 { module: t.h.type, policyId: t.p.id, statusCode: 201, label: "Reverse txn #" + t.h.seq + " — " + t.p.holder, response: { reversalTxnId: PAS.uid("TXN"), reversesTxnId: t.h.id, status: "completed" } })
@@ -84,7 +84,7 @@
             });
             actionCell = revBtn;
           } else {
-            actionCell = ui.h("span", { style: { fontSize: "11px", color: "var(--text-faint)" } }, "—");
+            actionCell = ui.h("span", { style: { fontSize: "11px", color: "var(--color-muted)" } }, "—");
           }
           return [seqSpan, policyBtn, ui.modulePill(t.h.type), ui.txnStatusBadge(t.h.status), t.h.date, recordedSpan, t.h.user, actionCell];
         }),

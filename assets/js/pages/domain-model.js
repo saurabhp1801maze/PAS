@@ -44,7 +44,7 @@
       chip.appendChild(PAS.icon(s[1], { size: 11 }));
       chip.appendChild(document.createTextNode(" " + s[0]));
       wrap.appendChild(chip);
-      if (i < stages.length - 1) wrap.appendChild(PAS.icon("chevron-right", { size: 13, color: "var(--text-faint)" }));
+      if (i < stages.length - 1) wrap.appendChild(PAS.icon("chevron-right", { size: 13, color: "var(--color-muted)" }));
       row.appendChild(wrap);
     });
     return row;
@@ -173,7 +173,7 @@
       nameRow.appendChild(document.createTextNode(" " + p[0]));
       card.appendChild(nameRow);
       card.appendChild(ui.h("div", { class: "arch-side-desc" }, p[2]));
-      card.appendChild(ui.h("div", { class: "arch-side-desc", style: { marginTop: "7px", color: "var(--text-faint)" } }, p[3]));
+      card.appendChild(ui.h("div", { class: "arch-side-desc", style: { marginTop: "7px", color: "var(--color-muted)" } }, p[3]));
       patGrid.appendChild(card);
     });
     patPanel.querySelector(".panel-body").appendChild(patGrid);

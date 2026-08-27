@@ -47,9 +47,9 @@
     LAYERS.forEach(function (l, i) {
       var wrap = ui.h("div", { class: "arch-layer" });
       var chip = ui.h("span", { class: "arch-layer-chip", "data-tone": l[2] }, document.createTextNode(l[0]));
-      chip.appendChild(PAS.icon("info", { size: 10, color: "var(--text-faint)" }));
+      chip.appendChild(PAS.icon("info", { size: 10, color: "var(--color-muted)" }));
       wrap.appendChild(ui.tooltip({ what: l[1], why: l[3], rule: l[4], width: 300 }, chip));
-      if (i < LAYERS.length - 1) wrap.appendChild(PAS.icon("chevron-down", { size: 13, color: "var(--text-faint)" }));
+      if (i < LAYERS.length - 1) wrap.appendChild(PAS.icon("chevron-down", { size: 13, color: "var(--color-muted)" }));
       layerRow.appendChild(wrap);
     });
     var stackPanel = ui.panel({

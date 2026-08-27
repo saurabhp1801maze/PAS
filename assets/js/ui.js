@@ -72,7 +72,7 @@
     }
     return wrap;
   }
-  function infoDot(size) { return PAS.icon("info", { size: size || 11, color: "var(--text-faint)" }); }
+  function infoDot(size) { return PAS.icon("info", { size: size || 11, color: "var(--color-muted)" }); }
   function tipLabel(opts) {
     var span = h("span", { class: opts.className || "" }, opts.text);
     return tooltip(opts, [span, infoDot()]);
@@ -425,7 +425,7 @@
     }));
     if (opts.sub) titleWrap.appendChild(h("div", { class: "accordion-sub" }, opts.sub));
     head.appendChild(titleWrap);
-    var chevron = PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--text-faint)" });
+    var chevron = PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--color-muted)" });
     head.appendChild(chevron);
     section.appendChild(head);
     var body = h("div", { class: "accordion-body" + (opts.pad === 0 ? " no-pad" : "") });
@@ -437,7 +437,7 @@
       section.classList.toggle("is-open", open);
       head.setAttribute("aria-expanded", open ? "true" : "false");
       body.hidden = !open;
-      var next = PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--text-faint)" });
+      var next = PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--color-muted)" });
       head.replaceChild(next, chevron);
       chevron = next;
     });
@@ -761,7 +761,7 @@
   function decisionTrail(rows) {
     var wrap = h("div", { class: "decision-trail" });
     var head = h("div", { class: "decision-trail-title-row" });
-    head.appendChild(PAS.icon("git-branch", { size: 14, color: "var(--primary)" }));
+    head.appendChild(PAS.icon("git-branch", { size: 14, color: "var(--color-brand)" }));
     head.appendChild(tipLabel({
       text: "Decision history",
       what: "Every comment left on Approve, Decline, Escalate, Request more information, and the original request.",
@@ -775,7 +775,7 @@
 
     if (!rows || rows.length === 0) {
       var empty = h("div", { class: "decision-trail-empty" });
-      empty.appendChild(PAS.icon("edit-3", { size: 16, color: "var(--text-faint)" }));
+      empty.appendChild(PAS.icon("edit-3", { size: 16, color: "var(--color-muted)" }));
       empty.appendChild(h("div", {}, "No comments yet"));
       empty.appendChild(h("div", { class: "decision-trail-empty-hint" }, "When you Approve, Decline, Escalate, or Request more information, your comment appears here."));
       wrap.appendChild(empty);
@@ -1012,7 +1012,7 @@
       head.appendChild(mid);
       head.appendChild(pill("gray", log.length + " calls"));
       head.appendChild(pill("violet", events.length + " events"));
-      head.appendChild(PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--text-faint)" }));
+      head.appendChild(PAS.icon(open ? "chevron-up" : "chevron-down", { size: 16, color: "var(--color-muted)" }));
       head.addEventListener("click", function () { open = !open; render(); });
       container.appendChild(head);
 

@@ -41,7 +41,7 @@
 
     var wrap = ui.h("div", { class: "search-wrap" });
     var btn = ui.h("button", { class: "search-btn", id: "search-btn", type: "button", "aria-label": "Search" });
-    btn.appendChild(PAS.icon("search", { size: 14, color: "var(--text-soft)" }));
+    btn.appendChild(PAS.icon("search", { size: 14, color: "var(--color-ink-secondary)" }));
     wrap.appendChild(btn);
     topbar.insertBefore(wrap, bellBtn);
 
@@ -77,7 +77,7 @@
             customerNames.slice(0, 4).forEach(function (name) {
               var policyCount = allPolicies.filter(function (p) { return p.holder === name; }).length;
               var row = ui.h("button", { class: "search-row", type: "button" });
-              row.appendChild(PAS.icon("user", { size: 13, color: "var(--text-soft)" }));
+              row.appendChild(PAS.icon("user", { size: 13, color: "var(--color-ink-secondary)" }));
               var body = ui.h("div", { class: "search-row-body" });
               body.appendChild(ui.h("div", { class: "search-row-name" }, name));
               body.appendChild(ui.h("div", { class: "search-row-meta" }, policyCount + " polic" + (policyCount === 1 ? "y" : "ies") + " on file"));

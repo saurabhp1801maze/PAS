@@ -73,14 +73,14 @@
     var right = [];
     right.push(ui.tipLabel({ text: "Financial impact", what: "What approving this does to premium and cover — before vs. after, line by line.", className: "label-11 block mb-10" }));
     var impact = h.meta.premiumImpact || 0;
-    var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--green)" : "var(--red)", fontWeight: "700" } }, (impact >= 0 ? "+" : "") + PAS.money(impact));
+    var impactSpan = ui.h("span", { style: { color: impact >= 0 ? "var(--color-success)" : "var(--color-danger)", fontWeight: "700" } }, (impact >= 0 ? "+" : "") + PAS.money(impact));
     var beforeCoverage = PAS.coverageBreakdown(p);
     var afterCoverage = PAS.coverageBreakdown({ product: p.product, premium: p.premium + impact });
     var compareRows = [["Premium", PAS.money(p.premium), PAS.money(p.premium + impact), impactSpan]];
     beforeCoverage.forEach(function (c, i) {
       var afterLine = afterCoverage[i] || { premium: c.premium };
       var lineDelta = afterLine.premium - c.premium;
-      var deltaSpan = ui.h("span", { style: { color: lineDelta > 0 ? "var(--green)" : lineDelta < 0 ? "var(--red)" : "var(--text-faint)", fontWeight: "700" } }, (lineDelta > 0 ? "+" : "") + PAS.money(lineDelta));
+      var deltaSpan = ui.h("span", { style: { color: lineDelta > 0 ? "var(--color-success)" : lineDelta < 0 ? "var(--color-danger)" : "var(--color-muted)", fontWeight: "700" } }, (lineDelta > 0 ? "+" : "") + PAS.money(lineDelta));
       compareRows.push([c.name, PAS.money(c.premium), PAS.money(afterLine.premium), deltaSpan]);
     });
     right.push(ui.dataTable({

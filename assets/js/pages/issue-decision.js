@@ -30,7 +30,7 @@
     left.push(ui.tipLabel({ text: "Issue gates", what: "All five must pass before a policy can be issued.", rule: "Issue is blocked, not warned — an unmet gate disables the button.", className: "label-11 block mb-10" }));
     gates.forEach(function (g) {
       var row = ui.h("div", { class: "gate-row" });
-      var icon = PAS.icon(g.ok ? "check-circle-2" : "x-circle", { size: 15, color: g.ok ? "var(--green)" : "var(--red)" });
+      var icon = PAS.icon(g.ok ? "check-circle-2" : "x-circle", { size: 15, color: g.ok ? "var(--color-success)" : "var(--color-danger)" });
       icon.classList.add("gate-icon");
       row.appendChild(icon);
       var body = ui.h("div", {});

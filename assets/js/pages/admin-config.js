@@ -175,7 +175,7 @@
       var rightCol = ui.h("div", {});
       rightCol.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Visible nav items"));
       navGroups().forEach(function (g) {
-        rightCol.appendChild(ui.h("div", { style: { fontSize: "11.5px", fontWeight: "700", color: "var(--text-faint)", margin: "10px 0 4px" } }, g.label));
+        rightCol.appendChild(ui.h("div", { style: { fontSize: "11.5px", fontWeight: "700", color: "var(--color-muted)", margin: "10px 0 4px" } }, g.label));
         g.items.forEach(function (it) {
           rightCol.appendChild(ui.checkboxRow({
             label: it[1], checked: state.visibleNav.indexOf(it[0]) !== -1,

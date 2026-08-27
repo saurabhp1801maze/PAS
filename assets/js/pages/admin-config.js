@@ -289,7 +289,7 @@
             });
             actions.appendChild(revokeBtn);
           }
-          return [ui.cellName(u.name), u.email, r ? ui.pill(r.tone, r.label, r.icon) : u.roleKey, u.identity || "—", ui.pill(u.status === "Invited" ? "amber" : "green", u.status), u.invitedOn, actions];
+          return [ui.cellName(u.name), u.email, r ? ui.pill(r.tone, r.label, r.icon) : u.roleKey, u.identity || "—", ui.pill(u.status === "Invited" ? "amber" : "green", u.status), u.invitedOn ? PAS.fmtDate(u.invitedOn) : "—", actions];
         }),
         emptyText: "No users invited yet.",
       }));

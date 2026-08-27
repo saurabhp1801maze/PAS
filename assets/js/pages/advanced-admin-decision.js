@@ -23,7 +23,7 @@
     var left = [];
     left.push(ui.kv({ k: "Transaction", v: h.type }));
     left.push(ui.kv({ k: "Description", v: spec.desc || "—" }));
-    left.push(ui.kv({ k: "Effective date", v: h.date }));
+    left.push(ui.kv({ k: "Effective date", v: PAS.fmtDate(h.date) }));
     left.push(ui.kv({ k: "Recorded", v: (h.recordedAt || "").slice(0, 19), what: "Bitemporal — system date entered." }));
     if (req) left.push(ui.kv({ k: "Approval level", v: req.level + " (" + (req.current + 1) + "/" + req.steps + ")" }));
     if (!auth.allowed) left.push(ui.callout("warn", auth.reason));

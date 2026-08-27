@@ -121,7 +121,7 @@
           var sla = slaOf(t);
           var reviewBtn = ui.h("button", { class: "btn small tone-primary" }, "Review →");
           reviewBtn.addEventListener("click", function () { openReview(t); });
-          return [seqSpan, idSpan, t.p.holder, ui.modulePill(t.h.type), ui.initiatorPill(t.h.meta), ui.pill(sla.breached ? "red" : "amber", sla.remainingHours + "h"), detailSpan, t.h.date, reviewBtn];
+          return [seqSpan, idSpan, t.p.holder, ui.modulePill(t.h.type), ui.initiatorPill(t.h.meta), ui.pill(sla.breached ? "red" : "amber", sla.remainingHours + "h"), detailSpan, PAS.fmtDate(t.h.date), reviewBtn];
         }),
         emptyText: "Nothing awaiting approval.",
       }));

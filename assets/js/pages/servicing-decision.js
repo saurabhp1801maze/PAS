@@ -63,7 +63,7 @@
         var row = ui.h("div", { class: "service-existing-row" });
         var head = ui.h("div", { class: "service-existing-head" });
         head.appendChild(ui.h("span", { class: "service-existing-cat" }, h.meta.category));
-        head.appendChild(ui.h("span", { class: "service-existing-date" }, h.date));
+        head.appendChild(ui.h("span", { class: "service-existing-date" }, PAS.fmtDate(h.date)));
         row.appendChild(head);
         row.appendChild(ui.h("div", { class: "service-existing-detail" }, h.detail));
         existingWrap.appendChild(row);

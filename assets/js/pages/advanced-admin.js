@@ -84,7 +84,7 @@
         columns: ["Policy", "Type", "Effective", { label: "SLA", what: "Hours remaining before breach." }, "Detail", ""],
         rows: rows.map(function (t) {
           var sla = PAS.getTxnSla(t.h);
-          return [ui.cellId(t.p.id), ui.modulePill(t.h.type), t.h.date,
+          return [ui.cellId(t.p.id), ui.modulePill(t.h.type), PAS.fmtDate(t.h.date),
             ui.pill(sla.breached ? "red" : "green", sla.remainingHours + "h"),
             ui.h("span", { style: { fontSize: "12px", color: "var(--color-ink-secondary)" } }, t.h.title),
             ui.cellOpen("Review")];

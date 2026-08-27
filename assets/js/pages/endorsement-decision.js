@@ -65,7 +65,7 @@
     left.push(ui.tipLabel({ text: "Requested change", what: "What was asked for, mid-term.", className: "label-11 block mb-10" }));
     left.push(ui.kv({ k: "Change type", v: h.meta.changeType, what: "What is being altered." }));
     left.push(ui.kv({ k: "Materiality", v: h.meta.materiality, what: "Material changes alter the risk and need sign-off.", rule: "Material endorsements are never auto-applied." }));
-    left.push(ui.kv({ k: "Requested", v: h.date, what: "Business date the change was requested." }));
+    left.push(ui.kv({ k: "Requested", v: PAS.fmtDate(h.date), what: "Business date the change was requested." }));
     left.push(ui.kv({ k: "Transaction", v: "#" + h.seq, mono: true, what: "Position in the policy ledger." }));
     left.push(ui.h("div", { class: "mt-13" }, ui.callout("warn", h.detail)));
     changeDetailBlocks(h.meta).forEach(function (b) { left.push(b); });

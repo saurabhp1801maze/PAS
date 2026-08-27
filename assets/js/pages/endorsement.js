@@ -57,7 +57,7 @@
           materiality: payload.extra.materiality || "Minor",
           premiumImpact: Number(payload.extra.premiumImpact) || 0,
           effectiveDate: payload.extra.effectiveDate || PAS.todayISO(),
-          initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note,
+          initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note, category: payload.extra.category,
         });
         render();
       },
@@ -115,7 +115,7 @@
         { key: "newPremium", label: "New premium", what: "Current premium plus this request's impact — what the policy moves to if approved.", sortValue: function (t) { return (t.p.premium || 0) + ((t.h.meta && t.h.meta.premiumImpact) || 0); }, cell: function (t) { return PAS.money((t.p.premium || 0) + ((t.h.meta && t.h.meta.premiumImpact) || 0)); } },
         { key: "broker", label: "Broker", sortValue: function (t) { return t.p.producer || ""; }, cell: function (t) { return t.p.producer || "—"; } },
         { key: "mga", label: "MGA", sortValue: function (t) { return t.p.mga || ""; }, cell: function (t) { return t.p.mga || "—"; } },
-        { key: "carrier", label: "Carrier", sortValue: function (t) { return t.p.carrier || ""; }, cell: function (t) { return t.p.carrier || "—"; } },
+        { key: "carrier", label: "Reinsurer", sortValue: function (t) { return t.p.carrier || ""; }, cell: function (t) { return t.p.carrier || "—"; } },
         { key: "state", label: "State", sortValue: function (t) { return t.p.state || ""; }, cell: function (t) { return t.p.state || "—"; } },
         { key: "channel", label: "Channel", what: "How the request came in.", sortValue: function (t) { return (t.h.meta && t.h.meta.channel) || ""; }, cell: function (t) { return (t.h.meta && t.h.meta.channel) || "—"; } },
         { key: "submitted", label: "Submitted", what: "When the request was logged.", sortValue: function (t) { return (t.h.meta && t.h.meta.submittedOn) || t.h.date || ""; }, cell: function (t) { return (t.h.meta && t.h.meta.submittedOn) || t.h.date || "—"; } },

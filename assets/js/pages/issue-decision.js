@@ -77,8 +77,10 @@
         });
     }
     function hold(action) {
-      return function (comment) {
-        PAS.recordHeldDecision(p.id, null, action, comment, "Issuance");
+      return function (result) {
+        var comment = result && typeof result === "object" ? result.comment : result;
+        var category = (result && typeof result === "object" && result.category) || "";
+        PAS.recordHeldDecision(p.id, null, action, comment, "Issuance", "", category);
         ui.renderToast(flash(action));
         render();
       };
@@ -86,8 +88,8 @@
 
     page.appendChild(ui.decisionLayout(left, right, [
       ui.confirmable(p.id, "—", "Issue", { label: "Issue policy & generate documents", tone: "primary", icon: "file-check-2", onRun: doIssue, disabled: !canIssue, disabledReason: unmet.length ? ("Outstanding subjectivity: " + unmet.map(function (s) { return s.label; }).join(", ")) : "An issue gate has not passed." }),
-      ui.confirmable(p.id, "—", "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
-      ui.confirmable(p.id, "—", "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
+      ui.confirmable(p.id, "—", "Escalate", { label: "Escalate", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate") }),
+      ui.confirmable(p.id, "—", "Request More Information", { label: "Request more information", icon: "corner-up-left", showCategory: true, onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("issue-desk", page));

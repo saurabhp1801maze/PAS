@@ -28,7 +28,7 @@
       typeLabel: "renewal confirmation",
       extraFields: function () { return null; },
       onSubmit: function (payload) {
-        PAS.raiseRequest(payload.policyId, "Renewal", { initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note });
+        PAS.raiseRequest(payload.policyId, "Renewal", { initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note, category: payload.extra.category });
         render();
       },
     }));

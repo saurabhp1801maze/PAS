@@ -8,7 +8,7 @@
       icon: "building-2", tone: "indigo",
       title: "MGAs", titleUpper: "MGAs", titleLower: "MGAs", singularLower: "MGA", article: "an",
       sub: "Every wholesale facility and individual MGA holding binding authority on the book",
-      what: "The wholesale layer between Broker and Carrier — agency facilities and individual MGAs alike.",
+      what: "The wholesale layer between Broker and Reinsurer — agency facilities and individual MGAs alike.",
       why: "Which facilities are carrying the most bound risk, and how concentrated that is.",
     });
   }

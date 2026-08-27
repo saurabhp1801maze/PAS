@@ -88,7 +88,7 @@
       tone: "green", penaltyPct: 0, basis: "unearned",
       when: "The cancellation was initiated by the Carrier, an MGA or the System, or the reason itself carries no penalty by right.",
       rate: "Full unearned premium returned, in exact proportion to the unused term. No penalty.",
-      rule: "An insurer-side initiator (Carrier, MGA, System) may never carry a short-rate penalty — Type downgrades to this even if the Reason's default is Short-Rate.",
+      rule: "An insurer-side initiator (Reinsurer, MGA, System) may never carry a short-rate penalty — Type downgrades to this even if the Reason's default is Short-Rate.",
     },
     "Short-Rate": {
       tone: "amber", penaltyPct: 0.1, basis: "unearned",
@@ -391,21 +391,117 @@
   PAS.RISK_PROFILE = RISK_PROFILE;
 
   /* ---------- claims: real records, not a fabricated loss ratio ----------
-     A minimal claims subsystem — enough for the MGA/Carrier dashboards to compute a genuine loss
-     ratio and reserve figure instead of the "not modeled" gap this used to be. Each claim is
-     `{ id, type, status, reportedOn, incurred, paid, reserved }`, attached to its policy the same
-     way `documents` already is. Ironwood Steel Works (POL-2026-00988) is deliberately consistent
-     with the cancellation already on its ledger — that record's own detail text says "adverse
-     loss ratio... 140% over two terms," so its claim's incurred amount is set to exactly 140% of
-     premium ($100,000 × 1.4 = $140,000) rather than an arbitrary number that would contradict
+     Generated deterministically by scripts/gen-claims.js from per-product frequency/severity
+     assumptions (not hand-typed, not Math.random — same policy id always produces the same claim,
+     so it is reproducible and auditable, re-run the script after any change to the assumptions).
+     Each claim is `{ type, status, reportedOn, incurred, paid, reserved }`, attached to its policy
+     the same way `documents` already is. This is what makes the loss-ratio breakdowns on the
+     dashboard genuinely show some segments in loss and some profitable (Comprehensive Auto ~119%,
+     Marine Cargo ~34%, as of the last generation) instead of an unrealistic near-zero book-wide
+     ratio. Ironwood Steel Works (POL-2026-00988) is the one hand-pinned exception, preserved
+     verbatim by the generator — its cancellation record's own detail text says "adverse loss
+     ratio... 140% over two terms," so its claim's incurred amount stays exactly 140% of premium
+     ($100,000 × 1.4 = $140,000) rather than being regenerated into a number that would contradict
      the narrative already on file. */
-  var CLAIMS_BY_ID = {
+var CLAIMS_BY_ID = {
+    "POL-2024-00187": [{ type: "Fire", status: "Closed", reportedOn: "2026-06-10", incurred: 8090, paid: 8090, reserved: 0 }],
+    "POL-2025-09112": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-05", incurred: 14230, paid: 14230, reserved: 0 }],
     "POL-2026-00988": [{ type: "Fire", status: "Closed", reportedOn: "2026-05-02", incurred: 140000, paid: 140000, reserved: 0 }],
-    "POL-2025-06210": [{ type: "Collision", status: "Closed", reportedOn: "2026-03-14", incurred: 2400, paid: 2400, reserved: 0 }],
-    "POL-2026-00777": [{ type: "Cargo damage", status: "Open", reportedOn: "2026-07-28", incurred: 14500, paid: 4800, reserved: 9700 }],
-    "POL-2025-04456": [{ type: "Water damage", status: "Closed", reportedOn: "2026-02-19", incurred: 4500, paid: 4500, reserved: 0 }],
-    "POL-2025-09112": [{ type: "Theft", status: "Open", reportedOn: "2026-08-01", incurred: 1600, paid: 290, reserved: 1310 }],
-    "POL-2024-09321": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-01-11", incurred: 9500, paid: 9500, reserved: 0 }],
+    "POL-2026-03005": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-06-06", incurred: 786520, paid: 786520, reserved: 0 }],
+    "POL-2026-03008": [{ type: "Windshield damage", status: "Closed", reportedOn: "2025-11-27", incurred: 509910, paid: 509910, reserved: 0 }],
+    "POL-2026-03010": [{ type: "Windshield damage", status: "Open", reportedOn: "2026-07-19", incurred: 421460, paid: 242490, reserved: 178970 }],
+    "POL-2026-03012": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-11", incurred: 169390, paid: 169390, reserved: 0 }],
+    "POL-2026-0435": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-04-28", incurred: 1664550, paid: 1664550, reserved: 0 }],
+    "POL-2026-0437": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-05-06", incurred: 25590, paid: 25590, reserved: 0 }],
+    "POL-2026-0440": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-08-14", incurred: 309400, paid: 309400, reserved: 0 }],
+    "POL-2026-0444": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-20", incurred: 20190, paid: 20190, reserved: 0 }],
+    "POL-2026-0457": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-03-22", incurred: 3760, paid: 3760, reserved: 0 }],
+    "POL-2026-0465": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-27", incurred: 11900, paid: 11900, reserved: 0 }],
+    "POL-2026-0467": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-06-23", incurred: 370230, paid: 370230, reserved: 0 }],
+    "POL-2026-0468": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-07-08", incurred: 461310, paid: 461310, reserved: 0 }],
+    "POL-2026-0469": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-02-01", incurred: 525990, paid: 525990, reserved: 0 }],
+    "POL-2026-0470": [{ type: "Storm damage", status: "Open", reportedOn: "2026-07-01", incurred: 473610, paid: 157070, reserved: 316540 }],
+    "POL-2026-0487": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-11", incurred: 8970, paid: 8970, reserved: 0 }],
+    "POL-2026-0492": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-08-04", incurred: 159470, paid: 159470, reserved: 0 }],
+    "POL-2026-0496": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-07-22", incurred: 687160, paid: 687160, reserved: 0 }],
+    "POL-2026-0512": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-28", incurred: 8620, paid: 8620, reserved: 0 }],
+    "POL-2026-0522": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-01-29", incurred: 421170, paid: 204360, reserved: 216810 }],
+    "POL-2026-0542": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-06-16", incurred: 603520, paid: 603520, reserved: 0 }],
+    "POL-2026-0549": [{ type: "Collision", status: "Closed", reportedOn: "2026-07-29", incurred: 2220, paid: 2220, reserved: 0 }],
+    "POL-2026-0552": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-08-20", incurred: 376220, paid: 376220, reserved: 0 }],
+    "POL-2026-0593": [{ type: "Water damage", status: "Closed", reportedOn: "2026-08-18", incurred: 1498060, paid: 1498060, reserved: 0 }],
+    "POL-2026-0604": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-01-19", incurred: 416780, paid: 416780, reserved: 0 }],
+    "POL-2026-0609": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-07-20", incurred: 302630, paid: 174350, reserved: 128280 }],
+    "POL-2026-0611": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-06-27", incurred: 336740, paid: 336740, reserved: 0 }],
+    "POL-2026-0612": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-06-01", incurred: 8630, paid: 8630, reserved: 0 }],
+    "POL-2026-0628": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-06-27", incurred: 248740, paid: 118700, reserved: 130040 }],
+    "POL-2026-0638": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-16", incurred: 1550, paid: 1550, reserved: 0 }],
+    "POL-2026-0643": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-08-18", incurred: 16230, paid: 16230, reserved: 0 }],
+    "POL-2026-0670": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-10", incurred: 2080, paid: 2080, reserved: 0 }],
+    "POL-2026-0674": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-07-16", incurred: 517140, paid: 517140, reserved: 0 }],
+    "POL-2026-0680": [{ type: "Fire", status: "Open", reportedOn: "2026-03-09", incurred: 38270, paid: 21220, reserved: 17050 }],
+    "POL-2026-0681": [{ type: "Collision", status: "Open", reportedOn: "2026-08-10", incurred: 6100, paid: 2370, reserved: 3730 }],
+    "POL-2026-0696": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-06-12", incurred: 642470, paid: 642470, reserved: 0 }],
+    "POL-2026-0697": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-07-11", incurred: 112610, paid: 112610, reserved: 0 }],
+    "POL-2026-0705": [{ type: "Death benefit", status: "Open", reportedOn: "2026-06-05", incurred: 11710, paid: 6320, reserved: 5390 }],
+    "POL-2026-0709": [{ type: "Fire", status: "Open", reportedOn: "2026-03-24", incurred: 624200, paid: 194250, reserved: 429950 }],
+    "POL-2026-0710": [{ type: "Collision", status: "Closed", reportedOn: "2026-03-24", incurred: 14890, paid: 14890, reserved: 0 }],
+    "POL-2026-0712": [{ type: "Death benefit", status: "Closed", reportedOn: "2025-12-16", incurred: 100600, paid: 100600, reserved: 0 }],
+    "POL-2026-0729": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-04-30", incurred: 746170, paid: 746170, reserved: 0 }],
+    "POL-2026-0742": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-05-01", incurred: 143450, paid: 143450, reserved: 0 }],
+    "POL-2026-0749": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-25", incurred: 8530, paid: 8530, reserved: 0 }],
+    "POL-2026-0758": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-04-11", incurred: 139340, paid: 139340, reserved: 0 }],
+    "POL-2026-0773": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-08-07", incurred: 10160, paid: 10160, reserved: 0 }],
+    "POL-2026-0777": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-05-13", incurred: 9730, paid: 9730, reserved: 0 }],
+    "POL-2026-0793": [{ type: "Fire", status: "Closed", reportedOn: "2026-08-19", incurred: 127050, paid: 127050, reserved: 0 }],
+    "POL-2026-0802": [{ type: "Theft", status: "Open", reportedOn: "2026-07-04", incurred: 14180, paid: 3340, reserved: 10840 }],
+    "POL-2026-0803": [{ type: "Collision", status: "Closed", reportedOn: "2026-07-08", incurred: 9220, paid: 9220, reserved: 0 }],
+    "POL-2026-0804": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-05-30", incurred: 790220, paid: 790220, reserved: 0 }],
+    "POL-2026-0807": [{ type: "Collision", status: "Open", reportedOn: "2026-06-02", incurred: 12760, paid: 3030, reserved: 9730 }],
+    "POL-2026-0834": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-03-03", incurred: 351090, paid: 351090, reserved: 0 }],
+    "POL-2026-0836": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-13", incurred: 1330, paid: 1330, reserved: 0 }],
+    "POL-2026-0838": [{ type: "Theft", status: "Closed", reportedOn: "2026-04-23", incurred: 20270, paid: 20270, reserved: 0 }],
+    "POL-2026-0843": [{ type: "Theft", status: "Closed", reportedOn: "2026-03-03", incurred: 11060, paid: 11060, reserved: 0 }],
+    "POL-2026-0851": [{ type: "Storm damage", status: "Closed", reportedOn: "2026-08-18", incurred: 1350630, paid: 1350630, reserved: 0 }],
+    "POL-2026-0854": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-08-09", incurred: 39640, paid: 39640, reserved: 0 }],
+    "POL-2026-0856": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-01-18", incurred: 145590, paid: 145590, reserved: 0 }],
+    "POL-2026-0865": [{ type: "Collision", status: "Closed", reportedOn: "2026-04-17", incurred: 8350, paid: 8350, reserved: 0 }],
+    "POL-2026-0868": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-06-30", incurred: 11210, paid: 11210, reserved: 0 }],
+    "POL-2026-0874": [{ type: "Inpatient treatment", status: "Open", reportedOn: "2026-04-09", incurred: 304160, paid: 98330, reserved: 205830 }],
+    "POL-2026-0876": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-19", incurred: 15210, paid: 15210, reserved: 0 }],
+    "POL-2026-0879": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-08-05", incurred: 151470, paid: 151470, reserved: 0 }],
+    "POL-2026-0883": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-01-13", incurred: 753580, paid: 753580, reserved: 0 }],
+    "POL-2026-0888": [{ type: "Machinery breakdown", status: "Open", reportedOn: "2026-06-25", incurred: 410900, paid: 180620, reserved: 230280 }],
+    "POL-2026-0900": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-08-21", incurred: 32460, paid: 32460, reserved: 0 }],
+    "POL-2026-0911": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-02", incurred: 45010, paid: 45010, reserved: 0 }],
+    "POL-2026-0912": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-16", incurred: 2260, paid: 2260, reserved: 0 }],
+    "POL-2026-0925": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-08-11", incurred: 568600, paid: 568600, reserved: 0 }],
+    "POL-2026-0935": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-05-02", incurred: 334000, paid: 334000, reserved: 0 }],
+    "POL-2026-0943": [{ type: "Water damage", status: "Closed", reportedOn: "2026-08-08", incurred: 23220, paid: 23220, reserved: 0 }],
+    "POL-2026-0949": [{ type: "Theft", status: "Closed", reportedOn: "2026-08-18", incurred: 14340, paid: 14340, reserved: 0 }],
+    "POL-2026-0977": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-03-16", incurred: 350740, paid: 350740, reserved: 0 }],
+    "POL-2026-0979": [{ type: "Theft in transit", status: "Open", reportedOn: "2026-06-12", incurred: 596560, paid: 113830, reserved: 482730 }],
+    "POL-2026-0980": [{ type: "Chronic condition management", status: "Open", reportedOn: "2026-08-07", incurred: 370170, paid: 82390, reserved: 287780 }],
+    "POL-2026-0988": [{ type: "Theft", status: "Closed", reportedOn: "2026-07-21", incurred: 2020, paid: 2020, reserved: 0 }],
+    "POL-2026-1013": [{ type: "Windshield damage", status: "Open", reportedOn: "2026-05-13", incurred: 15610, paid: 6110, reserved: 9500 }],
+    "POL-2026-1029": [{ type: "Wind damage", status: "Open", reportedOn: "2026-08-16", incurred: 22540, paid: 6980, reserved: 15560 }],
+    "POL-2026-1038": [{ type: "Fire", status: "Open", reportedOn: "2026-08-07", incurred: 424210, paid: 182840, reserved: 241370 }],
+    "POL-2026-1039": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-06-10", incurred: 477690, paid: 477690, reserved: 0 }],
+    "POL-2026-1042": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-21", incurred: 6060, paid: 6060, reserved: 0 }],
+    "POL-2026-1049": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2025-12-09", incurred: 178730, paid: 178730, reserved: 0 }],
+    "POL-2026-1055": [{ type: "Fire", status: "Closed", reportedOn: "2026-05-24", incurred: 1431410, paid: 1431410, reserved: 0 }],
+    "POL-2026-1056": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-02-21", incurred: 102730, paid: 102730, reserved: 0 }],
+    "POL-2026-1058": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-06-27", incurred: 286470, paid: 286470, reserved: 0 }],
+    "POL-2026-1061": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-04-24", incurred: 319930, paid: 319930, reserved: 0 }],
+    "POL-2026-1063": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-04-18", incurred: 10910, paid: 10910, reserved: 0 }],
+    "POL-2026-1073": [{ type: "Fire", status: "Closed", reportedOn: "2026-08-23", incurred: 20320, paid: 20320, reserved: 0 }],
+    "POL-2026-1079": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-08-16", incurred: 48430, paid: 48430, reserved: 0 }],
+    "POL-2026-1083": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-06-09", incurred: 259800, paid: 259800, reserved: 0 }],
+    "POL-2026-1091": [{ type: "Chronic condition management", status: "Open", reportedOn: "2026-08-14", incurred: 145260, paid: 78230, reserved: 67030 }],
+    "POL-2026-1111": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-04-21", incurred: 382770, paid: 382770, reserved: 0 }],
+    "POL-2026-1129": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-05-01", incurred: 164120, paid: 66580, reserved: 97540 }],
+    "POL-2026-1130": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-19", incurred: 4650, paid: 4650, reserved: 0 }],
+    "POL-2026-1135": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-05-05", incurred: 138420, paid: 138420, reserved: 0 }],
   };
   PAS.CLAIMS_BY_ID = CLAIMS_BY_ID;
 
@@ -852,7 +948,7 @@
     "Broker/Producer": { icon: "users", tone: "indigo", label: "Broker / Producer", channels: ["Broker portal", "Phone", "Email"] },
     Underwriter: { icon: "clipboard-check", tone: "violet", label: "Underwriter (internal)", channels: ["Internal review", "Portfolio audit"] },
     MGA: { icon: "key-round", tone: "amber", label: "MGA", channels: ["MGA portal", "Phone", "Email"] },
-    Carrier: { icon: "building-2", tone: "green", label: "Carrier", channels: ["Internal review", "Portfolio audit", "Compliance directive"] },
+    Carrier: { icon: "building-2", tone: "green", label: "Reinsurer", channels: ["Internal review", "Portfolio audit", "Compliance directive"] },
     System: { icon: "cpu", tone: "gray", label: "System (automated)", channels: ["Billing non-payment trigger", "Renewal reminder job"] },
   };
   /* Cancellation restricts the "Initiated by" picker to this subset — an underwriter's portfolio
@@ -961,7 +1057,7 @@
       ["registry", "Policy register", "list-checks", "registry.html"],
       ["brokers", "Brokers", "users", "brokers.html"],
       ["mgas", "MGA", "building-2", "mgas.html"],
-      ["carriers", "Carriers", "shield-check", "carriers.html"],
+      ["carriers", "Reinsurers", "shield-check", "carriers.html"],
       ["customers", "Customers", "user", "customers.html"],
       ["workbench", "Transaction workbench", "git-branch", "workbench.html"],
       // ["documents", "Documents", "file-check-2", "documents.html"],
@@ -1004,7 +1100,7 @@
     detail: { nav: "registry", title: "Records / Policy detail" },
     brokers: { nav: "brokers", title: "Records / Brokers" },
     mgas: { nav: "mgas", title: "Records / MGA" },
-    carriers: { nav: "carriers", title: "Records / Carriers" },
+    carriers: { nav: "carriers", title: "Records / Reinsurers" },
     customers: { nav: "customers", title: "Records / Customers" },
     workbench: { nav: "workbench", title: "Records / Transaction workbench" },
     documents: { nav: "documents", title: "Records / Documents" },
@@ -1078,6 +1174,12 @@
       scope: "mga", canDecide: false, canRequest: false, canManageUsers: false, canManageRoles: false,
       visibleNav: MGA_NAV, isSystem: true,
       desc: "The business placed through this MGA, and nothing else. Read-only, and genuinely scoped to its own book — an MGA sees its own business; decisions stay with an admin.",
+    },
+    Carrier: {
+      label: "Carrier", icon: "shield-check", tone: "blue", identity: "Meridian Assurance Co.",
+      scope: "carrier", canDecide: false, canRequest: false, canManageUsers: false, canManageRoles: false,
+      visibleNav: MGA_NAV, isSystem: true,
+      desc: "The business written on this carrier's own paper, and nothing else — its new business trend, loss activity and reserves, not Veridex's whole book. Read-only, with visibility into both the MGA and Broker layers underneath it.",
     },
   };
 
@@ -1253,6 +1355,7 @@
         user: held.meta.initiatedBy || held.user || "Requester",
         action: "Request",
         comment: held.meta.requestNote,
+        category: held.meta.category,
       });
     }
 
@@ -1289,19 +1392,33 @@
      mail transport here — a static frontend can't originate SMTP — this simulates the notification
      step the way the rest of the ledger narrates other backend effects (e.g. "policyEndorsed event
      published") without a live integration behind it. */
-  PAS.recordHeldDecision = function (id, txnId, action, comment, typeHint, emailTo) {
+  /* Routing category for Escalations and Requests — one dropdown instead of a separate button per
+     issue type, per the MOM 2026-08-26 feedback ("so users can route issues correctly without
+     needing multiple buttons/options"). Shared across both surfaces (the Escalate/Request-more-
+     information modal on every decision desk, and the "Log a request" form) so a category means
+     the same thing everywhere it's used, rather than each desk inventing its own list. Distinct
+     from the Servicing desk's own category list (store.js's SLA-driven service-request types,
+     defined in servicing-decision.js) — that one classifies the servicing action itself; this one
+     routes who should be looking at it. */
+  PAS.ISSUE_CATEGORIES = ["Underwriting", "Billing & Payments", "Claims", "Compliance", "Technical / System", "Customer Service", "Other"];
+
+  PAS.recordHeldDecision = function (id, txnId, action, comment, typeHint, emailTo, category) {
     var noteText = comment + (emailTo ? "\n\nNotification emailed to " + emailTo + " via SMTP." : "");
     var audit = PAS.makeAudit(action, noteText);
+    if (category) audit.category = category;
     return patch(id, function (p) {
       var held = txnId ? p.history.find(function (h) { return h.id === txnId; }) : null;
       var history = held
         ? p.history.map(function (h) { return h.id === txnId ? withAudit(h, audit) : h; })
         : p.history;
+      var meta = { audit: audit, noteOnly: true };
+      if (emailTo) meta.emailTo = emailTo;
+      if (category) meta.category = category;
       return pushTxn(Object.assign({}, p, { history: history }), {
         date: todayISO(), type: (held && held.type) || typeHint || "Underwriting",
         title: ((held && held.type) || typeHint || "Underwriting") + ": " + action,
         detail: audit.comment, user: audit.user,
-        meta: emailTo ? { audit: audit, noteOnly: true, emailTo: emailTo } : { audit: audit, noteOnly: true },
+        meta: meta,
       });
     });
   };

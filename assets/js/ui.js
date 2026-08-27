@@ -715,6 +715,13 @@
         modal.appendChild(field({ label: "Notify by email (optional)", hint: "Sent via the notification service (SMTP) the moment you confirm — leave blank to skip." }, emailInput));
       }
 
+      var categorySelect = null;
+      if (opts.showCategory) {
+        categorySelect = h("select", { class: "field-input" });
+        (PAS.ISSUE_CATEGORIES || ["Other"]).forEach(function (c) { categorySelect.appendChild(h("option", { value: c }, c)); });
+        modal.appendChild(field({ label: "Category", hint: "Routes this to the right team — one dropdown instead of a separate button per issue type." }, categorySelect));
+      }
+
       var actions = h("div", { class: "decision-modal-actions" });
       var cancelBtn = h("button", { class: "btn", type: "button" }, "Cancel");
       actions.appendChild(confirmBtn);
@@ -741,13 +748,15 @@
       confirmBtn.addEventListener("click", function () {
         var comment = ta.value.trim();
         if (!comment) return;
-        close(opts.showEmail ? { comment: comment, email: emailInput.value.trim() } : comment);
+        close((opts.showEmail || opts.showCategory)
+          ? { comment: comment, email: emailInput ? emailInput.value.trim() : "", category: categorySelect ? categorySelect.value : "" }
+          : comment);
       });
     });
   }
   function confirmable(policyNo, txnNo, action, spec) {
     return Object.assign({}, spec, {
-      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning, showEmail: spec.showEmail, emailPlaceholder: spec.emailPlaceholder, emailDefault: spec.emailDefault },
+      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning, showEmail: spec.showEmail, emailPlaceholder: spec.emailPlaceholder, emailDefault: spec.emailDefault, showCategory: spec.showCategory },
     });
   }
   function decisionTrail(rows) {
@@ -801,6 +810,7 @@
         : "—"));
       top.appendChild(meta);
       top.appendChild(pill(tone, a.action));
+      if (a.category) top.appendChild(pill("gray", a.category));
       card.appendChild(top);
 
       var quote = h("div", { class: "decision-trail-quote" });
@@ -898,6 +908,11 @@
       fillChannels("Insured");
       initiatedSelect.addEventListener("change", function () { fillChannels(initiatedSelect.value); });
       grid2.appendChild(field({ label: "Channel" }, channelSelect));
+      var categorySelect = h("select", { class: "field-input" });
+      (PAS.ISSUE_CATEGORIES || ["Other"]).forEach(function (c) { categorySelect.appendChild(h("option", { value: c }, c)); });
+      extra.category = categorySelect.value;
+      categorySelect.addEventListener("change", function () { extra.category = categorySelect.value; });
+      grid2.appendChild(field({ label: "Category", hint: "Routes this request without needing a separate button per issue type." }, categorySelect));
       if (opts.extraFields) {
         var extraNode = opts.extraFields(extra);
         if (extraNode) appendKids(grid2, extraNode);

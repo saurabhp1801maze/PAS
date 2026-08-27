@@ -46,7 +46,7 @@
       left.push(ui.requestOrigin(h.meta));
       left.push(ui.tipLabel({ text: "What was requested", what: "Reason and Initiated By came in with the request — neither is chosen here.", why: "Type is derived from both of them plus the effective date, never hand-picked.", className: "label-11 block mb-10" }));
       left.push(ui.kv({ k: "Reason", v: reason, what: "What the requester gave.", rule: "Fraud never auto-completes and permanently blocks any later reinstatement." }));
-      left.push(ui.kv({ k: "Initiated by", v: initiatedBy, what: "Who is actually asking for this.", rule: "An insurer-side initiator (Carrier, MGA, System) can never end up with a Short-Rate penalty." }));
+      left.push(ui.kv({ k: "Initiated by", v: initiatedBy, what: "Who is actually asking for this.", rule: "An insurer-side initiator (Reinsurer, MGA, System) can never end up with a Short-Rate penalty." }));
       left.push(ui.kv({ k: "Timing", v: q.timing, what: "Immediate if the effective date is today or past, Future/Scheduled otherwise." }));
 
       var dateInput = ui.h("input", { class: "field-input", type: "date", value: effDate, disabled: decided || dnoc.required });
@@ -127,8 +127,10 @@
           });
       }
       function hold(action) {
-        return function (comment) {
-          PAS.recordHeldDecision(p.id, txnId, action, comment, "Cancellation");
+        return function (result) {
+          var comment = result && typeof result === "object" ? result.comment : result;
+          var category = (result && typeof result === "object" && result.category) || "";
+          PAS.recordHeldDecision(p.id, txnId, action, comment, "Cancellation", "", category);
           ui.renderToast(flash(action));
           buildContent();
         };
@@ -161,8 +163,8 @@
             disabledReason: approveDisabledReason,
           }),
           ui.confirmable(p.id, txnId, "Decline", { label: "Decline request", icon: "ban", onRun: function (c) { return decide(false, c); } }),
-          ui.confirmable(p.id, txnId, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
-          ui.confirmable(p.id, txnId, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
+          ui.confirmable(p.id, txnId, "Escalate", { label: "Escalate", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate") }),
+          ui.confirmable(p.id, txnId, "Request More Information", { label: "Request more information", icon: "corner-up-left", showCategory: true, onRun: hold("Request More Information") }),
         ].filter(Boolean);
 
       layoutContainer.innerHTML = "";

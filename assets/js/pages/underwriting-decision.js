@@ -61,8 +61,10 @@
         });
     }
     function hold(action) {
-      return function (comment) {
-        PAS.recordHeldDecision(p.id, held && held.id, action, comment, "Underwriting");
+      return function (result) {
+        var comment = result && typeof result === "object" ? result.comment : result;
+        var category = (result && typeof result === "object" && result.category) || "";
+        PAS.recordHeldDecision(p.id, held && held.id, action, comment, "Underwriting", "", category);
         ui.renderToast(flash(action));
         render();
       };
@@ -71,8 +73,8 @@
     page.appendChild(ui.decisionLayout(left, right, [
       ui.confirmable(p.id, txnNo, "Approve", { label: "Approve & bind", tone: "green", icon: "shield-check", onRun: function (c) { return act("Approve", c); } }),
       ui.confirmable(p.id, txnNo, "Decline", { label: "Decline", tone: "red", icon: "ban", onRun: function (c) { return act("Decline", c); } }),
-      ui.confirmable(p.id, txnNo, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
-      ui.confirmable(p.id, txnNo, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
+      ui.confirmable(p.id, txnNo, "Escalate", { label: "Escalate", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate") }),
+      ui.confirmable(p.id, txnNo, "Request More Information", { label: "Request more information", icon: "corner-up-left", showCategory: true, onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("uw-desk", page));

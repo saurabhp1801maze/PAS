@@ -71,7 +71,7 @@
     var reasonTable = ui.dataTable({
       columns: ["Reason",
         { label: "Notice required", what: "Days that must run before the effective date." },
-        { label: "Default type", what: "What Type this reason recommends, before the Initiated By check applies.", rule: "An insurer-side Initiated By (Carrier, MGA, System) downgrades a Short-Rate default to Pro-Rata — it can never upgrade a no-penalty reason into one." }],
+        { label: "Default type", what: "What Type this reason recommends, before the Initiated By check applies.", rule: "An insurer-side Initiated By (Reinsurer, MGA, System) downgrades a Short-Rate default to Pro-Rata — it can never upgrade a no-penalty reason into one." }],
       rows: Object.keys(PAS.CANCEL_REASONS).map(function (r) {
         var spec = PAS.CANCEL_REASONS[r];
         return [r, spec.noticeDays + " days", ui.pill(PAS.CANCEL_TYPES[spec.defaultType].tone, spec.defaultType)];
@@ -150,6 +150,26 @@
     refundGrid.appendChild(byReasonPanel);
     page.appendChild(refundGrid);
 
+    /* Cancellation trend (MOM 2026-08-26: "Cancellation data and trends should be clearly visible
+       for analysis") — completed cancellations by month, split by type. A volume spike reads
+       differently depending on which type is driving it: Short-Rate rising is an insured-request/
+       fraud pattern worth a look; Pro-Rata or Flat rising is more likely a process one (DNOC
+       backlog, mass non-renewal) — the split is what makes the trend analyzable, not just visible. */
+    var trendMonths = PAS.charts.trailingMonths(6);
+    var cancelTypeKeys = Object.keys(PAS.CANCEL_TYPES);
+    var trendSeries = cancelTypeKeys.map(function (k) { return { type: k, label: k, tone: PAS.CANCEL_TYPES[k].tone }; });
+    var trendData = trendMonths.map(function (mk) {
+      var row = { key: mk };
+      trendSeries.forEach(function (s) {
+        row[s.type] = completed.filter(function (t) { return PAS.charts.inMonth(t.h.date, mk) && (t.h.meta && t.h.meta.cancelType) === s.type; }).length;
+      });
+      return row;
+    });
+    var trendPanel = ui.panel({ title: "Cancellation trend", what: "Completed cancellations by month, split by type.", why: "A spike in Short-Rate reads as an insured-driven pattern; a spike in Flat/Pro-Rata reads as an insurer- or process-driven one — the split is what makes the trend analyzable." }, []);
+    var trendBody = trendPanel.querySelector(".panel-body");
+    page.appendChild(trendPanel);
+    PAS.charts.drawTrendGraph(trendBody, trendSeries, trendData, PAS.charts.monthKeyLabel, "Trailing 6 months, completed cancellations by effective date, split by type.");
+
     page.appendChild(ui.logRequestForm({
       policies: policies.filter(function (p) { return p.status === "Active"; }),
       typeLabel: "cancellation",
@@ -163,7 +183,7 @@
         return ui.field({ label: "Reason" }, sel);
       },
       onSubmit: function (payload) {
-        PAS.raiseRequest(payload.policyId, "Cancellation", { reason: payload.extra.reason || Object.keys(PAS.CANCEL_REASONS)[0], initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note });
+        PAS.raiseRequest(payload.policyId, "Cancellation", { reason: payload.extra.reason || Object.keys(PAS.CANCEL_REASONS)[0], initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note, category: payload.extra.category });
         render();
       },
     }));

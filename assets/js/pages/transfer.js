@@ -49,7 +49,7 @@
       },
       onSubmit: function (payload) {
         if (!payload.extra.newHolder || !payload.extra.newHolder.trim()) { window.alert("A transfer needs the new named insured's name."); return; }
-        PAS.raiseRequest(payload.policyId, "Transfer", { reason: payload.extra.reason || PAS.TRANSFER_REASONS[0], newHolder: payload.extra.newHolder.trim(), initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note });
+        PAS.raiseRequest(payload.policyId, "Transfer", { reason: payload.extra.reason || PAS.TRANSFER_REASONS[0], newHolder: payload.extra.newHolder.trim(), initiatedBy: payload.initiatedBy, channel: payload.channel, requestNote: payload.note, category: payload.extra.category });
         render();
       },
     }));

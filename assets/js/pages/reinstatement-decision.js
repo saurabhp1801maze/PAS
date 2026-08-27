@@ -60,8 +60,10 @@
         });
     }
     function hold(action) {
-      return function (comment) {
-        PAS.recordHeldDecision(p.id, h.id, action, comment, "Reinstatement");
+      return function (result) {
+        var comment = result && typeof result === "object" ? result.comment : result;
+        var category = (result && typeof result === "object" && result.category) || "";
+        PAS.recordHeldDecision(p.id, h.id, action, comment, "Reinstatement", "", category);
         ui.renderToast(flash(action));
         render();
       };
@@ -70,8 +72,8 @@
     page.appendChild(ui.decisionLayout(left, right, [
       ui.confirmable(p.id, h.id, "Approve", { label: "Approve reinstatement", tone: "green", icon: "rotate-ccw", onRun: function (c) { return decide(true, c); }, disabled: !e.eligible, disabledReason: e.fraud ? "Policies cancelled for fraud are never eligible." : ("Cancelled " + e.daysSince + " days ago — beyond the " + PAS.REINSTATEMENT_WINDOW_DAYS + "-day window.") }),
       ui.confirmable(p.id, h.id, "Decline", { label: "Decline request", icon: "ban", onRun: function (c) { return decide(false, c); } }),
-      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", onRun: hold("Escalate") }),
-      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", onRun: hold("Request More Information") }),
+      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate") }),
+      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", showCategory: true, onRun: hold("Request More Information") }),
     ]));
 
     root.appendChild(ui.screen("reinstatement-desk", page));

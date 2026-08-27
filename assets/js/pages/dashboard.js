@@ -251,8 +251,8 @@
     filterBlock.appendChild(mgaGroup);
 
     var carrierGroup = ui.h("div", {});
-    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Carrier"));
-    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All carriers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
+    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Reinsurer"));
+    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All reinsurers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
     filterBlock.appendChild(carrierGroup);
 
     var toggleRow = ui.h("div", { class: "period-toggle-row" });
@@ -464,6 +464,27 @@
     twoCol.appendChild(compPanel);
     page.appendChild(twoCol);
 
+    /* Claims & loss ratio: the panel this dashboard didn't have before (MOM 2026-08-26) — real
+       claim records (PAS.CLAIMS_BY_ID), not an asserted number, broken out by product and state so
+       "which is loss, where profit" is a chart read, not a spreadsheet exercise. Loss ratio =
+       incurred claims ÷ in-force premium, the standard industry figure underwriting appetite and
+       renewal-pricing decisions actually turn on. */
+    var claimsGrid = ui.h("div", { class: "two-col-grid" });
+    var lossByProductPanel = ui.panel({ title: "Loss ratio by product", what: "Incurred claims ÷ in-force premium, per product line.", why: "Which lines are profitable and which are running hot — the number underwriting appetite decisions actually turn on." }, []);
+    var lossByProductBody = lossByProductPanel.querySelector(".panel-body");
+    claimsGrid.appendChild(lossByProductPanel);
+    var lossByStatePanel = ui.panel({ title: "Loss ratio by state", what: "Incurred claims ÷ in-force premium, per state with claim activity.", why: "Geographic concentration of loss, separate from geographic concentration of premium." }, []);
+    var lossByStateBody = lossByStatePanel.querySelector(".panel-body");
+    claimsGrid.appendChild(lossByStatePanel);
+    page.appendChild(claimsGrid);
+
+    var claimsCalloutWrap = ui.h("div", {});
+    page.appendChild(claimsCalloutWrap);
+
+    var claimsDetailPanel = ui.panel({ title: "Claims detail", what: "Every claim on file, filtered the same as everything else on this dashboard.", why: "The line-item data behind the loss ratio above — open exposure and closed cost, not just a summary number.", pad: 0 }, []);
+    var claimsDetailBody = claimsDetailPanel.querySelector(".panel-body");
+    page.appendChild(claimsDetailPanel);
+
     /* Top 3 by in-force premium for each of the three distribution dimensions this dashboard
        now filters by — Broker, MGA, Carrier. Each is capped at 3 with a "See N others" toggle
        rather than always listing every one, so a long tail of low-volume producers can't push
@@ -476,7 +497,7 @@
     var topMgaPanel = ui.panel({ title: "Top MGAs", what: "In-force premium per MGA, largest first.", why: "Which wholesale facilities are carrying the most bound risk.", right: openLink("mgas.html", "Open") }, []);
     var topMgaBody = topMgaPanel.querySelector(".panel-body");
     topGrid.appendChild(topMgaPanel);
-    var topCarrierPanel = ui.panel({ title: "Top carriers", what: "In-force premium per carrier, largest first.", why: "Concentration on one carrier's paper is a placement risk.", right: openLink("carriers.html", "Open") }, []);
+    var topCarrierPanel = ui.panel({ title: "Top Insurers", what: "In-force premium per insurer, largest first.", why: "Concentration on one insurer's paper is a placement risk.", right: openLink("carriers.html", "Open") }, []);
     var topCarrierBody = topCarrierPanel.querySelector(".panel-body");
     topGrid.appendChild(topCarrierPanel);
     page.appendChild(topGrid);
@@ -590,6 +611,86 @@
       }
     }
 
+    function lossToneFor(ratio) { return ratio >= 0.85 ? "red" : ratio >= 0.6 ? "amber" : "green"; }
+
+    function buildClaims() {
+      var policies = scopedPolicies();
+      var active = policies.filter(function (p) { return p.status === "Active"; });
+      var claims = PAS.allClaims(policies);
+
+      function byField(field) {
+        var keys = Array.from(new Set(active.map(function (p) { return p[field]; }).filter(Boolean)));
+        return keys.map(function (k) {
+          var forKey = active.filter(function (p) { return p[field] === k; });
+          var premium = sum(forKey, function (p) { return p.premium; });
+          var incurred = PAS.allClaims(forKey).reduce(function (s, x) { return s + x.c.incurred; }, 0);
+          return { k: k, premium: premium, incurred: incurred, ratio: premium ? incurred / premium : 0, claimN: PAS.allClaims(forKey).length };
+        });
+      }
+
+      var byProduct = byField("product").sort(function (a, b) { return b.ratio - a.ratio; });
+      lossByProductBody.innerHTML = "";
+      if (byProduct.length === 0) lossByProductBody.appendChild(ui.h("div", { class: "faint-note" }, "No in-force business in this filter."));
+      else {
+        var maxProductRatio = Math.max.apply(null, byProduct.map(function (x) { return x.ratio * 100; }).concat([100]));
+        byProduct.forEach(function (x) {
+          var pct = Math.round(x.ratio * 1000) / 10;
+          lossByProductBody.appendChild(ui.hbar({
+            label: x.k, value: pct, max: maxProductRatio, note: pct + "% · " + PAS.moneyShort(x.incurred) + " incurred", tone: lossToneFor(x.ratio),
+            onClick: function () { location.href = "registry.html?product=" + encodeURIComponent(x.k); },
+          }));
+        });
+      }
+
+      var byState = byField("state").filter(function (x) { return x.incurred > 0; }).sort(function (a, b) { return b.ratio - a.ratio; }).slice(0, 8);
+      lossByStateBody.innerHTML = "";
+      if (byState.length === 0) lossByStateBody.appendChild(ui.h("div", { class: "faint-note" }, "No claims on file in this filter."));
+      else {
+        var maxStateRatio = Math.max.apply(null, byState.map(function (x) { return x.ratio * 100; }).concat([100]));
+        byState.forEach(function (x) {
+          var pct = Math.round(x.ratio * 1000) / 10;
+          lossByStateBody.appendChild(ui.hbar({ label: x.k, value: pct, max: maxStateRatio, note: pct + "% · " + x.claimN + " claim" + (x.claimN === 1 ? "" : "s"), tone: lossToneFor(x.ratio) }));
+        });
+      }
+
+      claimsCalloutWrap.innerHTML = "";
+      var lossSegments = byProduct.filter(function (x) { return x.ratio >= 0.85 && x.incurred > 0; });
+      if (lossSegments.length > 0) {
+        claimsCalloutWrap.appendChild(ui.callout("bad", [
+          ui.h("strong", {}, "Running at a loss: "),
+          document.createTextNode(lossSegments.map(function (x) { return x.k + " (" + Math.round(x.ratio * 100) + "%)"; }).join(", ") + " — incurred claims are at or above 85% of premium in this filter."),
+        ]));
+      } else if (byProduct.some(function (x) { return x.incurred > 0; })) {
+        claimsCalloutWrap.appendChild(ui.callout("good", [
+          ui.h("strong", {}, "No line is running at a loss "),
+          document.createTextNode("in this filter — every product's incurred claims stay under 85% of its premium."),
+        ]));
+      }
+
+      var sortedClaims = claims.slice().sort(function (a, b) { return b.c.incurred - a.c.incurred; });
+      claimsDetailBody.innerHTML = "";
+      if (sortedClaims.length === 0) {
+        claimsDetailBody.appendChild(ui.h("div", { class: "faint-note", style: { padding: "14px 15px" } }, "No claims on file in this filter."));
+      } else {
+        var totalIncurred = sortedClaims.reduce(function (s, x) { return s + x.c.incurred; }, 0);
+        var openReserves = PAS.reservesTotal(policies);
+        var summary = ui.h("div", { style: { display: "flex", gap: "20px", flexWrap: "wrap", padding: "13px 15px 4px" } });
+        summary.appendChild(ui.kv({ k: "Claims (this filter)", v: sortedClaims.length, what: sortedClaims.filter(function (x) { return x.c.status === "Open"; }).length + " open, " + sortedClaims.filter(function (x) { return x.c.status === "Closed"; }).length + " closed." }));
+        summary.appendChild(ui.kv({ k: "Total incurred", v: PAS.money(totalIncurred), what: "Paid plus reserved, across every claim in this filter." }));
+        summary.appendChild(ui.kv({ k: "Open reserves", v: PAS.money(openReserves), what: "Held against open claims, this filter." }));
+        summary.appendChild(ui.kv({ k: "Loss ratio", v: Math.round(PAS.lossRatio(policies) * 1000) / 10 + "%", what: "Total incurred ÷ in-force premium, this filter." }));
+        claimsDetailBody.appendChild(summary);
+        claimsDetailBody.appendChild(ui.dataTable({
+          columns: ["Policy", "Product", "State", { label: "Type", what: "Peril / claim cause." }, { label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid." }, { label: "Incurred", what: "Paid plus reserved — the total cost estimate." }, "Reserved"],
+          rows: sortedClaims.map(function (x) {
+            return [ui.cellId(x.p.id), x.p.product, x.p.state, x.c.type, ui.pill(x.c.status === "Open" ? "amber" : "green", x.c.status), PAS.money(x.c.incurred), x.c.reserved ? PAS.money(x.c.reserved) : "—"];
+          }),
+          wrapCells: true,
+          onRowClick: function (i) { location.href = "policy-detail.html?policy=" + encodeURIComponent(sortedClaims[i].p.id); },
+        }));
+      }
+    }
+
     /* Expand/collapse state per card, kept outside buildTopEntities so it survives every rebuild
        (a filter change or period switch) rather than resetting to collapsed each time. */
     var brokerState = { expanded: false }, mgaState = { expanded: false }, carrierState = { expanded: false };
@@ -620,7 +721,7 @@
       buildRankedList(topCarrierBody, policies, "carrier", carrierState);
     }
 
-    function buildAll() { renderToggle(); buildKpis(); buildChart(); buildSnapshotPanels(); buildTopEntities(); }
+    function buildAll() { renderToggle(); buildKpis(); buildChart(); buildSnapshotPanels(); buildClaims(); buildTopEntities(); }
     buildAll();
   }
 
@@ -667,15 +768,21 @@
 
     /* The second breakdown panel is whichever distribution-chain dimension this role's own scope
        ISN'T — a Broker (scoped by producer, i.e. themselves) sees premium by MGA facility instead
-       of premium by broker, which would otherwise be one bar, always themselves. Everyone else
-       (MGA, and any future scoped role) sees the traditional broker breakdown. */
-    var secondDim = spec.scope === "producer" ? "mga" : "producer";
-    var secondLabel = spec.scope === "producer" ? "MGA" : "Broker";
-    var secondTitle = spec.scope === "producer" ? "Premium by MGA" : "Premium by broker";
-    var secondWhat = spec.scope === "producer" ? "In-force premium per MGA facility this book is placed through." : "In-force premium per placing broker, Direct included.";
-    var secondWhy = spec.scope === "producer" ? "Shows which wholesale facilities this book actually depends on." : "Shows which distribution channel the book actually depends on.";
+       of premium by broker, which would otherwise be one bar, always themselves. A Reinsurer sees
+       both layers underneath it (MGA and, per the MOM 2026-08-26 feedback, Broker too) since both
+       are "relevant entities" from a carrier's own view — everyone else sees the traditional
+       broker breakdown. */
+    var isCarrierScope = spec.scope === "carrier";
+    var secondDim = spec.scope === "producer" ? "mga" : isCarrierScope ? "mga" : "producer";
+    var secondLabel = spec.scope === "producer" || isCarrierScope ? "MGA" : "Broker";
+    var secondTitle = spec.scope === "producer" || isCarrierScope ? "Premium by MGA" : "Premium by broker";
+    var secondWhat = spec.scope === "producer" || isCarrierScope ? "In-force premium per MGA facility this book is placed through." : "In-force premium per placing broker, Direct included.";
+    var secondWhy = spec.scope === "producer" || isCarrierScope ? "Shows which wholesale facilities this book actually depends on." : "Shows which distribution channel the book actually depends on.";
+    var thirdDim = "producer", thirdLabel = "Broker", thirdTitle = "Premium by broker",
+      thirdWhat = "In-force premium per placing broker, Direct included.",
+      thirdWhy = "Shows which distribution channel ultimately sources this reinsurer's book.";
 
-    var stateGrid = ui.h("div", { class: "two-col-grid" });
+    var stateGrid = ui.h("div", { class: isCarrierScope ? "three-col-grid" : "two-col-grid" });
     var stateTopOnly = spec.scope === "producer";
     var statePanel = ui.panel({ title: stateTopOnly ? "Premium by state (top 5)" : "Premium by state", what: stateTopOnly ? "Top 5 states by in-force premium, largest first." : "In-force premium per state, largest first.", why: "State-level concentration matters for regulatory exposure and catastrophe accumulation." }, []);
     var stateBody = statePanel.querySelector(".panel-body");
@@ -683,6 +790,12 @@
     var brokerPanel = ui.panel({ title: secondTitle, what: secondWhat, why: secondWhy }, []);
     var brokerBody = brokerPanel.querySelector(".panel-body");
     stateGrid.appendChild(brokerPanel);
+    var thirdPanel = null, thirdBody = null;
+    if (isCarrierScope) {
+      thirdPanel = ui.panel({ title: thirdTitle, what: thirdWhat, why: thirdWhy }, []);
+      thirdBody = thirdPanel.querySelector(".panel-body");
+      stateGrid.appendChild(thirdPanel);
+    }
     page.appendChild(stateGrid);
 
     var lobGrid = ui.h("div", { class: "two-col-grid" });
@@ -699,7 +812,7 @@
     var issuancePanel = ui.panel({ title: "New business issued", what: "Policies formally issued, trailing periods.", why: "What's coming into this book, not just what's already on it." }, []);
     var issuanceBody = issuancePanel.querySelector(".panel-body");
 
-    var filterState = [], filterProduct = [], filterSecondDim = [], filterCarrier = [];
+    var filterState = [], filterProduct = [], filterSecondDim = [], filterCarrier = [], filterThirdDim = [];
     function matchesMulti(selected, value) { return selected.length === 0 || selected.indexOf(value) !== -1; }
 
     /* Period toggle — same Monthly/Quarterly/Yearly + custom-range mechanism as the full
@@ -715,7 +828,8 @@
     function renderCharts() {
       var scoped = policies.filter(function (p) {
         return matchesMulti(filterState, p.state) && matchesMulti(filterProduct, p.product)
-          && matchesMulti(filterSecondDim, p[secondDim]) && matchesMulti(filterCarrier, p.carrier);
+          && matchesMulti(filterSecondDim, p[secondDim]) && matchesMulti(filterCarrier, p.carrier)
+          && matchesMulti(filterThirdDim, p[thirdDim]);
       });
       var scopedActive = scoped.filter(function (p) { return p.status === "Active"; });
 
@@ -742,6 +856,7 @@
       }
       fillPanel(stateBody, stateTopOnly ? byField("state").slice(0, 5) : byField("state"));
       fillPanel(brokerBody, byField(secondDim));
+      if (isCarrierScope) fillPanel(thirdBody, byField(thirdDim));
       fillPanel(lobBody, byField("product"), "product");
 
       var issuanceKeys = period === "month" ? trailingMonths(6, periodOffset) : period === "quarter" ? trailingQuarters(6, periodOffset)
@@ -807,9 +922,17 @@
     secondDimGroup.appendChild(ui.multiSelect({ options: secondDimOptions, selected: filterSecondDim, allLabel: "All " + secondLabel.toLowerCase() + "s", onChange: function (sel) { filterSecondDim = sel; refresh(); } }));
     filterBlock.appendChild(secondDimGroup);
 
+    if (isCarrierScope) {
+      var thirdDimOptions = Array.from(new Set(policies.map(function (p) { return p[thirdDim]; }).filter(Boolean))).sort();
+      var thirdDimGroup = ui.h("div", {});
+      thirdDimGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, thirdLabel));
+      thirdDimGroup.appendChild(ui.multiSelect({ options: thirdDimOptions, selected: filterThirdDim, allLabel: "All " + thirdLabel.toLowerCase() + "s", onChange: function (sel) { filterThirdDim = sel; refresh(); } }));
+      filterBlock.appendChild(thirdDimGroup);
+    }
+
     var carrierGroup = ui.h("div", {});
-    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Carrier"));
-    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: filterCarrier, allLabel: "All carriers", onChange: function (sel) { filterCarrier = sel; refresh(); } }));
+    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Reinsurer"));
+    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: filterCarrier, allLabel: "All reinsurers", onChange: function (sel) { filterCarrier = sel; refresh(); } }));
     filterBlock.appendChild(carrierGroup);
 
     /* Period toggle for "New business issued" below — Monthly/Quarterly/Yearly chips with ◀/▶

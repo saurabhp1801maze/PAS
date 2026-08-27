@@ -132,13 +132,13 @@
     /* --- connected carriers: the modular-architecture piece made concrete --- */
     var policies = PAS.getPolicies();
     var carrierPanel = ui.panel({
-      title: "Connected carriers",
+      title: "Connected reinsurers",
       what: "Veridex is the MGA — it doesn't carry risk itself. Each product line is placed with the one partner that has appetite for it.",
-      why: "This is what \"a modular architecture that consumes data from connected carriers\" means concretely: real data segmented by carrier (PAS.PRODUCT_CARRIER), not one undifferentiated book.",
+      why: "This is what \"a modular architecture that consumes data from connected reinsurers\" means concretely: real data segmented by reinsurer (PAS.PRODUCT_CARRIER), not one undifferentiated book.",
       pad: 0,
     }, []);
     carrierPanel.querySelector(".panel-body").appendChild(ui.dataTable({
-      columns: ["Carrier", { label: "Lines placed", what: "Which products this partner has appetite for." },
+      columns: ["Reinsurer", { label: "Lines placed", what: "Which products this partner has appetite for." },
         { label: "Policies", what: "Records on their paper." },
         { label: "In-force premium", what: "Sum of active premium placed with them." },
         { label: "Loss ratio", what: "Incurred claims ÷ premium, on their book only." }],

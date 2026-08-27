@@ -15,7 +15,7 @@
   var RELATIONS = [
     { key: "broker", field: "producer", label: "Broker" },
     { key: "mga", field: "mga", label: "MGA" },
-    { key: "carrier", field: "carrier", label: "Carrier" },
+    { key: "carrier", field: "carrier", label: "Reinsurer" },
   ];
   var PENDING_TYPES = ["Cancellation", "Renewal", "Endorsement", "Reinstatement"];
 

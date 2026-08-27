@@ -12,7 +12,7 @@
     ["all", "All — the whole book"],
     ["producer", "Own book — by Broker (producer)"],
     ["mga", "Own book — by MGA"],
-    ["carrier", "Own book — by Carrier"],
+    ["carrier", "Own book — by Reinsurer"],
     ["holder", "Own policies — by policyholder"],
     ["none", "None — no policy data"],
   ];

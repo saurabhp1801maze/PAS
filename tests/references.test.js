@@ -9,7 +9,7 @@ var stub = {
 };
 stub.window = stub;
 vm.createContext(stub);
-["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/entity-book.js", "assets/js/api.js", "assets/js/ui.js"].forEach(function (f) {
+["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/entity-book.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/charts.js"].forEach(function (f) {
   vm.runInContext(fs.readFileSync(f, "utf8"), stub, { filename: f });
 });
 var PAS = stub.PAS, ui = PAS.ui;

@@ -160,7 +160,7 @@ var PAGES = [
   ["customers", "customers"],
 ];
 
-var CORE = ["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/entity-book.js"];
+var CORE = ["assets/js/icons.js", "data/policies.js", "assets/js/store.js", "assets/js/pas-extensions.js", "assets/js/api.js", "assets/js/ui.js", "assets/js/charts.js", "assets/js/entity-book.js"];
 var fails = 0;
 
 PAGES.forEach(function (pair) {
@@ -201,10 +201,10 @@ console.log("\n  content spot-checks");
   ["domain-model", ["Rewrite (Transfer)", "Transfer desk", "Reissue", "Missing", "Request, then decide", "Warns only", "User & role directory", "No real authentication exists"]],
   ["data-model", ["policy_terms", "domain_events", "reverses_transaction_id", "decideRenewal overwrites"]],
   ["api-reference", ["Idempotency-Key", "policyCancelled", "412", "at-least-once"]],
-  ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected carriers", "Meridian Assurance Co.", "Composable modules"]],
+  ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected reinsurers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
   ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Endorsement requests", "Reinstated", "Cancelled", "Awaiting decision", "Monthly", "Yearly", "New business issued", "Cancelled policy requests"]],
-  ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason"]],
+  ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason", "Cancellation trend", "Pro-Rata", "Short-Rate"]],
 ].forEach(function (c) {
   var txt = renderText(c[0]);
   c[1].forEach(function (needle) {
@@ -349,6 +349,72 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   if (pendingCx.length > 5 && cancelPanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Cancelled policy requests exceeds the cap but is missing its "View more" link'); }
 })();
 
+/* Claims & loss ratio (MOM 2026-08-26): real charts and detail data for "loss vs. profitable
+   business" on the main operational dashboard, not just numbers buried in the scoped MGA/Broker/
+   Carrier view. Must show genuine variance — some segments in loss, some healthy — not a single
+   near-zero book-wide number, which is what a too-thin claims seed would produce. */
+console.log("\n  claims & loss ratio panel: real variance, callout flags the actual loss-making lines");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS4 = stub.PAS;
+  var policies4 = PAS4.getPolicies();
+  var active4 = policies4.filter(function (p) { return p.status === "Active"; });
+  var products4 = Array.from(new Set(active4.map(function (p) { return p.product; })));
+  var ratioByProduct = {};
+  products4.forEach(function (pr) {
+    var forPr = active4.filter(function (p) { return p.product === pr; });
+    var premium = forPr.reduce(function (s, p) { return s + p.premium; }, 0);
+    var incurred = PAS4.allClaims(forPr).reduce(function (s, x) { return s + x.c.incurred; }, 0);
+    ratioByProduct[pr] = premium ? incurred / premium : 0;
+  });
+  var lossLines = products4.filter(function (pr) { return ratioByProduct[pr] >= 0.85; });
+  var healthyLines = products4.filter(function (pr) { return ratioByProduct[pr] < 0.6; });
+  if (lossLines.length === 0 || healthyLines.length === 0) { fails++; console.log("  FAIL  claims seed has no real variance — every product is either all-loss or all-healthy, can't demonstrate \"which is loss, where profit\""); }
+  else console.log("  PASS  real variance across products: " + lossLines.length + " line(s) at/above 85% loss ratio (" + lossLines.join(", ") + "), " + healthyLines.length + " healthy line(s) under 60%");
+
+  var dashTxt = renderText("dashboard");
+  ["Loss ratio by product", "Loss ratio by state", "Claims detail"].forEach(function (needle) {
+    if (dashTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  operational dashboard missing "' + needle + '"'); }
+  });
+  console.log("  PASS  operational dashboard has Loss ratio by product/state charts and a Claims detail table — not just the scoped MGA/Broker/Carrier view");
+
+  if (dashTxt.indexOf("Running at a loss") === -1) { fails++; console.log('  FAIL  dashboard missing the "Running at a loss" callout despite real loss-making lines in the seed'); }
+  else {
+    var worstLine = lossLines.sort(function (a, b) { return ratioByProduct[b] - ratioByProduct[a]; })[0];
+    if (dashTxt.indexOf(worstLine) === -1) { fails++; console.log('  FAIL  "Running at a loss" callout does not name "' + worstLine + '", the real worst-performing line'); }
+    else console.log('  PASS  "Running at a loss" callout genuinely names ' + worstLine + ' (' + Math.round(ratioByProduct[worstLine] * 100) + '% loss ratio), computed live, not asserted');
+  }
+
+  var claimsDom = renderDom("dashboard");
+  var claimsTables = claimsDom.querySelectorAll(".data-table");
+  var lastTable = claimsTables[claimsTables.length - 1];
+  var lastTbody = lastTable ? lastTable.querySelector("tbody") : null;
+  var claimRows = lastTbody ? lastTbody.querySelectorAll("tr").length : 0;
+  var realClaimCount = PAS4.allClaims(policies4).length;
+  if (claimRows !== realClaimCount) { fails++; console.log("  FAIL  Claims detail table shows " + claimRows + " rows, expected exactly " + realClaimCount + " (every real claim on file, unfiltered)"); }
+  else console.log("  PASS  Claims detail table lists all " + realClaimCount + " real claims on file, not a truncated sample");
+})();
+
+/* Cancellation trend (MOM 2026-08-26): a real SVG chart, split by type, on the Cancellation desk
+   itself — not just buried in the dashboard's generic 3-transaction-type activity chart. */
+console.log("\n  cancellation trend chart: real SVG, split by type, using the shared PAS.charts module");
+(function () {
+  var cxDom = renderDom("cancellation", "", "Super Admin");
+  var graphs = cxDom.querySelectorAll(".trend-graph");
+  var dots = cxDom.querySelectorAll(".trend-dot");
+  var legendItems = cxDom.querySelectorAll(".trend-legend-item");
+  if (graphs.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 trend graph on the Cancellation desk, found " + graphs.length); }
+  else if (dots.length !== 18) { fails++; console.log("  FAIL  cancellation trend expected 18 dots (3 types × 6 months), found " + dots.length); }
+  else console.log("  PASS  Cancellation trend is a real SVG line/area graph — 3 cancellation types × 6 trailing months = 18 marked points");
+  if (legendItems.length !== 3) { fails++; console.log("  FAIL  expected 3 legend entries (Flat/Pro-Rata/Short-Rate), found " + legendItems.length); }
+  else console.log("  PASS  legend distinguishes all 3 cancellation types — a multi-series chart, not a single blended line");
+})();
+
 /* Role-based dashboard: the same URL, genuinely different renders. Super Admin/Admin get the
    existing operational dashboard (already covered above, at the default no-role state); MGA gets
    a read-only, scoped-to-own-book portfolio-analytics view; Broker gets a scoped, filtered book
@@ -466,6 +532,41 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
   var brokerCustomersRows = renderDom("customers", "", "Broker").querySelectorAll("tr").length - 1;
   if (brokerCustomersRows !== apexHolderCount || brokerCustomersRows === 0) { fails++; console.log("  FAIL  Customers directory shows " + brokerCustomersRows + " rows for Broker, expected exactly " + apexHolderCount); }
   else console.log("  PASS  Customers directory shows exactly the " + apexHolderCount + " customers genuinely associated with Apex's own book — not every customer in the full 1087-policy book");
+})();
+
+/* Carrier role (MOM 2026-08-26, item 1): "New Business Trend should represent the carrier's
+   business performance, not Veridex's overall business" — and the carrier view should surface
+   both the MGA and Broker layers underneath it, not just one. */
+console.log("\n  Carrier role dashboard: genuinely scoped to its own paper, sees both MGA and Broker layers");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PAS3 = stub.PAS;
+  var allPolicies = PAS3.getPolicies();
+  var meridianPolicies = allPolicies.filter(function (p) { return p.carrier === "Meridian Assurance Co."; });
+  var meridianPremium = meridianPolicies.filter(function (p) { return p.status === "Active"; }).reduce(function (s, p) { return s + p.premium; }, 0);
+  if (meridianPolicies.length === allPolicies.length || meridianPolicies.length === 0) { fails++; console.log("  FAIL  Carrier scoping isn't real — Meridian Assurance Co. shows " + meridianPolicies.length + " of " + allPolicies.length + " policies, expected a genuine subset"); }
+  else console.log("  PASS  Meridian Assurance Co. is genuinely scoped to " + meridianPolicies.length + " of " + allPolicies.length + " policies");
+
+  var carrierTxt = renderText("dashboard", "", "Carrier");
+  ["Meridian Assurance Co.", "Premium by MGA", "Premium by broker", "Premium by state", "New business issued", "Claims & reserves", "Loss ratio"].forEach(function (needle) {
+    if (carrierTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Carrier dashboard missing "' + needle + '"'); }
+  });
+  console.log("  PASS  Carrier dashboard shows its own identity, and — unlike MGA/Broker, which only get one — both the Broker and MGA breakdown panels");
+
+  var carrierDom = renderDom("dashboard", "", "Carrier");
+  var carrierKpiValues = carrierDom.querySelectorAll(".kpi-value");
+  var carrierPremiumShown = Array.prototype.some.call(carrierKpiValues, function (el) { return el.textContent === PAS3.moneyShort(meridianPremium); });
+  if (!carrierPremiumShown) { fails++; console.log("  FAIL  Carrier dashboard's In-force premium KPI does not match " + PAS3.moneyShort(meridianPremium) + ", the real figure scoped to Meridian Assurance Co.'s own book"); }
+  else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS3.moneyShort(meridianPremium) + ") is genuinely scoped to its own paper — this is what makes \"New business issued\" below it the carrier's own trend, not Veridex's whole book");
+
+  var carrierRegistryRows = renderDom("registry", "", "Carrier").querySelectorAll("tr").length - 1;
+  if (carrierRegistryRows !== meridianPolicies.length) { fails++; console.log("  FAIL  Policy Register shows " + carrierRegistryRows + " rows for Carrier, expected exactly " + meridianPolicies.length); }
+  else console.log("  PASS  Policy Register is genuinely scoped for Carrier too (" + meridianPolicies.length + " rows) — not just the dashboard");
 })();
 
 /* Claims & reserves: real records, not a fabricated loss ratio. Ironwood Steel Works' claim is
@@ -757,6 +858,55 @@ console.log("\n  policy transfer: holder changes, continuity is genuinely preser
   var afterDecline = PAS10.getPolicy("POL-2026-00777");
   if (afterDecline.holder !== "Global Freight Movers") { fails++; console.log("  FAIL  declining a transfer changed the holder anyway — it should stay \"Global Freight Movers\""); }
   else console.log("  PASS  declining the transfer leaves the original holder untouched");
+})();
+
+/* Category on Escalations & Requests (MOM 2026-08-26): "so users can route issues correctly
+   without needing multiple buttons/options" — one Escalate/Request button plus a category, not a
+   button per category. Verified at the data layer: PAS.recordHeldDecision and PAS.raiseRequest
+   must genuinely persist and surface the category, not just accept and drop it. */
+console.log("\n  category on Escalations & Requests: genuinely persists and surfaces in the decision trail");
+(function () {
+  var stub = {
+    sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })(),
+  };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/pas-extensions.js", "utf8"), stub);
+  var PAS12 = stub.PAS;
+
+  if (!PAS12.ISSUE_CATEGORIES || PAS12.ISSUE_CATEGORIES.length < 3) { fails++; console.log("  FAIL  PAS.ISSUE_CATEGORIES is missing or too short"); }
+  else console.log("  PASS  " + PAS12.ISSUE_CATEGORIES.length + " real routing categories defined");
+
+  var pend12 = PAS12.pendingOf(PAS12.getPolicies(), "Cancellation")[0];
+  if (!pend12) { fails++; console.log("  FAIL  no seeded pending Cancellation found to escalate"); return; }
+  PAS12.recordHeldDecision(pend12.p.id, pend12.h.id, "Escalate", "Escalating for a billing dispute the insured raised.", "Cancellation", "", "Billing & Payments");
+  var afterEscalate = PAS12.getPolicy(pend12.p.id);
+  var trail = PAS12.decisionTrailFor(afterEscalate, pend12.h.id);
+  var escalateRow = trail.find(function (r) { return r.action === "Escalate"; });
+  if (!escalateRow || escalateRow.category !== "Billing & Payments") { fails++; console.log("  FAIL  Escalate did not persist category \"Billing & Payments\" — decisionTrailFor shows " + (escalateRow && escalateRow.category)); }
+  else console.log("  PASS  Escalating a real pending cancellation persists its category and it surfaces in the decision trail");
+
+  var pend12b = PAS12.pendingOf(PAS12.getPolicies(), "Cancellation")[1];
+  PAS12.recordHeldDecision(pend12b.p.id, pend12b.h.id, "Request More Information", "Need the sale invoice for the vehicle.", "Cancellation", "", "Claims");
+  var afterInfo = PAS12.getPolicy(pend12b.p.id);
+  var trail2 = PAS12.decisionTrailFor(afterInfo, pend12b.h.id);
+  var infoRow = trail2.find(function (r) { return r.action === "Request More Information"; });
+  if (!infoRow || infoRow.category !== "Claims") { fails++; console.log("  FAIL  Request More Information did not persist its own category (\"Claims\"), independent of the Escalate one above"); }
+  else console.log("  PASS  a different category on a different transaction is scoped correctly — not shared/leaked across requests");
+
+  var freshPolicy = PAS12.getPolicies().filter(function (p) {
+    return p.status === "Active" && !p.history.some(function (h) { return h.type === "Renewal" && h.status === "Pending"; });
+  })[0];
+  PAS12.raiseRequest(freshPolicy.id, "Renewal", { initiatedBy: "Insured", channel: "Phone", requestNote: "Wants to confirm the renewal terms before it goes through.", category: "Underwriting" });
+  var afterRequest = PAS12.getPolicy(freshPolicy.id);
+  var newPending = afterRequest.history.find(function (h) { return h.type === "Renewal" && h.status === "Pending"; });
+  var trail3 = PAS12.decisionTrailFor(afterRequest, newPending.id);
+  var requestRow = trail3.find(function (r) { return r.action === "Request"; });
+  if (!requestRow || requestRow.category !== "Underwriting") { fails++; console.log("  FAIL  raiseRequest did not persist/surface its category — the \"Log a request\" form's Category field would be silently dropped"); }
+  else console.log("  PASS  a category logged on the \"Log a request\" form (raiseRequest) persists and surfaces in the decision trail too, not just Escalate/Request-more-info");
 })();
 
 /* Configurable T&Cs: an edit must actually persist and be distinguishable from the default, and

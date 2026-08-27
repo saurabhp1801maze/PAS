@@ -80,7 +80,7 @@
         { key: "docs", label: "Docs", what: "Generated document versions held.", sortValue: function (p) { return (p.documents && p.documents.length) || 0; }, cell: function (p) { var n = (p.documents && p.documents.length) || 0; return ui.pill(n ? "gray" : "amber", String(n)); } },
         { key: "broker", label: "Broker", sortValue: function (p) { return p.producer || ""; }, cell: function (p) { return p.producer || "—"; } },
         { key: "mga", label: "MGA", sortValue: function (p) { return p.mga || ""; }, cell: function (p) { return p.mga || "—"; } },
-        { key: "carrier", label: "Carrier", sortValue: function (p) { return p.carrier || ""; }, cell: function (p) { return p.carrier || "—"; } },
+        { key: "carrier", label: "Reinsurer", sortValue: function (p) { return p.carrier || ""; }, cell: function (p) { return p.carrier || "—"; } },
         { key: "state", label: "State", sortValue: function (p) { return p.state || ""; }, cell: function (p) { return p.state || "—"; } },
         { key: "submitted", label: "Submitted", what: "When this record first entered the book.", sortValue: function (p) { return p.submittedOn || ""; }, cell: function (p) { return p.submittedOn || "—"; } },
       ],

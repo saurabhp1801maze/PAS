@@ -405,8 +405,28 @@ console.log("\n  claims & loss ratio panel: real variance, callout flags the act
   var lastTbody = lastTable ? lastTable.querySelector("tbody") : null;
   var claimRows = lastTbody ? lastTbody.querySelectorAll("tr").length : 0;
   var realClaimCount = PAS4.allClaims(policies4).length;
-  if (claimRows !== realClaimCount) { fails++; console.log("  FAIL  Claims detail table shows " + claimRows + " rows, expected exactly " + realClaimCount + " (every real claim on file, unfiltered)"); }
-  else console.log("  PASS  Claims detail table lists all " + realClaimCount + " real claims on file, not a truncated sample");
+  var expectedFirstPage = Math.min(10, realClaimCount);
+  if (claimRows !== expectedFirstPage) { fails++; console.log("  FAIL  Claims detail table's first page shows " + claimRows + " rows, expected exactly " + expectedFirstPage + " (paginated, pageSize 10)"); }
+  else console.log("  PASS  Claims detail table is genuinely paginated — first page shows " + expectedFirstPage + " of " + realClaimCount + " real claims, not all of them at once");
+
+  var pagerMeta = claimsDom.querySelectorAll(".table-pager-meta");
+  var claimsPagerMeta = pagerMeta[pagerMeta.length - 1];
+  if (!claimsPagerMeta || claimsPagerMeta.textContent.indexOf(String(realClaimCount)) === -1) { fails++; console.log('  FAIL  claims table pager does not state the real total (' + realClaimCount + '), got "' + (claimsPagerMeta && claimsPagerMeta.textContent) + '"'); }
+  else console.log("  PASS  pager states the real total claim count (" + realClaimCount + "), not a guess");
+
+  if (realClaimCount > 10) {
+    var nextBtns = claimsDom.querySelectorAll("button");
+    var claimsNextBtn = Array.prototype.filter.call(nextBtns, function (b) { return b.textContent === "Next →"; }).pop();
+    if (!claimsNextBtn) { fails++; console.log("  FAIL  no \"Next →\" pager button found despite more than one page of claims"); }
+    else {
+      claimsNextBtn.click();
+      var lastTbody2 = claimsDom.querySelectorAll(".data-table")[claimsDom.querySelectorAll(".data-table").length - 1].querySelector("tbody");
+      var page2Rows = lastTbody2.querySelectorAll("tr").length;
+      var expectedPage2 = Math.min(10, realClaimCount - 10);
+      if (page2Rows !== expectedPage2) { fails++; console.log("  FAIL  clicking Next on the claims table shows " + page2Rows + " rows, expected " + expectedPage2); }
+      else console.log("  PASS  clicking \"Next →\" genuinely advances to page 2 (" + page2Rows + " more real claims), not a no-op");
+    }
+  }
 })();
 
 /* Cancellation trend (MOM 2026-08-26): a real SVG chart, split by type, on the Cancellation desk

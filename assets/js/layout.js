@@ -144,7 +144,7 @@
       var clearBtn = ui.h("button", { class: "notif-clear" }, "Clear");
       clearBtn.addEventListener("click", function (e) { e.stopPropagation(); PAS.api.clearNotes(); updateBadge(); openPanel(); });
       head.appendChild(clearBtn);
-      var closeIcon = ui.h("span", { class: "notif-close" });
+      var closeIcon = ui.h("button", { class: "notif-close", type: "button", "aria-label": "Close" });
       closeIcon.appendChild(PAS.icon("x", { size: 14 }));
       closeIcon.addEventListener("click", function (e) { e.stopPropagation(); closePanel(); });
       head.appendChild(closeIcon);
@@ -194,7 +194,7 @@
       panelEl = ui.h("div", { class: "notif-panel role-panel" });
       var head = ui.h("div", { class: "notif-head" });
       head.appendChild(ui.h("span", { class: "notif-head-title" }, "View platform as"));
-      var closeIcon = ui.h("span", { class: "notif-close" });
+      var closeIcon = ui.h("button", { class: "notif-close", type: "button", "aria-label": "Close" });
       closeIcon.appendChild(PAS.icon("x", { size: 14 }));
       closeIcon.addEventListener("click", function (e) { e.stopPropagation(); closePanel(); });
       head.appendChild(closeIcon);

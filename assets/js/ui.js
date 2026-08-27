@@ -85,8 +85,22 @@
     kids.push(document.createTextNode(text));
     return h("span", { class: "pill", "data-tone": tone || "gray" }, kids);
   }
-  function badge(status) { return pill(PAS.STATUS_TONE[status] || "gray", status); }
-  function txnStatusBadge(status) { return pill(PAS.TXN_TONE[status] || "gray", status || "Completed"); }
+  /* §10.1 Status Badge: fixed 20px height, 0 8px padding, 12px Inter 500 uppercase, 4px radius,
+     never an icon inside (an icon may sit to its left, rendered by the caller). Distinct from
+     `pill()` above, which stays the general icon-bearing tag/chip PAS already uses for module,
+     initiator and role indicators — those are category tags, not lifecycle-status indicators, so
+     they don't get folded into the narrower badge spec. */
+  function statusBadge(tone, text) { return h("span", { class: "status-badge", "data-tone": tone || "gray" }, text); }
+  function badge(status) { return statusBadge(PAS.STATUS_TONE[status] || "gray", status); }
+  function txnStatusBadge(status) { return statusBadge(PAS.TXN_TONE[status] || "gray", status || "Completed"); }
+  /* §10.2 Outcome Badge — decisioning-module outcomes (Accept/Decline/Refer/Load/Restrict/
+     Evidence) get the `--outcome-*` tokens directly rather than the general tone system, per the
+     framework's own token table; same shape as the status badge. */
+  var OUTCOME_TONE = { Accept: "accept", Approve: "accept", Approved: "accept", Decline: "decline", Declined: "decline", Rejected: "decline", Refer: "refer", Referred: "refer", Escalate: "refer", Load: "load", Restrict: "restrict", Evidence: "evidence" };
+  function outcomeBadge(outcome) {
+    var key = OUTCOME_TONE[outcome] || "refer";
+    return h("span", { class: "status-badge outcome-badge", "data-outcome": key }, outcome);
+  }
   function modulePill(type) { return pill(PAS.MODULE_TONE[type], type, PAS.MODULE_ICON[type]); }
   function initiatorPill(meta) {
     var init = PAS.INITIATORS[(meta && meta.initiatedBy)] || PAS.INITIATORS.Insured;
@@ -383,6 +397,26 @@
     return btn;
   }
 
+  /* §10.6 Tabs. opts: { items: [{key,label}], active: key, onChange(key), pill: bool }.
+     role=tablist/tab + aria-selected, matching the ARIA pattern policy-detail.js's own hand-built
+     tab bar already follows — this is the reusable version of that same shape for other pages. */
+  function tabs(opts) {
+    var row = h("div", { class: "tabs" + (opts.pill ? " pill" : ""), role: "tablist" });
+    var active = opts.active;
+    function render() {
+      row.innerHTML = "";
+      opts.items.forEach(function (it) {
+        var isActive = it.key === active;
+        var btn = h("button", { class: "tab-btn" + (isActive ? " active" : ""), type: "button", role: "tab", "aria-selected": isActive ? "true" : "false" }, it.label);
+        btn.addEventListener("click", function () { if (active === it.key) return; active = it.key; render(); opts.onChange(it.key); });
+        row.appendChild(btn);
+      });
+    }
+    render();
+    row.setActive = function (key) { active = key; render(); };
+    return row;
+  }
+
   /* ================= KV / panel ================= */
   function kv(opts) {
     var row = h("div", { class: "kv-row" });
@@ -543,10 +577,21 @@
     return wrap;
   }
 
+  /* §10.8 Callout / Alert Banner — 5 types (info/warning/error/success/brand), 4px left-colored
+     border + icon + text. `tone` keeps its existing short keywords (info/warn/bad/good) plus the
+     literal "brand" type for platform-announcement callouts (SS10.8, SS24). */
+  var CALLOUT = {
+    info: { data: "info", icon: "info" }, warn: { data: "warn", icon: "alert-triangle" },
+    bad: { data: "bad", icon: "x-circle" }, good: { data: "good", icon: "check-circle-2" },
+    brand: { data: "brand", icon: "zap" },
+  };
   function callout(tone, content) {
-    var toneKey = tone === "info" ? "blue" : tone === "warn" ? "amber" : tone === "good" ? "green" : tone === "bad" ? "red" : "violet";
-    var div = h("div", { class: "callout", "data-tone": toneKey });
-    appendKids(div, content);
+    var spec = CALLOUT[tone] || CALLOUT.info;
+    var div = h("div", { class: "callout", "data-callout": spec.data });
+    div.appendChild(h("span", { class: "callout-icon" }, PAS.icon(spec.icon, { size: 15 })));
+    var body = h("div", { class: "callout-body" });
+    appendKids(body, content);
+    div.appendChild(body);
     return div;
   }
 
@@ -1092,7 +1137,7 @@
 
   PAS.ui = {
     h: h, append: appendKids, tooltip: tooltip, tipLabel: tipLabel, infoDot: infoDot,
-    pill: pill, badge: badge, txnStatusBadge: txnStatusBadge, modulePill: modulePill, initiatorPill: initiatorPill,
+    pill: pill, statusBadge: statusBadge, badge: badge, txnStatusBadge: txnStatusBadge, outcomeBadge: outcomeBadge, modulePill: modulePill, initiatorPill: initiatorPill, tabs: tabs,
     cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
     codeBlock: codeBlock, dataTable: dataTable, sortableTable: sortableTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
     backLink: backLink, kv: kv, panel: panel, accordion: accordion, accordionSection: accordionSection, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,

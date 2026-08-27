@@ -607,7 +607,11 @@
       wrap.appendChild(iconBox);
     }
     var mid = h("div", { style: { minWidth: "0", flex: "1" } });
-    var titleWrap = h("div", { class: "page-header-title" });
+    /* §30: every page needs exactly one page-level <h1> — this was a plain <div> before, meaning
+       screen-reader heading navigation found nothing to land on for the page title anywhere in
+       the app. pageHeader() is the one place every page's title renders through, so fixing the
+       tag here fixes it everywhere at once. */
+    var titleWrap = h("h1", { class: "page-header-title" });
     titleWrap.appendChild(opts.what
       ? tooltip({ what: opts.what, why: opts.why, width: 330 }, [document.createTextNode(opts.title), infoDot(13)])
       : document.createTextNode(opts.title));
@@ -800,7 +804,10 @@
     var wrap = h("div", { class: "record-head" });
     var left = h("div", {});
     left.appendChild(h("div", { class: "record-head-id" }, p.id + " · term " + p.termNumber));
-    left.appendChild(h("div", { class: "record-head-name" }, p.holder));
+    /* §30: decision/detail pages render through recordHead() instead of pageHeader() (see the
+       record name above the KPI strip) — same one-<h1>-per-page fix as pageHeader(), for the
+       same reason: nothing was a heading here at all before. */
+    left.appendChild(h("h1", { class: "record-head-name" }, p.holder));
     left.appendChild(h("div", { class: "record-head-meta" }, p.product + " · via " + p.producer + " · " + PAS.money(p.premium)));
     wrap.appendChild(left);
     var rightWrap = h("div", { class: "record-head-right" });

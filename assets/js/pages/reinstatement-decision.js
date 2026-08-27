@@ -22,7 +22,7 @@
     var left = [];
     left.push(ui.requestOrigin(h.meta));
     left.push(ui.tipLabel({ text: "Cancellation on record", what: "What put this policy out of force.", className: "label-11 block mb-10" }));
-    left.push(ui.kv({ k: "Cancelled on", v: e.cancelEv.date, what: "Effective date of cancellation." }));
+    left.push(ui.kv({ k: "Cancelled on", v: PAS.fmtDate(e.cancelEv.date), what: "Effective date of cancellation." }));
     left.push(ui.kv({ k: "Reason", v: (e.cancelEv.meta && e.cancelEv.meta.reason) || "—", what: "Why it was cancelled.", rule: "Fraud permanently bars reinstatement." }));
     left.push(ui.kv({ k: "Type applied", v: (e.cancelEv.meta && e.cancelEv.meta.cancelType) || "—", what: "Which refund basis was used." }));
     left.push(ui.kv({ k: "Initiated by", v: (e.cancelEv.meta && e.cancelEv.meta.initiatedBy) || "—", what: "Who raised the original cancellation." }));

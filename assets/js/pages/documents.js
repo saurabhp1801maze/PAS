@@ -53,7 +53,7 @@
         rows: rows.map(function (x) {
           var nameSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "7px", fontWeight: "600" } }, [PAS.icon("file-text", { size: 13, color: "var(--color-link)" }), document.createTextNode(x.d.name)]);
           var dlSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "5px", color: "var(--color-link)", fontSize: "12px", fontWeight: "700" } }, [PAS.icon("download", { size: 12 }), document.createTextNode("PDF")]);
-          return [nameSpan, ui.cellId(x.p.id), x.p.holder, x.d.type, ui.pill("gray", "v" + x.d.version), x.d.generatedAt, dlSpan];
+          return [nameSpan, ui.cellId(x.p.id), x.p.holder, x.d.type, ui.pill("gray", "v" + x.d.version), PAS.fmtDate(x.d.generatedAt), dlSpan];
         }),
         emptyText: "No matching documents.",
       }));

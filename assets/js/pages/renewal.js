@@ -67,7 +67,7 @@
         { key: "policy", label: "Policy", locked: true, sortValue: function (t) { return t.p.id; }, cell: function (t) { return ui.cellId(t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (t) { return (t.p.holder || "").toLowerCase(); }, cell: function (t) { return ui.cellName(t.p.holder); } },
         { key: "requestedBy", label: "Requested by", sortValue: function (t) { return (t.h.meta && t.h.meta.initiatedBy) || ""; }, cell: function (t) { return ui.initiatorPill(t.h.meta); } },
-        { key: "expires", label: "Expires", what: "End of the current term.", sortValue: function (t) { return t.p.expirationDate; }, cell: function (t) { return t.p.expirationDate; } },
+        { key: "expires", label: "Expires", what: "End of the current term.", sortValue: function (t) { return t.p.expirationDate; }, cell: function (t) { return PAS.fmtDate(t.p.expirationDate); } },
         { key: "daysLeft", label: "Days left", what: "Time before expiry.", sortValue: function (t) { return PAS.daysBetween(PAS.todayISO(), t.p.expirationDate); }, cell: function (t) { return PAS.daysBetween(PAS.todayISO(), t.p.expirationDate) + "d"; } },
         { key: "premium", label: "Premium", what: "Expiring term premium.", sortValue: function (t) { return t.p.premium || 0; }, cell: function (t) { return PAS.moneyShort(t.p.premium); } },
       ],
@@ -120,7 +120,7 @@
               btn.addEventListener("click", function () { PAS.sendRenewalNotice(x.id); render(); });
               noticeCell = btn;
             }
-            return [ui.cellId(x.id), ui.cellName(x.holder), x.expirationDate, r.daysToExpiry + "d", ui.pill(r.status === "Compliant" ? "green" : r.status === "Urgent" ? "amber" : "red", r.status), noticeCell];
+            return [ui.cellId(x.id), ui.cellName(x.holder), PAS.fmtDate(x.expirationDate), r.daysToExpiry + "d", ui.pill(r.status === "Compliant" ? "green" : r.status === "Urgent" ? "amber" : "red", r.status), noticeCell];
           }),
         }));
       }

@@ -310,7 +310,7 @@
           return r.dnocExpireDate || "—";
         } },
         { key: "timing", label: "Timing", what: "Immediate if the effective date is today or past, Future/Scheduled otherwise.", sortValue: function (r) { return PAS.cancelTiming(r.effDate); }, cell: function (r) { return PAS.cancelTiming(r.effDate); } },
-        { key: "submitted", label: "Submitted", what: "When the cancellation request was logged — always before DNOC expire when notice applies.", sortValue: function (r) { return r.submittedOn || ""; }, cell: function (r) { return r.submittedOn || "—"; } },
+        { key: "submitted", label: "Submitted", what: "When the cancellation request was logged — always before DNOC expire when notice applies.", sortValue: function (r) { return r.submittedOn || ""; }, cell: function (r) { return r.submittedOn ? PAS.fmtDate(r.submittedOn) : "—"; } },
         { key: "premium", label: "Premium", what: "Refund due if this request is approved.", why: "Same live quote shown as Refund due on the decision screen — derived from type, term dates and effective date.", sortValue: function (r) { return r.refund; }, cell: function (r) { return PAS.money(r.refund); } },
       ],
       trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },

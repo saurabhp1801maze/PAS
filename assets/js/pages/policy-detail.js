@@ -21,7 +21,7 @@
     page.appendChild(ui.backLink("Policy register", function () { location.href = "registry.html"; }));
     page.appendChild(ui.recordHead(policy));
     page.appendChild(ui.kpiRow([
-      { label: "Term", value: policy.effectiveDate + " → " + policy.expirationDate, tip: "Current coverage period." },
+      { label: "Term", value: PAS.fmtDate(policy.effectiveDate) + " → " + PAS.fmtDate(policy.expirationDate), tip: "Current coverage period." },
       { label: "Premium", value: PAS.money(policy.premium), tip: "Annual written premium." },
       { label: "Sum insured", value: policy.sumInsured || "—", tip: "Total limit of indemnity." },
       { label: "Transactions", value: policy.history.length, tip: "Entries in the append-only ledger." },
@@ -70,7 +70,7 @@
           var dlSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "5px", color: "var(--color-link)", fontSize: "12px", fontWeight: "700" } }, [PAS.icon("download", { size: 12 }), document.createTextNode("PDF")]);
           var delBtn = ui.h("button", { class: "btn small" }, "Mark delivered");
           delBtn.addEventListener("click", function (e) { e.stopPropagation(); PAS.markDocumentDelivered(policy.id, d.id); render(); });
-          return [nameSpan, d.type, ui.pill("gray", "v" + d.version), d.generatedAt, ui.pill(d.deliveryStatus === "Delivered" ? "green" : "amber", d.deliveryStatus || "Generated"), d.transactionId ? d.transactionId.slice(0, 12) : "—", delBtn];
+          return [nameSpan, d.type, ui.pill("gray", "v" + d.version), PAS.fmtDate(d.generatedAt), ui.pill(d.deliveryStatus === "Delivered" ? "green" : "amber", d.deliveryStatus || "Generated"), d.transactionId ? d.transactionId.slice(0, 12) : "—", delBtn];
         }),
         emptyText: "No documents yet. Issuing the policy generates the schedule and certificate.",
       }));
@@ -83,7 +83,7 @@
       cb.appendChild(ui.kv({ k: "Premium", v: PAS.money(policy.premium) }));
       cb.appendChild(ui.kv({ k: "Term number", v: policy.termNumber, what: "How many times this policy has renewed." }));
       cb.appendChild(ui.kv({ k: "State", v: policy.state || "—", what: "Jurisdiction this risk is written in." }));
-      cb.appendChild(ui.kv({ k: "Submitted", v: policy.submittedOn || policy.effectiveDate || "—", what: "When this record first entered the book.", why: policy.submittedOn ? "" : "Not separately recorded for this record — falls back to its effective date." }));
+      cb.appendChild(ui.kv({ k: "Submitted", v: (policy.submittedOn || policy.effectiveDate) ? PAS.fmtDate(policy.submittedOn || policy.effectiveDate) : "—", what: "When this record first entered the book.", why: policy.submittedOn ? "" : "Not separately recorded for this record — falls back to its effective date." }));
       if (policy.status === "Active") {
         var loyalty = PAS.loyaltyScore(policy);
         cb.appendChild(ui.kv({ k: "Loyalty tier", v: ui.pill(loyalty.tone, loyalty.tier + " · " + loyalty.score + " pts"), what: "Computed from renewal count, claims and cancellation history.", why: "Same formula the Loyalty page uses — nothing here is a stored points balance." }));
@@ -123,7 +123,7 @@
       if (policy.binder) {
         pb.appendChild(ui.tipLabel({ text: "Binder", what: "Provisional cover note — legal evidence of cover until formal issue.", className: "label-11 block mt-13 mb-9" }));
         pb.appendChild(ui.kv({ k: "Binder number", v: policy.binder.number, mono: true }));
-        pb.appendChild(ui.kv({ k: "Bound on", v: policy.binder.boundOn || "—" }));
+        pb.appendChild(ui.kv({ k: "Bound on", v: policy.binder.boundOn ? PAS.fmtDate(policy.binder.boundOn) : "—" }));
         pb.appendChild(ui.kv({ k: "Expiry", v: policy.binder.expiryDate || "—", rule: "Issuing after binder expiry is not permitted — the risk must be re-bound." }));
         (policy.binder.subjectivities || []).forEach(function (s) {
           pb.appendChild(ui.kv({ k: s.label, v: ui.pill(s.met ? "green" : "amber", s.met ? "Met" : "Outstanding") }));
@@ -230,7 +230,7 @@
       body.appendChild(ui.dataTable({
         columns: ["Term", "Effective", "Expiration", "Premium", "Status"],
         rows: (policy.terms || []).map(function (t) {
-          return [t.termNumber, t.effectiveDate, t.expirationDate, PAS.money(t.premium), t.status || policy.status];
+          return [t.termNumber, PAS.fmtDate(t.effectiveDate), PAS.fmtDate(t.expirationDate), PAS.money(t.premium), t.status || policy.status];
         }),
       }));
     } else if (tab === "xref") {

@@ -62,7 +62,7 @@
         { label: "Submitted", what: "When the request arrived." }, ""],
       rows: pend.map(function (t) {
         var meta = t.h.meta || {};
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(meta), meta.reason || "—", meta.newHolder || "—", meta.submittedOn || t.h.date, ui.cellOpen("Review")];
+        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(meta), meta.reason || "—", meta.newHolder || "—", PAS.fmtDate(meta.submittedOn || t.h.date), ui.cellOpen("Review")];
       }),
       emptyText: "No transfer requests awaiting decision.",
       wrapCells: true,

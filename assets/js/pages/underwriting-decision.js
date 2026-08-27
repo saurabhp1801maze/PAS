@@ -22,9 +22,9 @@
     left.push(ui.tipLabel({ text: "Submission", what: "What was received from the producer.", className: "label-11 block mb-10" }));
     left.push(ui.kv({ k: "Sum insured", v: p.sumInsured, what: "Total limit of indemnity requested." }));
     left.push(ui.kv({ k: "Annual premium", v: PAS.money(p.premium), what: "Indicative premium from rating.", why: "Final premium is confirmed at bind." }));
-    left.push(ui.kv({ k: "Requested effective", v: p.effectiveDate, what: "Date cover is asked to begin." }));
+    left.push(ui.kv({ k: "Requested effective", v: PAS.fmtDate(p.effectiveDate), what: "Date cover is asked to begin." }));
     left.push(ui.kv({ k: "Producer", v: p.producer, what: "Broker or channel that placed the risk." }));
-    left.push(ui.kv({ k: "Received", v: p.submittedOn, what: "Date the submission landed." }));
+    left.push(ui.kv({ k: "Received", v: PAS.fmtDate(p.submittedOn), what: "Date the submission landed." }));
     left.push(ui.kv({ k: "Waiting", v: PAS.daysBetween(p.submittedOn, PAS.todayISO()) + " days", what: "Age in the queue.", why: "SLA is measured on age, not volume." }));
     var histWrap = ui.h("div", { class: "mt-14" });
     histWrap.appendChild(ui.tipLabel({ text: "Submission history", what: "Everything recorded against this submission so far.", className: "label-11 block mb-9" }));

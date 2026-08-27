@@ -29,7 +29,7 @@
     var left = [];
     left.push(ui.requestOrigin(h.meta));
     left.push(ui.tipLabel({ text: "Expiring term", what: "The term now coming to an end.", className: "label-11 block mb-10" }));
-    left.push(ui.kv({ k: "Current term", v: p.effectiveDate + " → " + p.expirationDate, what: "Term being renewed out of." }));
+    left.push(ui.kv({ k: "Current term", v: PAS.fmtDate(p.effectiveDate) + " → " + PAS.fmtDate(p.expirationDate), what: "Term being renewed out of." }));
     left.push(ui.kv({ k: "Days to expiry", v: rc.daysToExpiry + " days", what: "Time remaining." }));
     left.push(ui.kv({ k: "Notice requirement", v: PAS.RENEWAL_LEAD_DAYS + " days", what: "Statutory lead time.", rule: "Serving later than this is a compliance exception, not a scheduling slip." }));
     left.push(ui.kv({ k: "Expiring premium", v: PAS.money(p.premium), what: "Premium on the ending term." }));
@@ -43,7 +43,7 @@
     var right = [];
     right.push(ui.scoreDial(score));
     right.push(ui.tipLabel({ text: "Renewal offer", what: "The new term you are about to create.", why: "A new PolicyTerm on the same policy — number and history carry forward.", className: "label-11 block mb-10" }));
-    right.push(ui.kv({ k: "New term", v: p.expirationDate + " → " + PAS.addYears(p.expirationDate, 1), what: "Dates of the term being created.", why: "Advanced by calendar year, so a term starting in a leap year does not renew a day early." }));
+    right.push(ui.kv({ k: "New term", v: PAS.fmtDate(p.expirationDate) + " → " + PAS.fmtDate(PAS.addYears(p.expirationDate, 1)), what: "Dates of the term being created.", why: "Advanced by calendar year, so a term starting in a leap year does not renew a day early." }));
     right.push(ui.kv({ k: "Becomes term", v: p.termNumber + 1, what: "Incremented on renewal." }));
 
     var premBlock = ui.h("div", { class: "mt-12" });

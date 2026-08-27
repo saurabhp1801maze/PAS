@@ -49,7 +49,7 @@
     var right = [];
     right.push(ui.tipLabel({ text: "Binder", what: "The provisional cover currently protecting this insured.", className: "label-11 block mb-10" }));
     right.push(ui.kv({ k: "Binder number", v: p.binder.number, mono: true, what: "Reference for provisional cover." }));
-    right.push(ui.kv({ k: "Bound on", v: p.binder.boundOn, what: "Date provisional cover attached." }));
+    right.push(ui.kv({ k: "Bound on", v: PAS.fmtDate(p.binder.boundOn), what: "Date provisional cover attached." }));
     right.push(ui.kv({ k: "Expires", v: p.binder.expiryDate, what: "Deadline to formalise.", rule: "Past this date the risk must be re-underwritten and re-bound." }));
     right.push(ui.kv({ k: "Days remaining", v: PAS.daysBetween(PAS.todayISO(), p.binder.expiryDate) + " days", what: "Time left on the binder." }));
     var effWrap = ui.h("div", { class: "mt-15" });

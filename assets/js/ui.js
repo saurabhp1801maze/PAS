@@ -8,7 +8,10 @@
   "use strict";
   var PAS = global.PAS = global.PAS || {};
 
-  var TONE_HEX = { green: "#16A34A", red: "#DC2626", amber: "#D97706", blue: "#2563EB", violet: "#8B3EE8", indigo: "#5B5BF0", gray: "#6B7080" };
+  /* conic-gradient()/background both accept a var() reference directly, so this stays token-driven
+     rather than a second, driftable copy of the palette (this duplicated the pre-rebrand indigo
+     hex values verbatim until caught by a grep sweep for stray hex literals). */
+  var TONE_HEX = { green: "var(--color-success)", red: "var(--color-danger)", amber: "var(--color-warning)", blue: "var(--color-info)", violet: "var(--outcome-load)", indigo: "var(--color-brand)", gray: "var(--color-muted)" };
 
   /* ================= element builder ================= */
   function h(tag, props, children) {

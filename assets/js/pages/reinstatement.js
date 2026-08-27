@@ -68,7 +68,7 @@
         { key: "policy", label: "Policy", locked: true, sortValue: function (r) { return r.t.p.id; }, cell: function (r) { return ui.cellId(r.t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (r) { return (r.t.p.holder || "").toLowerCase(); }, cell: function (r) { return ui.cellName(r.t.p.holder); } },
         { key: "requestedBy", label: "Requested by", sortValue: function (r) { return (r.t.h.meta && r.t.h.meta.initiatedBy) || ""; }, cell: function (r) { return ui.initiatorPill(r.t.h.meta); } },
-        { key: "cancelledOn", label: "Cancelled on", what: "Effective date of the original cancellation.", sortValue: function (r) { return r.el.cancelEv.date; }, cell: function (r) { return r.el.cancelEv.date; } },
+        { key: "cancelledOn", label: "Cancelled on", what: "Effective date of the original cancellation.", sortValue: function (r) { return r.el.cancelEv.date; }, cell: function (r) { return PAS.fmtDate(r.el.cancelEv.date); } },
         { key: "daysSince", label: "Days since", what: "Elapsed days — eligibility is a pure function of this.", sortValue: function (r) { return r.el.daysSince; }, cell: function (r) { return r.el.daysSince + "d"; } },
         { key: "eligibility", label: "Eligibility", what: "Whether reinstatement is still available.", rule: "Fraud cancellations are never eligible.", sortValue: function (r) { return r.el.eligible ? "Eligible" : (r.el.fraud ? "Fraud" : "Window closed"); }, cell: function (r) { return ui.pill(r.el.eligible ? "green" : "red", r.el.eligible ? "Eligible" : (r.el.fraud ? "Fraud — barred" : "Window closed"), r.el.eligible ? "check-circle-2" : "alert-triangle"); } },
       ],

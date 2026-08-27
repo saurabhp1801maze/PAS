@@ -115,15 +115,15 @@
         if (!dnoc.served) {
           dnocWrap.appendChild(ui.callout("warn", "DNOC not yet served. " + dnoc.noticeRequired + " statutory notice days are required for " + reason + ". Serve the Direct Notice of Cancellation to start the countdown."));
         } else if (!dnoc.ready) {
-          dnocWrap.appendChild(ui.callout("warn", "DNOC served on " + dnoc.dnocServedOn + ". " + dnoc.pendingDays + " pending day" + (dnoc.pendingDays === 1 ? "" : "s") + " remaining before cancellation can complete (effective " + (dnoc.effectiveDate || effDate) + ")."));
+          dnocWrap.appendChild(ui.callout("warn", "DNOC served on " + PAS.fmtDate(dnoc.dnocServedOn) + ". " + dnoc.pendingDays + " pending day" + (dnoc.pendingDays === 1 ? "" : "s") + " remaining before cancellation can complete (effective " + PAS.fmtDate(dnoc.effectiveDate || effDate) + ")."));
         } else {
           dnocWrap.appendChild(ui.callout("good", "DNOC notice completed. Pending days = 0. Cancellation is ready to approve and take effect."));
         }
         dnocWrap.appendChild(ui.kv({ k: "DNOC status", v: !dnoc.served ? "Required — not served" : (dnoc.ready ? "Ready to complete" : "Notice running") }));
         dnocWrap.appendChild(ui.kv({ k: "Pending days", v: String(dnoc.pendingDays), what: "Days left in the statutory notice window." }));
         if (dnoc.served) {
-          dnocWrap.appendChild(ui.kv({ k: "DNOC issue date", v: dnoc.dnocServedOn, what: "When Direct Notice of Cancellation was served." }));
-          dnocWrap.appendChild(ui.kv({ k: "DNOC expire date", v: dnoc.effectiveDate || effDate, what: "When the statutory notice period ends — cancel may complete on or after this date." }));
+          dnocWrap.appendChild(ui.kv({ k: "DNOC issue date", v: PAS.fmtDate(dnoc.dnocServedOn), what: "When Direct Notice of Cancellation was served." }));
+          dnocWrap.appendChild(ui.kv({ k: "DNOC expire date", v: PAS.fmtDate(dnoc.effectiveDate || effDate), what: "When the statutory notice period ends — cancel may complete on or after this date." }));
         }
         left.push(dnocWrap);
       }

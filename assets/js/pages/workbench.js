@@ -2,18 +2,28 @@
 (function () {
   "use strict";
   var PAS = window.PAS, ui = PAS.ui;
-  var TYPES = ["All", "Submission", "Underwriting", "Bind", "Issuance", "Endorsement", "Cancellation", "Reinstatement", "Renewal", "Transfer", "Servicing", "Rewrite", "Reissue", "Rescind", "Audit", "Lapse", "Split", "Merge"];
+  var ALL_TYPES = ["All", "Submission", "Underwriting", "Bind", "Issuance", "Endorsement", "Cancellation", "Reinstatement", "Renewal", "Transfer", "Servicing", "Rewrite", "Reissue", "Rescind", "Audit", "Lapse", "Split", "Merge"];
+  /* The only four things a Broker or MGA can actually raise from a desk (see the four Decision
+     desks pages) — Submission, Underwriting, Bind, Issuance and every other internal/ops-only
+     transaction type never appears as something they requested, so a scoped role's ledger is
+     narrowed to just these instead of surfacing machinery they have no part in. */
+  var REQUEST_TYPES = ["Endorsement", "Cancellation", "Reinstatement", "Renewal"];
   var STATUSES = ["All", "Completed", "Pending", "Rejected", "Reversed"];
 
   function render() {
+    var spec = PAS.ROLES[PAS.getRole()] || {};
+    var scoped = spec.scope && spec.scope !== "all" && spec.scope !== "none";
+    var TYPES = scoped ? ["All"].concat(REQUEST_TYPES) : ALL_TYPES;
     var policies = PAS.getScopedPolicies();
     var all = PAS.allTxns(policies);
+    if (scoped) all = all.filter(function (t) { return REQUEST_TYPES.indexOf(t.h.type) !== -1; });
     var typeF = "All", statusF = "All";
 
     var page = ui.h("div", {});
     page.appendChild(ui.pageHeader({
       icon: "git-branch", tone: "blue", title: "Transaction Workbench", sub: "The append-only ledger behind every policy",
-      what: "Every transaction of every type, in sequence.", why: "Transactions, not modules, are the real unit of work after issue.",
+      what: scoped ? "Every Endorsement, Cancellation, Reinstatement and Renewal request on this book, in sequence — the four request types " + spec.label + " can raise." : "Every transaction of every type, in sequence.",
+      why: "Transactions, not modules, are the real unit of work after issue.",
     }));
     page.appendChild(ui.kpiRow([
       { label: "Transactions", value: all.length, tip: "Complete ledger across the book." },

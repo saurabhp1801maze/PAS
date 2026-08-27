@@ -1,14 +1,23 @@
 /* Portfolio dashboard. Every figure is computed live from the seeded book for the selected
    period — nothing is hardcoded. Two audit fixes carried over from the previous version:
-     - "Awaiting decision" = pending.length + bound.length, never + referred.length on top, since
-       every referred submission already carries the Pending Underwriting transaction counted in
-       `pending` (summing both used to double-count it).
+     - The old single "Awaiting decision" tile added pending.length + bound.length together —
+       never + referred.length on top of that, since a referred submission already carries its
+       own Pending Underwriting transaction inside `pending` (double-counting it). That combined
+       tile is gone: it linked to Pending Approvals as if its number matched, but Pending
+       Approvals only ever lists held *transactions* — a Bound policy has none, it auto-issues
+       once nothing is left outstanding, so it could never appear there no matter what. Split
+       into "Pending transactions" (pending.length, excluding Underwriting — those are decided
+       from the Underwriting desk, not Pending Approvals — and its number is exactly what that
+       linked page shows) and "Bound, awaiting issue" (bound.length, its own unlinked queue).
+       A referred submission still shows up in the status funnel's own "Referred" figure further
+       down the page.
      - No fabricated trend numbers. This prototype has no period-bucketed snapshots, only ledger
        transaction dates — so every period-scoped figure below is a real count of transactions
        whose own `date` falls in the selected month or year, not an invented delta.
    Monthly defaults to the current calendar month (matches PAS.todayISO()); Yearly to the current
-   calendar year. Total policies, Active policies and Awaiting decision are snapshot metrics — the
-   book has no history of "active as of a past month" to show, so they stay constant across the
+   calendar year. Total policies, Active policies, Pending transactions and Bound-awaiting-issue
+   are snapshot metrics — the book has no history of "active as of a past month" to show, so they
+   stay constant across the
    toggle and say so in their tooltip, rather than fake a period-scoped number. */
 (function () {
   "use strict";
@@ -111,7 +120,11 @@
     function xAt(i) { return n > 1 ? padL + (i / (n - 1)) * plotW : padL + plotW / 2; }
     function yAt(v) { return padT + plotH - (v / niceMax) * plotH; }
 
-    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, width: "100%", height: String(H), preserveAspectRatio: "none", class: "trend-graph" });
+    /* Height tracks width via CSS aspect-ratio (not a fixed pixel height) so the line stays at
+       its designed proportions in any container — a full-width panel (the scoped Broker/MGA
+       dashboard has no second column to share with) no longer stretches the same 172px tall into
+       a much wider box than the chart was drawn for. */
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, preserveAspectRatio: "none", class: "trend-graph", style: "width:100%;aspect-ratio:" + W + "/" + H + ";" });
 
     [0, 1].forEach(function (frac) {
       var y = padT + plotH * frac;
@@ -331,8 +344,7 @@
       var policies = scopedPolicies();
       var active = policies.filter(function (p) { return p.status === "Active"; });
       var bound = policies.filter(function (p) { return p.status === "Bound"; });
-      var pending = PAS.allTxns(policies).map(function (t) { return t.h; }).filter(function (h) { return h.status === "Pending"; });
-      var awaitingDecision = pending.length + bound.length; /* see file header — the F-15 fix */
+      var pending = PAS.allTxns(policies).map(function (t) { return t.h; }).filter(function (h) { return h.status === "Pending" && h.type !== "Underwriting"; });
 
       function countTxns(type, status) {
         return txnsOfType(policies, type, status).filter(function (x) {
@@ -344,7 +356,7 @@
       var reinstated = countTxns("Reinstatement", "Completed");
       var expiring = active.filter(function (p) { return periodMatches(p.expirationDate); }).length;
       var periodNote = periodNoteText();
-      /* Not period-scoped, same reasoning as Awaiting decision below — it's the live count of
+      /* Not period-scoped, same reasoning as Pending transactions below — it's the live count of
          requests sitting in the Endorsement desk's queue right now, not a completed-this-period
          figure. */
       var endorsementPending = PAS.pendingOf(policies, "Endorsement").length;
@@ -355,10 +367,11 @@
         { label: "Active policies", value: active.length, tone: "green", href: "registry.html?status=Active", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
         { label: "Renewed", value: renewed, tone: "blue", href: "renewal.html", tip: "Renewals completed " + periodNote + "." },
         { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: "Active policies whose term ends " + periodNote + "." },
-        { label: "Endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html", tip: "Endorsement requests awaiting decision, right now.", why: "Operational queue, not period-scoped — same reasoning as Awaiting decision." },
+        { label: "Endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html", tip: "Endorsement requests awaiting decision, right now.", why: "Operational queue, not period-scoped — same reasoning as Pending transactions." },
         { label: "Reinstated", value: reinstated, tone: reinstated > 0 ? "green" : "gray", href: "reinstatement.html", tip: "Reinstatements completed " + periodNote + "." },
         { label: "Cancelled", value: cancelled, tone: cancelled > 0 ? "red" : "gray", href: "cancellation.html", tip: "Cancellations completed " + periodNote + "." },
-        { label: "Awaiting decision", value: awaitingDecision, tone: "red", href: "approvals.html", tip: "Pending transactions (" + pending.length + ") plus bound policies awaiting issue (" + bound.length + ") — counted once each.", why: "Operational queue, not period-scoped: it's what needs action right now, regardless of which period you're viewing." },
+        { label: "Pending transactions", value: pending.length, tone: "red", href: "approvals.html", tip: "Held transactions of every type except Underwriting, exactly what Pending Approvals lists.", why: "Operational queue, not period-scoped: it's what needs action right now, regardless of which period you're viewing." },
+        { label: "Bound, awaiting issue", value: bound.length, tone: bound.length > 0 ? "amber" : "gray", tip: "Bound policies with nothing left to review — they issue automatically once no subjectivity remains outstanding, not from a manual decision here.", why: "A different queue from Pending transactions: nobody decides these, the system auto-issues once nothing is blocking." },
       ], true));
     }
 
@@ -782,6 +795,11 @@
       thirdWhat = "In-force premium per placing broker, Direct included.",
       thirdWhy = "Shows which distribution channel ultimately sources this reinsurer's book.";
 
+    /* stateGrid/lobGrid/issuancePanel are built now (their bodies are wired into renderCharts
+       below) but not appended to `page` yet — they're added further down, after the period
+       toggle, so the toggle reads at the top of the page (same position it has on the
+       Super Admin/Admin dashboard) rather than buried beneath the panels it doesn't even
+       control. */
     var stateGrid = ui.h("div", { class: isCarrierScope ? "three-col-grid" : "two-col-grid" });
     var stateTopOnly = spec.scope === "producer";
     var statePanel = ui.panel({ title: stateTopOnly ? "Premium by state (top 5)" : "Premium by state", what: stateTopOnly ? "Top 5 states by in-force premium, largest first." : "In-force premium per state, largest first.", why: "State-level concentration matters for regulatory exposure and catastrophe accumulation." }, []);
@@ -796,7 +814,6 @@
       thirdBody = thirdPanel.querySelector(".panel-body");
       stateGrid.appendChild(thirdPanel);
     }
-    page.appendChild(stateGrid);
 
     var lobGrid = ui.h("div", { class: "two-col-grid" });
     var lobPanel = ui.panel({ title: "Written premium by product", what: "In-force premium per product line, largest first.", why: "Concentration in one line is a portfolio risk this book's own concentration watches too." }, []);
@@ -805,11 +822,13 @@
     var claimsPanel = ui.panel({ title: "Claims & reserves", what: "Every claim on file, incurred/paid/reserved, filtered the same as the charts above.", why: "The two numbers a carrier partner asks for first — loss ratio and open exposure — computed from real claim records, not asserted." }, []);
     var claimsBody = claimsPanel.querySelector(".panel-body");
     lobGrid.appendChild(claimsPanel);
-    page.appendChild(lobGrid);
 
-    /* Not appended yet — it's added below, after the period toggle that drives it, so the control
-       reads directly above the chart it controls. */
+    /* This dashboard has no second chart to pair it with in a two-col-grid the way the other
+       panels are — left full width, the line graph (drawn to a fixed 640x172 design) reads as
+       stretched thin across the whole page. Capped to the same ~640px a two-col-grid's own
+       column would give it, so it renders at the size it was actually designed for. */
     var issuancePanel = ui.panel({ title: "New business issued", what: "Policies formally issued, trailing periods.", why: "What's coming into this book, not just what's already on it." }, []);
+    issuancePanel.style.maxWidth = "660px";
     var issuanceBody = issuancePanel.querySelector(".panel-body");
 
     var filterState = [], filterProduct = [], filterSecondDim = [], filterCarrier = [], filterThirdDim = [];
@@ -935,9 +954,10 @@
     carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: filterCarrier, allLabel: "All reinsurers", onChange: function (sel) { filterCarrier = sel; refresh(); } }));
     filterBlock.appendChild(carrierGroup);
 
-    /* Period toggle for "New business issued" below — Monthly/Quarterly/Yearly chips with ◀/▶
-       period navigation, or a custom date range instead. Same control shape as the operational
-       dashboard's own toggle. */
+    /* Period toggle, driving "New business issued" further down — Monthly/Quarterly/Yearly chips
+       with ◀/▶ period navigation, or a custom date range instead. Placed right under the filters
+       (same position it has on the Super Admin/Admin operational dashboard), not buried beneath
+       the panels it doesn't control. */
     var toggleRow = ui.h("div", { class: "period-toggle-row" });
     toggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "New business issued"));
     var toggleAndNav = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "10px" } });
@@ -974,6 +994,8 @@
     fromInput.addEventListener("change", function () { if (fromInput.value) customFrom = fromInput.value; refresh(); });
     toInput.addEventListener("change", function () { if (toInput.value) customTo = toInput.value; refresh(); });
 
+    page.appendChild(stateGrid);
+    page.appendChild(lobGrid);
     page.appendChild(issuancePanel);
 
     function periodLabelText() {

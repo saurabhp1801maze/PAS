@@ -23,19 +23,21 @@
 
   function render() {
     var policies = PAS.getScopedPolicies();
-    var pending = PAS.allTxns(policies).filter(function (t) { return t.h.status === "Pending"; });
+    /* Underwriting referrals are excluded — they're decided from the Underwriting desk itself,
+       not this general cross-desk queue, so listing them here again has no use. */
+    var pending = PAS.allTxns(policies).filter(function (t) { return t.h.status === "Pending" && t.h.type !== "Underwriting"; });
     var types = ["All"].concat(Array.from(new Set(pending.map(function (t) { return t.h.type; }))).sort());
     var q = "", typeF = "All", slaF = "All";
 
     var page = ui.h("div", {});
     page.appendChild(ui.pageHeader({
       icon: "inbox", tone: "amber", title: "Pending Approvals", sub: "Every request received, not yet decided — across every desk",
-      what: "A cross-type index of every held transaction, wherever it came from.",
+      what: "A cross-type index of every held transaction, wherever it came from — except Underwriting referrals, decided from their own desk.",
       why: "Held means untouched — the policy stays exactly as it was until an underwriter reviews the request's full context and decides.",
     }));
 
     page.appendChild(ui.kpiRow([
-      { label: "Awaiting decision", value: pending.length, tone: "amber", tip: "Held transactions of all types." },
+      { label: "Awaiting decision", value: pending.length, tone: "amber", tip: "Held transactions across every desk, excluding Underwriting referrals." },
       { label: "SLA breached", value: pending.filter(function (t) { return slaOf(t).breached; }).length, tone: "red", tip: "Past approval SLA (demo clock)." },
       { label: "Endorsements", value: pending.filter(function (t) { return t.h.type === "Endorsement"; }).length, tip: "Material changes needing sign-off." },
       { label: "Cancellations", value: pending.filter(function (t) { return t.h.type === "Cancellation"; }).length, tip: "Insured, broker or underwriter initiated." },

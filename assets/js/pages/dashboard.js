@@ -559,6 +559,12 @@
     var claimsDetailBody = claimsDetailPanel.querySelector(".panel-body");
     page.appendChild(claimsDetailPanel);
 
+    /* Rankings on the left, work queues on the right — side by side so both are readable
+       without scrolling one past the other. Appended to the page here so the pair lands in the
+       same position the old six cards occupied. */
+    var summaryGrid = ui.h("div", { class: "two-col-grid" });
+    page.appendChild(summaryGrid);
+
     /* ---- Top performers: one panel, switchable dimension ----
        This was three fixed side-by-side cards (brokers / MGAs / insurers). One panel with a
        dropdown asks the same ranking question of any dimension, and makes room for Underwriters —
@@ -589,7 +595,7 @@
       right: topRight,
     }, []);
     var topBody = topPanel.querySelector(".panel-body");
-    page.appendChild(topPanel);
+    summaryGrid.appendChild(topPanel);
     topSelect.addEventListener("change", function () { topDim = topSelect.value; buildTopEntities(); });
 
     /* ---- Open work queues: one panel, switchable queue ----
@@ -618,7 +624,7 @@
       right: queueRight,
     }, []);
     var queueBody = queuePanel.querySelector(".panel-body");
-    page.appendChild(queuePanel);
+    summaryGrid.appendChild(queuePanel);
     queueSelect.addEventListener("change", function () { queueKey = queueSelect.value; buildQueues(); });
 
     function buildSnapshotPanels() {

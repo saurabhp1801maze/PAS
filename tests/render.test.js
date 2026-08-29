@@ -329,26 +329,39 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   else if (legends.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 legend (bar chart only — the single-series graph shouldn't have one), found " + legends.length); }
   else console.log("  PASS  right panel is a real SVG line/area graph — 1 line, 1 area wash, 6 marked points, no legend box");
 
-  /* Renewal pipeline is capped at 5, most-urgent-first, with a "showing N of M" note and a
-     "View more" link to renewal.html only when the list is actually longer than the cap. */
+  /* The four desk queues (renewal / cancellation / reinstatement / endorsement) are now one
+     panel with a dropdown rather than three side-by-side cards. These assertions drive that
+     dropdown for real — selecting an option and re-reading the rendered rows — so they cover the
+     switching itself, which the old three-fixed-panels version could not. */
   var panels = dom.querySelectorAll(".panel");
-  var renewalPanel, cancelPanel;
+  var queuePanel = null, topPanel = null;
   panels.forEach(function (p) {
     var t = p.querySelector(".panel-title").textContent;
-    if (t.indexOf("Renewal pipeline") === 0) renewalPanel = p;
-    if (t.indexOf("Cancelled policy requests") === 0) cancelPanel = p;
+    if (t.indexOf("Open work queues") === 0) queuePanel = p;
+    if (t.indexOf("Top performers") === 0) topPanel = p;
   });
+  if (!queuePanel) { fails++; console.log('  FAIL  no "Open work queues" panel found — the four desk queues should be consolidated into one'); return; }
+  if (!topPanel) { fails++; console.log('  FAIL  no "Top performers" panel found — the ranking cards should be consolidated into one'); return; }
+
+  var queueSelect = queuePanel.querySelector("select");
+  var queueOptions = queueSelect ? queueSelect.querySelectorAll("option").map(function (o) { return o.textContent; }) : [];
+  ["Renewal pipeline", "Cancelled policy requests", "Reinstatement requests", "Endorsement requests"].forEach(function (label) {
+    if (queueOptions.indexOf(label) === -1) { fails++; console.log('  FAIL  work-queue dropdown is missing "' + label + '"'); }
+  });
+  console.log("  PASS  one work-queue panel offering all four desks (" + queueOptions.join(", ") + ") — reinstatement included, which had no card of its own before");
+
+  /* Renewal is the default queue: capped at 5, most-urgent-first, with a "View more" link only
+     when the real list is longer than the cap. */
   var activeCount = policies.filter(function (p) { return p.status === "Active"; }).length;
-  var renewalRows = renewalPanel.querySelectorAll(".hbar").length;
+  var renewalRows = queuePanel.querySelectorAll(".hbar").length;
   if (renewalRows > 5) { fails++; console.log("  FAIL  Renewal pipeline shows " + renewalRows + " rows, expected at most 5"); }
   else if (activeCount > 5 && renewalRows !== 5) { fails++; console.log("  FAIL  Renewal pipeline has " + activeCount + " active policies but shows only " + renewalRows + ", expected the full cap of 5"); }
-  else if (activeCount > 5 && renewalPanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Renewal pipeline exceeds the cap but is missing its "View more" link'); }
-  else console.log("  PASS  Renewal pipeline capped at " + renewalRows + " rows (book has " + activeCount + " active policies), with a View more link to renewal.html");
+  else if (activeCount > 5 && queuePanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Renewal pipeline exceeds the cap but is missing its "View more" link'); }
+  else console.log("  PASS  Renewal pipeline (the default queue) capped at " + renewalRows + " rows of " + activeCount + " active policies, with a View more link");
 
-  /* "Cancelled policy requests" replaced "Bound policies": open cancellation requests (not yet
-     decided), ranked by their live refund quote — the same cancelQuote the Cancellation desk
-     itself shows for these same rows, so the two screens can never disagree — biggest exposure
-     first, capped at 5 with a "View more" link to cancellation.html only when there are more. */
+  /* Switch the dropdown to Cancellation for real, then verify the rows genuinely changed to the
+     open cancellation requests, ranked by their live refund quote — the same cancelQuote the
+     Cancellation desk itself shows for these same rows, so the two screens cannot disagree. */
   var pendingCx = PAS.pendingOf(policies, "Cancellation").map(function (t) {
     var meta = t.h.meta || {};
     var reason = meta.reason || "Insured Request";
@@ -356,17 +369,52 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
     var effDate = t.h.date || PAS.todayISO();
     return Math.round(PAS.cancelQuote(t.p, reason, initiatedBy, effDate).refund);
   }).sort(function (a, b) { return b - a; });
-  var cancelRows = cancelPanel.querySelectorAll(".hbar").length;
+
+  setValue(queueSelect, "cancellation");
+  var cancelRows = queuePanel.querySelectorAll(".hbar").length;
   var expectedCancelRows = Math.min(pendingCx.length, 5);
-  if (cancelRows > 5) { fails++; console.log("  FAIL  Cancelled policy requests shows " + cancelRows + " rows, expected at most 5"); }
-  else if (cancelRows !== expectedCancelRows) { fails++; console.log("  FAIL  Cancelled policy requests shows " + cancelRows + " rows, expected " + expectedCancelRows + " (min of the book's " + pendingCx.length + " open requests and the cap of 5)"); }
-  else console.log("  PASS  Cancelled policy requests shows " + cancelRows + " of " + pendingCx.length + " open requests, ranked by refund amount");
+  if (cancelRows !== expectedCancelRows) { fails++; console.log("  FAIL  after switching to Cancellation the panel shows " + cancelRows + " rows, expected " + expectedCancelRows + " (min of the book's " + pendingCx.length + " open requests and the cap of 5)"); }
+  else console.log("  PASS  switching the dropdown to Cancellation genuinely re-renders the panel — " + cancelRows + " of " + pendingCx.length + " open requests, ranked by refund");
   if (pendingCx.length > 0) {
     var topRefundText = PAS.money(pendingCx[0]);
-    if (cancelPanel.textContent.indexOf(topRefundText) === -1) { fails++; console.log('  FAIL  Cancelled policy requests missing its top-ranked real refund amount "' + topRefundText + '"'); }
+    if (queuePanel.textContent.indexOf(topRefundText) === -1) { fails++; console.log('  FAIL  cancellation queue missing its top-ranked real refund amount "' + topRefundText + '"'); }
     else console.log("  PASS  top-ranked cancellation request shows its real refund amount (" + topRefundText + ")");
   }
-  if (pendingCx.length > 5 && cancelPanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Cancelled policy requests exceeds the cap but is missing its "View more" link'); }
+
+  /* Reinstatement is the queue that did not exist before — it must show the book's real pending
+     reinstatement requests, not an empty placeholder. */
+  setValue(queueSelect, "reinstatement");
+  var realReinstatements = PAS.pendingOf(policies, "Reinstatement").length;
+  var reRows = queuePanel.querySelectorAll(".hbar").length;
+  if (reRows !== Math.min(realReinstatements, 5)) { fails++; console.log("  FAIL  reinstatement queue shows " + reRows + " rows, expected " + Math.min(realReinstatements, 5) + " (book has " + realReinstatements + " pending)"); }
+  else console.log("  PASS  the new Reinstatement queue shows the book's " + realReinstatements + " real pending request(s)");
+
+  /* And the Top performers panel switches dimension the same way, including Underwriters —
+     which is read from the ledger, not from a field on the policy. */
+  var topSelect = topPanel.querySelector("select");
+  var topOptions = topSelect ? topSelect.querySelectorAll("option").map(function (o) { return o.textContent; }) : [];
+  ["Top brokers", "Top MGAs", "Top Insurers", "Top underwriters"].forEach(function (label) {
+    if (topOptions.indexOf(label) === -1) { fails++; console.log('  FAIL  top-performers dropdown is missing "' + label + '"'); }
+  });
+  console.log("  PASS  one top-performers panel offering all four rankings (" + topOptions.join(", ") + ")");
+
+  var topBrokerText = topPanel.textContent;
+  var biggestBroker = (function () {
+    var byBroker = {};
+    policies.filter(function (p) { return p.status === "Active"; }).forEach(function (p) {
+      if (p.producer) byBroker[p.producer] = (byBroker[p.producer] || 0) + p.premium;
+    });
+    return Object.keys(byBroker).sort(function (a, b) { return byBroker[b] - byBroker[a]; })[0];
+  })();
+  if (topBrokerText.indexOf(biggestBroker) === -1) { fails++; console.log('  FAIL  default Top brokers ranking does not lead with the real largest broker "' + biggestBroker + '"'); }
+  else console.log('  PASS  default ranking leads with the real largest broker by in-force premium ("' + biggestBroker + '")');
+
+  setValue(topSelect, "underwriter");
+  var realUnderwriters = Array.from(new Set(policies.map(function (p) { return PAS.underwriterOf(p); }).filter(Boolean)));
+  var uwRows = topPanel.querySelectorAll(".hbar").length;
+  if (realUnderwriters.length === 0) { fails++; console.log("  FAIL  no policy in the book records who underwrote it — the Top underwriters ranking has no real source"); }
+  else if (uwRows === 0) { fails++; console.log("  FAIL  switching to Underwriters rendered no rows despite " + realUnderwriters.length + " real underwriters on the ledger"); }
+  else console.log("  PASS  switching to Underwriters ranks the " + realUnderwriters.length + " real decision-makers read from the ledger (" + uwRows + " shown), not the producers who introduced the business");
 })();
 
 /* ================= the financial engine =================

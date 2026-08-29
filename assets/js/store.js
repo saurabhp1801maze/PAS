@@ -1038,6 +1038,17 @@ var CLAIMS_BY_ID = {
   PAS.ON_RISK_STATUSES = ON_RISK_STATUSES;
   PAS.isOnRisk = function (p) { return !!ON_RISK_STATUSES[p.status]; };
   PAS.onRiskPolicies = function (policies) { return policies.filter(PAS.isOnRisk); };
+
+  /* Who actually underwrote a policy — read from its own most recent completed Underwriting
+     decision, never from `producer` (that is the broker who introduced the risk, a different
+     party entirely). Shared so the dashboard's "Top underwriters" ranking and policy-detail's
+     "Underwritten by" field can never disagree about who decided a given policy. */
+  PAS.underwriterOf = function (policy) {
+    var uw = (policy.history || [])
+      .filter(function (h) { return h.type === "Underwriting" && h.status === "Completed"; })
+      .sort(function (a, b) { return b.seq - a.seq; })[0];
+    return uw ? uw.user : null;
+  };
   /* ---------- coverage-wise breakdown ----------
      Every product's premium is split across the layers of cover it's actually built from — real
      percentages applied to each policy's own premium, not a fabricated number. The split is a

@@ -559,39 +559,67 @@
     var claimsDetailBody = claimsDetailPanel.querySelector(".panel-body");
     page.appendChild(claimsDetailPanel);
 
-    /* Top 3 by in-force premium for each of the three distribution dimensions this dashboard
-       now filters by — Broker, MGA, Carrier. Each is capped at 3 with a "See N others" toggle
-       rather than always listing every one, so a long tail of low-volume producers can't push
-       the card past its neighbors; expanding one doesn't collapse the others. */
-    var TOP_ENTITY_ROWS = 3;
-    var topGrid = ui.h("div", { class: "three-col-grid" });
-    var topBrokerPanel = ui.panel({ title: "Top brokers", what: "In-force premium per broker, largest first.", why: "Which producers the book actually depends on.", right: openLink("brokers.html", "Open") }, []);
-    var topBrokerBody = topBrokerPanel.querySelector(".panel-body");
-    topGrid.appendChild(topBrokerPanel);
-    var topMgaPanel = ui.panel({ title: "Top MGAs", what: "In-force premium per MGA, largest first.", why: "Which wholesale facilities are carrying the most bound risk.", right: openLink("mgas.html", "Open") }, []);
-    var topMgaBody = topMgaPanel.querySelector(".panel-body");
-    topGrid.appendChild(topMgaPanel);
-    var topCarrierPanel = ui.panel({ title: "Top Insurers", what: "In-force premium per insurer, largest first.", why: "Concentration on one insurer's paper is a placement risk.", right: openLink("carriers.html", "Open") }, []);
-    var topCarrierBody = topCarrierPanel.querySelector(".panel-body");
-    topGrid.appendChild(topCarrierPanel);
-    page.appendChild(topGrid);
+    /* ---- Top performers: one panel, switchable dimension ----
+       This was three fixed side-by-side cards (brokers / MGAs / insurers). One panel with a
+       dropdown asks the same ranking question of any dimension, and makes room for Underwriters —
+       which has no directory page of its own, so under the old layout it could never have had a
+       card without inventing one. The row cap rises from 3 to 5 now that the panel has the full
+       page width rather than a third of it. */
+    var TOP_ENTITY_ROWS = 5;
+    var TOP_DIMS = [
+      { key: "producer", label: "Top brokers", note: "Premium in force per broker, largest first — which producers the book actually depends on.", href: "brokers.html" },
+      { key: "mga", label: "Top MGAs", note: "Premium in force per MGA facility, largest first — which wholesale facilities carry the most bound risk.", href: "mgas.html" },
+      { key: "carrier", label: "Top Insurers", note: "Premium in force per insurer, largest first — concentration on one insurer's paper is a placement risk.", href: "carriers.html" },
+      /* Read from each policy's own completed underwriting decision (PAS.underwriterOf), not from
+         `producer` — the broker who introduced the risk and the underwriter who accepted it are
+         different parties, and conflating them is exactly what the MOM asked us to stop doing. */
+      { key: "underwriter", label: "Top underwriters", note: "Premium in force per underwriter, read from each policy's own completed underwriting decision — who holds the authority on this book, not who introduced it.", href: null },
+    ];
+    var topDim = TOP_DIMS[0].key;
+    var topSelect = ui.h("select", { class: "register-select", title: "Rank by", "aria-label": "Rank top performers by" });
+    TOP_DIMS.forEach(function (d) { topSelect.appendChild(ui.h("option", { value: d.key }, d.label)); });
+    var topLinkWrap = ui.h("span", {});
+    var topRight = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
+    topRight.appendChild(topSelect);
+    topRight.appendChild(topLinkWrap);
+    var topPanel = ui.panel({
+      title: "Top performers",
+      what: "Ranked by premium in force. Switch the dimension with the dropdown.",
+      why: "Concentration is the risk this panel exists to surface — whichever party the book leans on hardest is the one whose loss would hurt most.",
+      right: topRight,
+    }, []);
+    var topBody = topPanel.querySelector(".panel-body");
+    page.appendChild(topPanel);
+    topSelect.addEventListener("change", function () { topDim = topSelect.value; buildTopEntities(); });
 
-    var threeCol = ui.h("div", { class: "three-col-grid" });
-    /* Capped so a growing book can't push the panel's height past its neighbors — each list is
-       already sorted by what makes it most actionable, so the cap drops the least urgent items,
-       never the most. */
-    var RENEWAL_ROWS = 5, CANCEL_ROWS = 5;
-    var renewalPanel = ui.panel({ title: "Renewal pipeline", what: "In-force policies by closeness to expiry, top " + RENEWAL_ROWS + " most urgent.", why: "Notices must be served " + PAS.RENEWAL_LEAD_DAYS + " days ahead.", right: openLink("renewal.html", "Open") }, []);
-    var renewalBody = renewalPanel.querySelector(".panel-body");
-    threeCol.appendChild(renewalPanel);
-    var cancelPanel = ui.panel({ title: "Cancelled policy requests", what: "Open cancellation requests awaiting decision, top " + CANCEL_ROWS + " by refund amount.", why: "The biggest refund exposure among requests still awaiting a decision.", right: openLink("cancellation.html", "Open") }, []);
-    var cancelBody = cancelPanel.querySelector(".panel-body");
-    threeCol.appendChild(cancelPanel);
-    var ENDORSE_ROWS = 5;
-    var endorsePanel = ui.panel({ title: "Endorsement requests", what: "Open endorsement requests that increase premium, top " + ENDORSE_ROWS + " by increase.", why: "The biggest premium increases still awaiting a decision.", right: openLink("endorsement.html", "Open") }, []);
-    var endorseBody = endorsePanel.querySelector(".panel-body");
-    threeCol.appendChild(endorsePanel);
-    page.appendChild(threeCol);
+    /* ---- Open work queues: one panel, switchable queue ----
+       Same consolidation, and the same gain: Reinstatement had no card before (there were only
+       three columns) even though it is a real desk with real pending requests. Each queue stays
+       capped and sorted by what makes it most actionable, so the cap drops the least urgent
+       items, never the most. */
+    var QUEUE_ROWS = 5;
+    var QUEUES = [
+      { key: "renewal", label: "Renewal pipeline", href: "renewal.html", note: "In-force policies by closeness to expiry, " + QUEUE_ROWS + " most urgent. Notices must be served " + PAS.RENEWAL_LEAD_DAYS + " days ahead." },
+      { key: "cancellation", label: "Cancelled policy requests", href: "cancellation.html", note: "Open cancellation requests awaiting decision, top " + QUEUE_ROWS + " by refund amount — the biggest refund exposure still undecided." },
+      { key: "reinstatement", label: "Reinstatement requests", href: "reinstatement.html", note: "Open reinstatement requests, soonest to fall outside the " + PAS.REINSTATEMENT_WINDOW_DAYS + "-day window first — eligibility expires, so these are time-critical." },
+      { key: "endorsement", label: "Endorsement requests", href: "endorsement.html", note: "Open endorsement requests that increase premium, top " + QUEUE_ROWS + " by increase." },
+    ];
+    var queueKey = QUEUES[0].key;
+    var queueSelect = ui.h("select", { class: "register-select", title: "Queue", "aria-label": "Choose work queue" });
+    QUEUES.forEach(function (q) { queueSelect.appendChild(ui.h("option", { value: q.key }, q.label)); });
+    var queueLinkWrap = ui.h("span", {});
+    var queueRight = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
+    queueRight.appendChild(queueSelect);
+    queueRight.appendChild(queueLinkWrap);
+    var queuePanel = ui.panel({
+      title: "Open work queues",
+      what: "Requests and pipelines awaiting action, one desk at a time. Switch desks with the dropdown.",
+      why: "Every one of these is work that stops if nobody picks it up — they belong together, not scattered across the page.",
+      right: queueRight,
+    }, []);
+    var queueBody = queuePanel.querySelector(".panel-body");
+    page.appendChild(queuePanel);
+    queueSelect.addEventListener("change", function () { queueKey = queueSelect.value; buildQueues(); });
 
     function buildSnapshotPanels() {
       var policies = scopedPolicies();
@@ -630,58 +658,85 @@
         ],
       }));
 
-      var renewalSorted = active.slice().sort(function (a, b) { return PAS.daysBetween(PAS.todayISO(), a.expirationDate) - PAS.daysBetween(PAS.todayISO(), b.expirationDate); });
-      renewalBody.innerHTML = "";
-      renewalSorted.slice(0, RENEWAL_ROWS).forEach(function (p) {
-        var rc = PAS.renewalCompliance(p);
-        renewalBody.appendChild(ui.hbar({ label: p.holder, value: Math.max(0, 365 - rc.daysToExpiry), max: 365, note: rc.daysToExpiry + "d left", tone: rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red" }));
-      });
-      if (renewalSorted.length > RENEWAL_ROWS) {
-        renewalBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing the " + RENEWAL_ROWS + " closest to expiry, of " + renewalSorted.length + " in force."));
-        renewalBody.appendChild(openLink("renewal.html", "View more"));
-      }
+    }
 
-      /* Open cancellation requests, ranked by refund amount — biggest exposure first. Same live
-         quote (reason + initiatedBy + effective date → cancelQuote) the Cancellation desk itself
-         shows for these same rows, so the two screens can never disagree. */
-      var pendingCancellations = PAS.pendingOf(policies, "Cancellation").map(function (t) {
-        var meta = t.h.meta || {};
-        var reason = meta.reason || "Insured Request";
-        var initiatedBy = meta.initiatedBy || "Insured";
-        var effDate = t.h.date || PAS.todayISO();
-        var quote = PAS.cancelQuote(t.p, reason, initiatedBy, effDate);
-        return { p: t.p, reason: reason, refund: Math.round(quote.refund) };
-      }).sort(function (a, b) { return b.refund - a.refund; });
-      cancelBody.innerHTML = "";
-      if (pendingCancellations.length === 0) cancelBody.appendChild(ui.h("div", { class: "faint-note" }, "No open cancellation requests."));
-      else {
-        var maxRefund = Math.max.apply(null, pendingCancellations.map(function (x) { return x.refund; }).concat([1]));
-        pendingCancellations.slice(0, CANCEL_ROWS).forEach(function (x) {
-          cancelBody.appendChild(ui.hbar({ label: x.p.holder, value: x.refund, max: maxRefund, note: PAS.money(x.refund) + " · " + x.reason, tone: x.refund === maxRefund ? "red" : "amber" }));
-        });
-        if (pendingCancellations.length > CANCEL_ROWS) {
-          cancelBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + CANCEL_ROWS + " of " + pendingCancellations.length + " open requests."));
-          cancelBody.appendChild(openLink("cancellation.html", "View more"));
+    /* All four desk queues, one at a time. Each is its own small builder so the queue picker
+       only ever has to choose between them — adding a fifth desk later means adding one entry
+       to QUEUES and one builder here, not another column to a grid that has run out of room. */
+    function buildQueues() {
+      var policies = scopedPolicies();
+      var active = policies.filter(function (p) { return p.status === "Active"; });
+      var spec = QUEUES.filter(function (q) { return q.key === queueKey; })[0] || QUEUES[0];
+
+      queueSelect.value = spec.key;
+      queueLinkWrap.innerHTML = "";
+      queueLinkWrap.appendChild(openLink(spec.href, "Open"));
+      queueBody.innerHTML = "";
+      queueBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, spec.note));
+
+      /* Every queue renders the same way: a ranked bar list, then a "showing N of M" note and a
+         View more link when the real list is longer than the cap. */
+      function renderQueue(rows, emptyText, moreText) {
+        if (rows.length === 0) { queueBody.appendChild(ui.h("div", { class: "faint-note" }, emptyText)); return; }
+        rows.slice(0, QUEUE_ROWS).forEach(function (r) { queueBody.appendChild(ui.hbar(r)); });
+        if (rows.length > QUEUE_ROWS) {
+          queueBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + QUEUE_ROWS + " of " + rows.length + " " + moreText + "."));
+          queueBody.appendChild(openLink(spec.href, "View more"));
         }
       }
 
-      /* Open endorsement requests, ranked by how much they'd raise premium — a decrease or a
-         no-impact change (e.g. a plain address update) isn't what this panel is for, so only
-         real increases are listed. */
-      var pendingEndorsements = PAS.pendingOf(policies, "Endorsement").map(function (t) {
-        return { p: t.p, impact: Math.round((t.h.meta && t.h.meta.premiumImpact) || 0) };
-      }).filter(function (x) { return x.impact > 0; }).sort(function (a, b) { return b.impact - a.impact; });
-      endorseBody.innerHTML = "";
-      if (pendingEndorsements.length === 0) endorseBody.appendChild(ui.h("div", { class: "faint-note" }, "No open endorsement requests increasing premium."));
-      else {
-        var maxImpact = Math.max.apply(null, pendingEndorsements.map(function (x) { return x.impact; }).concat([1]));
-        pendingEndorsements.slice(0, ENDORSE_ROWS).forEach(function (x) {
-          endorseBody.appendChild(ui.hbar({ label: x.p.holder, value: x.impact, max: maxImpact, note: "+" + PAS.money(x.impact), tone: x.impact === maxImpact ? "red" : "amber" }));
-        });
-        if (pendingEndorsements.length > ENDORSE_ROWS) {
-          endorseBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + ENDORSE_ROWS + " of " + pendingEndorsements.length + " open requests increasing premium."));
-          endorseBody.appendChild(openLink("endorsement.html", "View more"));
-        }
+      if (spec.key === "renewal") {
+        var renewalSorted = active.slice().sort(function (a, b) { return PAS.daysBetween(PAS.todayISO(), a.expirationDate) - PAS.daysBetween(PAS.todayISO(), b.expirationDate); });
+        renderQueue(renewalSorted.map(function (p) {
+          var rc = PAS.renewalCompliance(p);
+          return { label: p.holder, value: Math.max(0, 365 - rc.daysToExpiry), max: 365, note: rc.daysToExpiry + "d left", tone: rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red" };
+        }), "No in-force policies approaching expiry.", "in force, closest to expiry first");
+
+      } else if (spec.key === "cancellation") {
+        /* Ranked by refund amount — biggest exposure first. Same live quote (reason +
+           initiatedBy + effective date -> cancelQuote) the Cancellation desk itself shows for
+           these same rows, so the two screens can never disagree. */
+        var pendingCx = PAS.pendingOf(policies, "Cancellation").map(function (t) {
+          var meta = t.h.meta || {};
+          var reason = meta.reason || "Insured Request";
+          var initiatedBy = meta.initiatedBy || "Insured";
+          var effDate = t.h.date || PAS.todayISO();
+          return { p: t.p, reason: reason, refund: Math.round(PAS.cancelQuote(t.p, reason, initiatedBy, effDate).refund) };
+        }).sort(function (a, b) { return b.refund - a.refund; });
+        var maxRefund = Math.max.apply(null, pendingCx.map(function (x) { return x.refund; }).concat([1]));
+        renderQueue(pendingCx.map(function (x) {
+          return { label: x.p.holder, value: x.refund, max: maxRefund, note: PAS.money(x.refund) + " · " + x.reason, tone: x.refund === maxRefund ? "red" : "amber" };
+        }), "No open cancellation requests.", "open requests");
+
+      } else if (spec.key === "reinstatement") {
+        /* Sorted by days already elapsed since cancellation, longest first: eligibility expires
+           at REINSTATEMENT_WINDOW_DAYS, so the oldest request is the one about to run out of
+           time. Ineligible ones (fraud, or past the window) still show, flagged — they need a
+           decline rather than being quietly hidden from the desk. */
+        var pendingRe = PAS.pendingOf(policies, "Reinstatement").map(function (t) {
+          return { p: t.p, el: PAS.reinstatementEligibility(t.p) };
+        }).filter(function (x) { return x.el; }).sort(function (a, b) { return b.el.daysSince - a.el.daysSince; });
+        renderQueue(pendingRe.map(function (x) {
+          var left = PAS.REINSTATEMENT_WINDOW_DAYS - x.el.daysSince;
+          return {
+            label: x.p.holder,
+            value: Math.max(0, Math.min(PAS.REINSTATEMENT_WINDOW_DAYS, x.el.daysSince)),
+            max: PAS.REINSTATEMENT_WINDOW_DAYS,
+            note: x.el.fraud ? "Fraud · barred" : (x.el.eligible ? left + "d left to decide" : "Window closed"),
+            tone: x.el.eligible ? (left <= 10 ? "amber" : "green") : "red",
+          };
+        }), "No open reinstatement requests.", "open requests");
+
+      } else {
+        /* Only real premium INCREASES: a decrease or a no-impact change (a plain address update)
+           is not what this queue is for. */
+        var pendingEn = PAS.pendingOf(policies, "Endorsement").map(function (t) {
+          return { p: t.p, impact: Math.round((t.h.meta && t.h.meta.premiumImpact) || 0) };
+        }).filter(function (x) { return x.impact > 0; }).sort(function (a, b) { return b.impact - a.impact; });
+        var maxImpact = Math.max.apply(null, pendingEn.map(function (x) { return x.impact; }).concat([1]));
+        renderQueue(pendingEn.map(function (x) {
+          return { label: x.p.holder, value: x.impact, max: maxImpact, note: "+" + PAS.money(x.impact), tone: x.impact === maxImpact ? "red" : "amber" };
+        }), "No open endorsement requests increasing premium.", "open requests increasing premium");
       }
     }
 
@@ -932,37 +987,53 @@
       }
     }
 
-    /* Expand/collapse state per card, kept outside buildTopEntities so it survives every rebuild
-       (a filter change or period switch) rather than resetting to collapsed each time. */
-    var brokerState = { expanded: false }, mgaState = { expanded: false }, carrierState = { expanded: false };
-    function buildRankedList(body, list, field, state) {
-      var keys = Array.from(new Set(list.map(function (p) { return p[field]; }).filter(Boolean)));
+    /* Expand/collapse state is kept per dimension, outside buildTopEntities, so switching from
+       Brokers to MGAs and back does not silently reset what you had expanded — and so a filter
+       change or period switch does not either. */
+    var topExpanded = {};
+    TOP_DIMS.forEach(function (d) { topExpanded[d.key] = false; });
+
+    /* `accessor` rather than a plain field name, because Underwriter is not a property on the
+       policy — it has to be read out of the ledger (PAS.underwriterOf). Everything else about the
+       ranking is identical, so the difference stays confined to one function argument. */
+    function valueOf(p, dim) { return dim === "underwriter" ? PAS.underwriterOf(p) : p[dim]; }
+
+    function buildTopEntities() {
+      var list = scopedPolicies();
+      var spec = TOP_DIMS.filter(function (d) { return d.key === topDim; })[0] || TOP_DIMS[0];
+      topSelect.value = spec.key;
+
+      topLinkWrap.innerHTML = "";
+      /* Underwriters have no directory page to open — no link rather than a dead one. */
+      if (spec.href) topLinkWrap.appendChild(openLink(spec.href, "Open"));
+
+      var keys = Array.from(new Set(list.map(function (p) { return valueOf(p, spec.key); }).filter(Boolean)));
       var rows = keys.map(function (k) {
+        var mine = list.filter(function (p) { return valueOf(p, spec.key) === k; });
         return {
           k: k,
-          v: sum(list.filter(function (p) { return p[field] === k && p.status === "Active"; }), function (p) { return p.premium; }),
-          n: list.filter(function (p) { return p[field] === k; }).length,
+          v: sum(mine.filter(function (p) { return p.status === "Active"; }), function (p) { return p.premium; }),
+          n: mine.length,
         };
       }).sort(function (a, b) { return b.v - a.v; });
+
+      topBody.innerHTML = "";
+      topBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, spec.note));
+      if (rows.length === 0) { topBody.appendChild(ui.h("div", { class: "faint-note" }, "No records in this filter.")); return; }
+
       var max = Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1]));
-      body.innerHTML = "";
-      if (rows.length === 0) { body.appendChild(ui.h("div", { class: "faint-note" }, "No records in this filter.")); return; }
-      var shown = state.expanded ? rows : rows.slice(0, TOP_ENTITY_ROWS);
-      shown.forEach(function (r) { body.appendChild(ui.hbar({ label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " pol", tone: r.v === max ? "indigo" : "blue" })); });
+      var expanded = topExpanded[spec.key];
+      (expanded ? rows : rows.slice(0, TOP_ENTITY_ROWS)).forEach(function (r) {
+        topBody.appendChild(ui.hbar({ label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " pol", tone: r.v === max ? "indigo" : "blue" }));
+      });
       if (rows.length > TOP_ENTITY_ROWS) {
-        var btn = ui.h("button", { class: "btn ghost-link mt-6" }, state.expanded ? "Show top " + TOP_ENTITY_ROWS + " only" : "See " + (rows.length - TOP_ENTITY_ROWS) + " others");
-        btn.addEventListener("click", function () { state.expanded = !state.expanded; buildTopEntities(); });
-        body.appendChild(btn);
+        var btn = ui.h("button", { class: "btn ghost-link mt-6", type: "button" }, expanded ? "Show top " + TOP_ENTITY_ROWS + " only" : "See " + (rows.length - TOP_ENTITY_ROWS) + " others");
+        btn.addEventListener("click", function () { topExpanded[spec.key] = !expanded; buildTopEntities(); });
+        topBody.appendChild(btn);
       }
     }
-    function buildTopEntities() {
-      var policies = scopedPolicies();
-      buildRankedList(topBrokerBody, policies, "producer", brokerState);
-      buildRankedList(topMgaBody, policies, "mga", mgaState);
-      buildRankedList(topCarrierBody, policies, "carrier", carrierState);
-    }
 
-    function buildAll() { renderToggle(); buildFinancials(); buildKpis(); buildChart(); buildSnapshotPanels(); buildClaims(); buildTopEntities(); }
+    function buildAll() { renderToggle(); buildFinancials(); buildKpis(); buildChart(); buildSnapshotPanels(); buildQueues(); buildClaims(); buildTopEntities(); }
     buildAll();
   }
 

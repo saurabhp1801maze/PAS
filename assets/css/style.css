@@ -921,6 +921,57 @@ body[data-density="compact"] .panel-head { margin-bottom: 8px; }
 .decision-trail-row { padding: 8px 0; border-top: 1px solid var(--color-border); }
 .decision-trail-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+/* ================= POLICY DETAIL — TAB SECTIONS =================
+   Sections that don't map onto any existing component: the money split and the vehicle/driver
+   and activity-timeline tabs. */
+.pd-section { margin-bottom: 4px; }
+
+/* ---- money split: who is actually paid on the premium ---- */
+.split-bar { display: flex; height: 30px; border-radius: 8px; overflow: hidden; border: 1px solid var(--color-border); }
+.split-seg { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; color: #fff; white-space: nowrap; overflow: hidden; }
+.split-seg.carrier { background: var(--color-ink-secondary); }
+.split-seg.broker { background: var(--color-brand); }
+.split-seg.mga { background: var(--color-info); }
+.split-legend { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; margin-top: 12px; }
+.split-legend-item { font-size: 12px; }
+.split-legend-dot { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-inline-end: 6px; vertical-align: middle; }
+.split-legend-dot.carrier { background: var(--color-ink-secondary); }
+.split-legend-dot.broker { background: var(--color-brand); }
+.split-legend-dot.mga { background: var(--color-info); }
+.split-legend-name { font-weight: 700; color: var(--color-ink); }
+.split-legend-val { font-family: var(--mono); font-size: 12.5px; color: var(--color-ink); margin-top: 2px; }
+.split-legend-sub { font-size: 10.5px; color: var(--color-muted); margin-top: 1px; }
+
+/* ---- vehicles & drivers: a many-to-many assignment, not two flat lists ---- */
+.veh-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.veh-card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: 12px; padding: 13px 14px; }
+.veh-unit { font-size: 13px; font-weight: 800; color: var(--color-ink); }
+.veh-meta { font-size: 11.5px; color: var(--color-muted); margin: 2px 0 2px; }
+.veh-vin { font-family: var(--mono); font-size: 10.5px; color: var(--color-muted); }
+.veh-drivers-label { font-size: 10px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--color-muted); margin: 10px 0 6px; }
+.driver-chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.driver-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 999px; padding: 4px 10px 4px 4px; font-size: 11.5px; }
+.driver-avatar { width: 18px; height: 18px; border-radius: 50%; background: var(--color-brand-light); color: var(--color-brand-dark); font-size: 9.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.driver-chip.lead .driver-avatar { background: var(--color-brand); color: #fff; }
+.driver-chip .role { color: var(--color-muted); font-size: 10px; }
+
+/* ---- activity & decisions: every lifecycle event, typed ---- */
+.activity-list { display: flex; flex-direction: column; gap: 10px; }
+.activity-card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: 12px; padding: 12px 14px; border-inline-start: 4px solid var(--color-muted); }
+.activity-card[data-kind="Issuance"] { border-inline-start-color: var(--color-ink-secondary); }
+.activity-card[data-kind="Underwriting"] { border-inline-start-color: var(--outcome-load); }
+.activity-card[data-kind="Endorsement"] { border-inline-start-color: var(--color-info); }
+.activity-card[data-kind="Renewal"] { border-inline-start-color: var(--color-success); }
+.activity-card[data-kind="Cancellation"] { border-inline-start-color: var(--color-danger); }
+.activity-card[data-kind="Reinstatement"] { border-inline-start-color: var(--color-brand); }
+.activity-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.activity-kind { font-size: 12.5px; font-weight: 800; color: var(--color-ink); }
+.activity-date { font-family: var(--mono); font-size: 11px; color: var(--color-muted); }
+.activity-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 16px; margin-bottom: 8px; }
+.af-k { font-size: 10px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--color-muted); }
+.af-v { font-size: 12.5px; color: var(--color-ink); font-weight: 600; margin-top: 1px; }
+.activity-detail { font-size: 12px; color: var(--color-ink-secondary); border-top: 1px solid var(--color-border); padding-top: 8px; }
+
 /* ================= MOTION (§14) ================= */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

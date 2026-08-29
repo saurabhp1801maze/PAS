@@ -10,6 +10,8 @@
       sub: "Every broker and individual producer placing business with Veridex",
       what: "Distribution partners — agencies and individual producers alike.",
       why: "Where the book's business actually comes from, and how much each one carries.",
+      showFinancials: true,
+      showCommission: true,
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);

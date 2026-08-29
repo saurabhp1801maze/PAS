@@ -804,16 +804,20 @@
       /* A plain-language verdict, because a business owner should not have to remember which
          side of 100% is the good side. */
       finVerdictWrap.innerHTML = "";
-      var profitable = f.combinedRatio < 1;
-      var margin = Math.abs(1 - f.combinedRatio);
-      finVerdictWrap.appendChild(ui.callout(profitable ? "good" : "bad", [
-        ui.h("strong", {}, profitable ? "This book is making an underwriting profit. " : "This book is losing money on underwriting. "),
-        document.createTextNode(
-          "Combined ratio " + pct(f.combinedRatio) + " — " + pct(margin) + (profitable ? " below" : " above") +
-          " break-even, an underwriting " + (profitable ? "profit" : "loss") + " of " + PAS.money(Math.abs(f.underwritingResult)) +
-          " on " + PAS.money(f.earnedPremium) + " of earned premium. Acquisition commission is the only expense included, so the real margin is thinner than this."
-        ),
-      ]));
+      if (f.policies === 0) {
+        finVerdictWrap.appendChild(ui.h("div", { class: "faint-note", style: { padding: "14px 15px" } }, "No on-risk business in this filter."));
+      } else {
+        var profitable = f.combinedRatio < 1;
+        var margin = Math.abs(1 - f.combinedRatio);
+        finVerdictWrap.appendChild(ui.callout(profitable ? "good" : "bad", [
+          ui.h("strong", {}, profitable ? "This book is making an underwriting profit. " : "This book is losing money on underwriting. "),
+          document.createTextNode(
+            "Combined ratio " + pct(f.combinedRatio) + " — " + pct(margin) + (profitable ? " below" : " above") +
+            " break-even, an underwriting " + (profitable ? "profit" : "loss") + " of " + PAS.money(Math.abs(f.underwritingResult)) +
+            " on " + PAS.money(f.earnedPremium) + " of earned premium. Acquisition commission is the only expense included, so the real margin is thinner than this."
+          ),
+        ]));
+      }
 
       /* Waterfall: earned premium is the bar everything else is measured against, so each
          component is drawn to the same scale rather than each to its own maximum. */

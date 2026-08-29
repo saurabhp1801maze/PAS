@@ -19,6 +19,12 @@
   ];
   var PENDING_TYPES = ["Cancellation", "Renewal", "Endorsement", "Reinstatement"];
 
+  /* Same thresholds the dashboard's financial view uses, so a broker never reads "healthy" here
+     and "hot" there for the same number. */
+  function lossTone(r) { return r >= 0.85 ? "red" : r >= 0.6 ? "amber" : "green"; }
+  function combinedTone(r) { return r >= 1 ? "red" : r >= 0.95 ? "amber" : "green"; }
+  function pct(x) { return (Math.round(x * 1000) / 10) + "%"; }
+
   PAS.renderEntityBook = function (opts) {
     var ui = PAS.ui;
     var policies = PAS.getScopedPolicies();
@@ -41,12 +47,18 @@
         var premium = active.reduce(function (s, p) { return s + (p.premium || 0); }, 0);
         var pending = PENDING_TYPES.reduce(function (s, t) { return s + PAS.pendingOf(mine, t).length; }, 0);
         var states = Array.from(new Set(mine.map(function (p) { return p.state; }).filter(Boolean))).length;
-        return {
+        var row = {
           name: name, type: opts.typeMap ? (opts.typeMap[name] || "") : "",
           total: mine.length, active: active.length, premium: premium,
           avgPremium: active.length ? premium / active.length : 0,
           pending: pending, states: states,
         };
+        if (opts.showFinancials) {
+          var f = PAS.bookFinancials(PAS.onRiskPolicies(mine));
+          row.lossRatio = f.lossRatio;
+          if (opts.showCommission) row.commissionPaid = f.brokerCommission;
+        }
+        return row;
       });
     }
 
@@ -57,11 +69,18 @@
         icon: opts.icon, tone: opts.tone, title: opts.title, sub: opts.sub,
         what: opts.what, why: opts.why,
       }));
-      page.appendChild(ui.kpiRow([
+      var kpis = [
         { label: "Total " + opts.titleLower, value: rows.length, tip: "Distinct " + opts.titleLower + " on the book." },
         { label: "Total policies", value: policies.filter(function (p) { return !!p[opts.fieldName]; }).length, tone: "blue", tip: "Every record placed through " + opts.article + " " + opts.singularLower + " on file." },
         { label: "In-force premium", value: PAS.moneyShort(totalPremium), tone: "green", tip: "Sum of active premium across every " + opts.singularLower + "." },
-      ]));
+      ];
+      if (opts.showFinancials) {
+        var withField = policies.filter(function (p) { return !!p[opts.fieldName]; });
+        var fAll = PAS.bookFinancials(PAS.onRiskPolicies(withField));
+        kpis.push({ label: "Loss ratio", value: pct(fAll.lossRatio), tone: lossTone(fAll.lossRatio), tip: "Incurred claims ÷ earned premium, across every " + opts.singularLower + "'s on-risk business — same earned basis as the dashboard." });
+        if (opts.showCommission) kpis.push({ label: "Commission paid", value: PAS.moneyShort(fAll.brokerCommission), tone: "green", tip: "Total " + opts.singularLower + " share of commission earned across the whole book." });
+      }
+      page.appendChild(ui.kpiRow(kpis));
 
       var q = "", tf = "All";
       var columns = [
@@ -72,11 +91,19 @@
         { key: "total", label: "Policies", what: "Every record with this " + opts.singularLower + ", any status.", sortValue: function (r) { return r.total; }, cell: function (r) { return String(r.total); } },
         { key: "active", label: "Active", what: "In force as of today.", sortValue: function (r) { return r.active; }, cell: function (r) { return String(r.active); } },
         { key: "premium", label: "In-force premium", what: "Sum of annual premium across this " + opts.singularLower + "'s active policies.", sortValue: function (r) { return r.premium; }, cell: function (r) { return PAS.money(r.premium); } },
-        { key: "avgPremium", label: "Avg premium", what: "Mean annual premium per active policy — a quick read on book quality, independent of size.", sortValue: function (r) { return r.avgPremium; }, cell: function (r) { return PAS.money(r.avgPremium); } },
+        { key: "avgPremium", label: "Avg premium", what: "Mean annual premium per active policy — a quick read on book quality, independent of size.", sortValue: function (r) { return r.avgPremium; }, cell: function (r) { return PAS.money(r.avgPremium); } }
+      );
+      if (opts.showFinancials) {
+        columns.push({ key: "lossRatio", label: "Loss ratio", what: "Incurred claims ÷ earned premium, on this " + opts.singularLower + "'s on-risk book — same earned basis as the dashboard.", sortValue: function (r) { return r.lossRatio; }, cell: function (r) { return ui.pill(lossTone(r.lossRatio), pct(r.lossRatio)); } });
+        if (opts.showCommission) columns.push({ key: "commissionPaid", label: "Commission paid", what: "This " + opts.singularLower + "'s actual revenue for placing the business — their share of gross commission earned.", sortValue: function (r) { return r.commissionPaid; }, cell: function (r) { return PAS.money(r.commissionPaid); } });
+      }
+      columns.push(
         { key: "pending", label: "Pending requests", what: "Open cancellation, renewal, endorsement or reinstatement requests across this " + opts.singularLower + "'s policies.", sortValue: function (r) { return r.pending; }, cell: function (r) { return r.pending ? ui.pill("amber", String(r.pending)) : "—"; } },
         { key: "states", label: "States", what: "Distinct states this " + opts.singularLower + " has business in.", sortValue: function (r) { return r.states; }, cell: function (r) { return String(r.states); } }
       );
-      var listDefaultVisible = (opts.typeMap ? ["type"] : []).concat(["total", "active", "premium", "pending"]);
+      var listDefaultVisible = (opts.typeMap ? ["type"] : []).concat(["total", "active", "premium", "pending"])
+        .concat(opts.showFinancials ? ["lossRatio"] : [])
+        .concat(opts.showCommission ? ["commissionPaid"] : []);
 
       page.appendChild(ui.tipLabel({ text: opts.titleUpper + " (" + rows.length + ")", what: "Click any " + opts.singularLower + " to see every policy placed through them.", className: "label-11 block mb-9" }));
 
@@ -125,6 +152,41 @@
       if (typeSelect) typeSelect.addEventListener("change", function () { tf = typeSelect.value; refresh(); });
     }
 
+    /* Scoped to this one entity's on-risk book. Neither a broker nor an MGA facility carries
+       underwriting risk, so this isn't framed as their "profit" — loss ratio is the risk quality
+       of the business placed through them, and combined ratio is what it costs the carrier to
+       keep writing it. Commission paid (a broker's actual revenue) only applies where
+       opts.showCommission is set — an MGA facility isn't the party that earns that commission. */
+    function renderFinancials(page, name, mine) {
+      var onRisk = PAS.onRiskPolicies(mine);
+      var f = PAS.bookFinancials(onRisk);
+      if (f.policies === 0) return;
+      var bookAvg = PAS.bookFinancials(PAS.onRiskPolicies(policies)).lossRatio;
+
+      page.appendChild(ui.h("div", { class: "kpi-section-head", style: { marginTop: "18px" } }, [
+        ui.h("span", { class: "kpi-section-label" }, "Financial performance"),
+        ui.h("span", { class: "kpi-section-sub" }, "On-risk business placed through this " + opts.singularLower + " — earned basis, as of today"),
+      ]));
+      var finKpis = [
+        { label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue", tip: "The portion of placed premium actually on risk to date." },
+        { label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red", tip: f.claimCount + " claims, " + f.openClaimCount + " still open." },
+        { label: "Loss ratio", value: pct(f.lossRatio), tone: lossTone(f.lossRatio), tip: "Incurred ÷ earned. Book average is " + pct(bookAvg) + "." },
+      ];
+      if (opts.showCommission) finKpis.push({ label: "Commission paid", value: PAS.moneyShort(f.brokerCommission), tone: "green", tip: "This " + opts.singularLower + "'s actual revenue for placing the business." });
+      finKpis.push({ label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedTone(f.combinedRatio), tip: pct(f.lossRatio) + " loss ratio + " + pct(f.expenseRatio) + " acquisition cost." });
+      page.appendChild(ui.kpiRow(finKpis));
+
+      var cooler = f.lossRatio <= bookAvg;
+      var diff = pct(Math.abs(f.lossRatio - bookAvg));
+      page.appendChild(ui.callout(cooler ? "good" : "bad", [
+        ui.h("strong", {}, name + " runs " + (cooler ? "cooler" : "hotter") + " than the book average. "),
+        document.createTextNode(
+          pct(f.lossRatio) + " loss ratio against a " + pct(bookAvg) + " portfolio average (" + diff + " " + (cooler ? "better" : "worse") + "), on " +
+          PAS.money(f.earnedPremium) + " of earned premium across " + f.claimCount + " claim" + (f.claimCount === 1 ? "" : "s") + "."
+        ),
+      ]));
+    }
+
     function renderDetail(page, name) {
       var mine = policies.filter(function (p) { return p[opts.fieldName] === name; });
       var active = mine.filter(function (p) { return p.status === "Active"; });
@@ -143,6 +205,8 @@
         { label: "In-force premium", value: PAS.money(premium), tone: "green", tip: "Sum of annual premium across active policies." },
         { label: "Avg premium", value: PAS.money(active.length ? premium / active.length : 0), tip: "Mean annual premium per active policy." },
       ]));
+
+      if (opts.showFinancials) renderFinancials(page, name, mine);
 
       var relationCols = RELATIONS.filter(function (r) { return r.field !== opts.fieldName; });
       var q = "", sf = "All", pf = "All", stf = "All";

@@ -923,10 +923,21 @@ var CLAIMS_BY_ID = {
      term is fully earned, plus however much of the current term has run. termNumber is 1-based,
      so a policy in term 3 that is 40% through has earned 2.4x its annual premium over its life —
      which is the right denominator for `p.claims`, since that array is the policy's whole claim
-     history, not just this term's. */
+     history, not just this term's.
+
+     A Cancelled policy stopped being on risk on its cancellation effective date, not today — so
+     the "as of" date for the current term is that date, read from the completed Cancellation
+     transaction, rather than todayISO(). Without this, a policy cancelled months ago keeps
+     "earning" premium all the way up to today. */
   function earnedFraction(policy) {
     var totalDays = Math.max(1, daysBetween(policy.effectiveDate, policy.expirationDate));
-    var elapsed = daysBetween(policy.effectiveDate, todayISO());
+    var asOf = todayISO();
+    if (policy.status === "Cancelled") {
+      var cx = (policy.history || []).filter(function (h) { return h.type === "Cancellation" && h.status === "Completed"; })
+        .sort(function (a, b) { return b.seq - a.seq; })[0];
+      if (cx) asOf = cx.date;
+    }
+    var elapsed = daysBetween(policy.effectiveDate, asOf);
     var thisTerm = Math.max(0, Math.min(1, elapsed / totalDays));
     var priorTerms = Math.max(0, (Number(policy.termNumber) || 1) - 1);
     return priorTerms + thisTerm;
@@ -965,6 +976,7 @@ var CLAIMS_BY_ID = {
   }
   function isDirect(policy) { return !policy.producer || policy.producer === "Direct"; }
   PAS.commissionRateOf = commissionRateOf;
+  PAS.isDirect = isDirect;
 
   /* The full P&L for any set of policies. One function, so the KPI row, the segment table and
      the waterfall are mathematically incapable of disagreeing — they all read this.
@@ -1119,20 +1131,27 @@ var CLAIMS_BY_ID = {
     var isFleet = (policy.premium || 0) >= 20000;
     var vehicleCount = isFleet ? Math.max(2, Math.min(12, Math.round(policy.premium / 22000))) : 1;
     var makePool = isFleet ? TRUCK_MAKES : CAR_MAKES;
-    var vehicles = [];
+    var powerUnits = [];
     for (var i = 0; i < vehicleCount; i++) {
       var vseed = hash32(policy.id + "-veh-" + i);
       var mk = makePool[vseed % makePool.length];
-      vehicles.push({ unit: (isFleet ? "Truck " : "Vehicle ") + (i + 1), type: isFleet ? "Tractor unit" : "Passenger vehicle", make: mk[0], model: mk[1], year: 2020 + (vseed % 7), vin: vin17(vseed) });
+      powerUnits.push({ unit: (isFleet ? "Truck " : "Vehicle ") + (i + 1), type: isFleet ? "Tractor unit" : "Passenger vehicle", make: mk[0], model: mk[1], year: 2020 + (vseed % 7), vin: vin17(vseed), drivers: [] });
     }
+    var trailers = [];
     if (isFleet) {
       var trailerCount = Math.max(1, Math.round(vehicleCount / 2));
       for (var t = 0; t < trailerCount; t++) {
         var tseed = hash32(policy.id + "-trl-" + t);
         var tm = TRAILER_MAKES[tseed % TRAILER_MAKES.length];
-        vehicles.push({ unit: "Trailer " + (t + 1), type: "Dry van trailer", make: tm[0], model: tm[1], year: 2019 + (tseed % 8), vin: vin17(tseed) });
+        trailers.push({ unit: "Trailer " + (t + 1), type: "Dry van trailer", make: tm[0], model: tm[1], year: 2019 + (tseed % 8), vin: vin17(tseed), drivers: [] });
       }
     }
+
+    /* A vehicle and a driver are a many-to-many relationship, not one-to-one: a fleet truck gets
+       a lead driver plus a relief driver who also covers another truck's off-shift, and even a
+       single personal-auto vehicle usually carries more than one household driver. Each vehicle's
+       `drivers` names into the flat `drivers` roster below rather than duplicating driver detail,
+       so the license/roster table and the per-vehicle assignment can never disagree. */
     var drivers = [];
     if (isFleet) {
       var driverCount = Math.max(vehicleCount, Math.min(14, vehicleCount + (h % 3)));
@@ -1141,10 +1160,34 @@ var CLAIMS_BY_ID = {
         var name = DRIVER_FIRST[dseed % DRIVER_FIRST.length] + " " + DRIVER_LAST[hash32(policy.id + "-drvl-" + d) % DRIVER_LAST.length];
         drivers.push({ name: name, role: d === 0 ? "Lead driver" : "Driver", licenseClass: "CDL-A", licenseState: PAS.stateAbbr(policy.state), yearsLicensed: 2 + (dseed % 15) });
       }
+      powerUnits.forEach(function (v, i) {
+        var leadIdx = i % driverCount;
+        v.drivers.push({ name: drivers[leadIdx].name, contextRole: leadIdx === 0 ? "Lead driver" : "Driver" });
+        /* Only double up when the pool is thin relative to the truck count — a fleet with one
+           driver per truck and no slack has nobody left over to run relief shifts. */
+        if (driverCount < vehicleCount * 1.5) {
+          var reliefIdx = (i + Math.max(1, Math.floor(driverCount / 2))) % driverCount;
+          if (reliefIdx !== leadIdx) v.drivers.push({ name: drivers[reliefIdx].name, contextRole: "Relief · night shift" });
+        }
+      });
     } else {
-      drivers.push({ name: policy.holder, role: "Named insured", licenseClass: "Class C", licenseState: PAS.stateAbbr(policy.state), yearsLicensed: 5 + (h % 20) });
+      var primaryName = policy.holder;
+      drivers.push({ name: primaryName, role: "Primary", licenseClass: "Class C", licenseState: PAS.stateAbbr(policy.state), yearsLicensed: 5 + (h % 20) });
+      powerUnits[0].drivers.push({ name: primaryName, contextRole: "Primary" });
+      /* Real personal auto is rarely exactly one driver on the household car — a spouse or adult
+         child usually shares it. About half of these policies get a second driver, deterministically,
+         so the same policy always renders the same roster rather than reflecting only the named
+         insured every time. */
+      if (h % 2 === 0) {
+        var secondSeed = hash32(policy.id + "-drv-1");
+        var lastName = primaryName.trim().split(/\s+/).slice(-1)[0];
+        var secondName = DRIVER_FIRST[secondSeed % DRIVER_FIRST.length] + " " + lastName;
+        drivers.push({ name: secondName, role: "Secondary · household member", licenseClass: "Class C", licenseState: PAS.stateAbbr(policy.state), yearsLicensed: 1 + (secondSeed % 25) });
+        powerUnits[0].drivers.push({ name: secondName, contextRole: "Secondary · household member" });
+      }
     }
-    return { isFleet: isFleet, vehicles: vehicles, drivers: drivers };
+
+    return { isFleet: isFleet, vehicles: powerUnits.concat(trailers), drivers: drivers };
   };
 
   /* ---------- loyalty: configurable criteria, computed from real ledger data ----------

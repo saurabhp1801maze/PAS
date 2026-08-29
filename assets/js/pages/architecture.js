@@ -145,9 +145,10 @@
       rows: PAS.CARRIERS.map(function (c) {
         var book = policies.filter(function (p) { return p.carrier === c; });
         var active = book.filter(function (p) { return p.status === "Active"; });
+        var onRisk = PAS.onRiskPolicies(book);
         var lines = Array.from(new Set(book.map(function (p) { return p.product; })));
         var premium = active.reduce(function (s, p) { return s + p.premium; }, 0);
-        return [c, lines.join(", "), book.length, PAS.moneyShort(premium), Math.round(PAS.lossRatio(active) * 100) + "%"];
+        return [c, lines.join(", "), book.length, PAS.moneyShort(premium), Math.round(PAS.lossRatio(onRisk) * 100) + "%"];
       }),
       wrapCells: true,
     }));

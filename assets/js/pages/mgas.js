@@ -10,6 +10,7 @@
       sub: "Every wholesale facility and individual MGA holding binding authority on the book",
       what: "The wholesale layer between Broker and Reinsurer — agency facilities and individual MGAs alike.",
       why: "Which facilities are carrying the most bound risk, and how concentrated that is.",
+      showFinancials: true,
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);

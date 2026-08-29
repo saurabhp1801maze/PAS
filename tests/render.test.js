@@ -250,7 +250,12 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
 (function () {
   var txt = renderText("dashboard");
   [
-    "Gross written premium", "91%", "+8.2%", "-1.4%",           /* original hardcoded literals */
+    /* Original hardcoded literals. "Retention" stands in for the fake hardcoded 91% that used to
+       sit beside it: banning the bare string "91%" became a false positive once loss ratio was
+       corrected to an earned basis, because a real computed segment ratio can legitimately land
+       on 91%. Banning the label keeps the guard on the fabricated KPI without also outlawing a
+       genuine number that happens to round the same way. */
+    "Gross written premium", "Retention", "+8.2%", "-1.4%",
     "In-force premium", "Avg premium", "Product lines",          /* superseded KPI tiles */
     "Underwriting queue", "Ready to issue now", "Pipeline premium",
     "Held transactions", "Avg risk score", "Below refer threshold", "Renewals decided, all-time",
@@ -292,13 +297,19 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   else if (Number(mBound[1]) !== bound.length) { fails++; console.log("  FAIL  Bound, awaiting issue renders " + mBound[1] + ", expected " + bound.length); }
   else console.log("  PASS  Bound, awaiting issue = " + bound.length + " — its own queue, not folded into Pending transactions, not the old double-counted " + oldDoubleCountedTotal);
 
+  /* There are two KPI rows on this page now: the Financial performance row at the top, and the
+     Operations row below it. These assertions are about the OPERATIONS row specifically, which is
+     the one carrying the 4-per-row "wrap" layout — so select it by that class rather than by
+     "whichever row happens to come first in the document", which silently retargeted the moment
+     a second row was added above it. */
   var dom = renderDom("dashboard");
-  var kpiRow = dom.querySelector(".kpi-row");
-  if (!kpiRow || !kpiRow.classList.contains("wrap")) { fails++; console.log("  FAIL  KPI row is missing the 4-per-row \"wrap\" layout class"); }
-  else console.log('  PASS  KPI row uses the fixed 4-per-row grid (".kpi-row.wrap")');
-  var kpiCards = dom.querySelectorAll(".kpi-card");
-  if (kpiCards.length !== 9) { fails++; console.log("  FAIL  expected exactly 9 KPI cards, found " + kpiCards.length); }
-  else console.log("  PASS  exactly 9 KPI cards render (2 full rows of 4 plus a trailing card)");
+  var allKpiRows = dom.querySelectorAll(".kpi-row");
+  var opsRow = Array.prototype.filter.call(allKpiRows, function (r) { return r.classList.contains("wrap"); })[0];
+  if (!opsRow) { fails++; console.log("  FAIL  no KPI row carries the 4-per-row \"wrap\" layout class (found " + allKpiRows.length + " rows)"); }
+  else console.log('  PASS  the Operations KPI row uses the fixed 4-per-row grid (".kpi-row.wrap")');
+  var opsCards = opsRow ? opsRow.querySelectorAll(".kpi-card") : [];
+  if (opsCards.length !== 9) { fails++; console.log("  FAIL  expected exactly 9 Operations KPI cards, found " + opsCards.length); }
+  else console.log("  PASS  exactly 9 Operations KPI cards render (2 full rows of 4 plus a trailing card)");
   /* Left panel: a bar chart (3 series × 6 trailing months = 18 bars), with a legend. */
   var barChart = dom.querySelectorAll(".trend-bar-chart");
   var barFills = dom.querySelectorAll(".trend-bar-fill");
@@ -356,6 +367,119 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
     else console.log("  PASS  top-ranked cancellation request shows its real refund amount (" + topRefundText + ")");
   }
   if (pendingCx.length > 5 && cancelPanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Cancelled policy requests exceeds the cap but is missing its "View more" link'); }
+})();
+
+/* ================= the financial engine =================
+   Revenue, profit and loss ratio all come out of PAS.bookFinancials, so these assertions are
+   about that one function being internally consistent and actuarially correct. The specific bug
+   being locked out: loss ratio was dividing incurred claims by WRITTEN premium instead of EARNED
+   premium, which on a half-earned book understated it by roughly half — the difference between
+   reporting a healthy book and an underwater one. */
+console.log("\n  financial engine: earned-basis ratios that reconcile");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var P = stub.PAS;
+  var onRisk = P.onRiskPolicies(P.getPolicies());
+  var f = P.bookFinancials(onRisk);
+  function near(a, b, tol) { return Math.abs(a - b) <= (tol || 0.5); }
+
+  /* --- 1. on-risk is the right population --- */
+  var wrongStatus = onRisk.filter(function (p) { return ["Referred", "Declined", "Bound"].indexOf(p.status) !== -1; });
+  if (wrongStatus.length > 0) { fails++; console.log("  FAIL  onRiskPolicies included " + wrongStatus.length + " policies that were never on risk (Referred/Declined/Bound)"); }
+  else if (onRisk.length === P.getPolicies().length) { fails++; console.log("  FAIL  onRiskPolicies returned the entire book — it is not actually filtering anything"); }
+  else console.log("  PASS  on-risk population is a real subset (" + onRisk.length + " of " + P.getPolicies().length + "), excluding business that never attached");
+  var cancelledIncluded = onRisk.filter(function (p) { return p.status === "Cancelled" || p.status === "Expired"; }).length;
+  if (cancelledIncluded === 0) { fails++; console.log("  FAIL  no cancelled/expired policies in the financial population — that is survivorship bias, the business that went bad is exactly what gets cancelled"); }
+  else console.log("  PASS  " + cancelledIncluded + " cancelled/expired policies are still counted — no survivorship bias in the loss ratio");
+
+  /* --- 2. earned premium is genuinely earned, not written --- */
+  if (!(f.earnedPremium < f.writtenPremium)) { fails++; console.log("  FAIL  earned premium is not less than written premium — earning is not being applied at all"); }
+  else if (f.earnedPremium <= 0) { fails++; console.log("  FAIL  earned premium is zero or negative"); }
+  else console.log("  PASS  earned premium (" + P.money(f.earnedPremium) + ") is genuinely below written (" + P.money(f.writtenPremium) + ") — " + Math.round(f.earnedPremium / f.writtenPremium * 100) + "% of the book has actually been earned");
+  if (!near(f.writtenPremium - f.earnedPremium, f.unearnedPremium, 1)) { fails++; console.log("  FAIL  unearned premium does not reconcile: written − earned ≠ unearned"); }
+  else console.log("  PASS  written − earned = unearned, exactly");
+
+  /* --- 3. THE regression guard: loss ratio must divide by earned, never written --- */
+  var incurred = P.allClaims(onRisk).reduce(function (s, x) { return s + x.c.incurred; }, 0);
+  var writtenBasis = incurred / f.writtenPremium;
+  var earnedBasis = incurred / f.earnedPremium;
+  if (!near(f.lossRatio, earnedBasis, 0.0001)) { fails++; console.log("  FAIL  lossRatio is not incurred ÷ earned premium (got " + f.lossRatio.toFixed(4) + ", earned basis is " + earnedBasis.toFixed(4) + ")"); }
+  else if (near(f.lossRatio, writtenBasis, 0.02)) { fails++; console.log("  FAIL  lossRatio matches the WRITTEN-premium basis — the actuarially wrong denominator is back"); }
+  else console.log("  PASS  loss ratio " + (f.lossRatio * 100).toFixed(1) + "% is the earned basis, materially different from the written basis (" + (writtenBasis * 100).toFixed(1) + "%) that used to be reported");
+
+  /* --- 4. the P&L identities hold --- */
+  if (!near(f.combinedRatio, f.lossRatio + f.expenseRatio, 0.0001)) { fails++; console.log("  FAIL  combined ratio ≠ loss ratio + expense ratio"); }
+  else console.log("  PASS  combined ratio = loss ratio + expense ratio");
+  if (!near(f.underwritingResult, f.earnedPremium - f.incurred - f.commission, 1)) { fails++; console.log("  FAIL  underwriting result ≠ earned − incurred − commission"); }
+  else console.log("  PASS  underwriting result = earned premium − incurred claims − commission (" + P.money(f.underwritingResult) + ")");
+  /* Combined ratio and the money result must never disagree about profitability — a book cannot
+     be under 100% combined and simultaneously losing money. */
+  if ((f.combinedRatio < 1) !== (f.underwritingResult > 0)) { fails++; console.log("  FAIL  combined ratio says " + (f.combinedRatio < 1 ? "profit" : "loss") + " but the underwriting result says the opposite"); }
+  else console.log("  PASS  the ratio and the money answer agree on whether the book is profitable");
+  if (!near(f.netCommission, f.commission - f.brokerCommission, 1)) { fails++; console.log("  FAIL  net commission ≠ gross commission − broker commission"); }
+  else console.log("  PASS  net commission = gross − broker share (" + P.money(f.netCommission) + " kept of " + P.money(f.commission) + " earned)");
+
+  /* --- 5. commission is real revenue modelling, not premium relabelled --- */
+  if (f.commission >= f.earnedPremium * 0.5) { fails++; console.log("  FAIL  commission is implausibly close to premium — premium is probably being reported as revenue"); }
+  else console.log("  PASS  commission is a real slice of premium (" + (f.commission / f.earnedPremium * 100).toFixed(1) + "% of earned), not premium relabelled as revenue");
+  var directOnly = onRisk.filter(function (p) { return p.producer === "Direct"; });
+  if (directOnly.length > 0) {
+    var df = P.bookFinancials(directOnly);
+    if (df.brokerCommission !== 0) { fails++; console.log("  FAIL  Direct business is paying broker commission (" + P.money(df.brokerCommission) + ") — there is no broker to pay"); }
+    else console.log("  PASS  Direct business pays no broker commission, so it keeps 100% of it — a real margin difference, not an averaged-away one");
+  }
+
+  /* --- 6. segments must sum back to the whole book --- */
+  var products = Array.from(new Set(onRisk.map(function (p) { return p.product; })));
+  var sumEarned = 0, sumIncurred = 0, sumResult = 0;
+  products.forEach(function (pr) {
+    var sf = P.bookFinancials(onRisk.filter(function (p) { return p.product === pr; }));
+    sumEarned += sf.earnedPremium; sumIncurred += sf.incurred; sumResult += sf.underwritingResult;
+  });
+  if (!near(sumEarned, f.earnedPremium, 1) || !near(sumIncurred, f.incurred, 1) || !near(sumResult, f.underwritingResult, 1)) {
+    fails++; console.log("  FAIL  per-segment figures do not sum to the whole book — a policy is being double-counted or dropped");
+  } else console.log("  PASS  every product segment sums exactly back to the book total — no policy double-counted or dropped");
+
+  /* --- 7. the data has to answer the actual question: which is loss, where profit --- */
+  var segs = products.map(function (pr) { return { k: pr, f: P.bookFinancials(onRisk.filter(function (p) { return p.product === pr; })) }; });
+  var losing = segs.filter(function (s) { return s.f.combinedRatio >= 1; });
+  var winning = segs.filter(function (s) { return s.f.combinedRatio < 0.8; });
+  if (losing.length === 0 || winning.length === 0) { fails++; console.log("  FAIL  no real spread across lines (" + losing.length + " loss-making, " + winning.length + " strongly profitable) — the segment table cannot answer which business to fix"); }
+  else console.log("  PASS  genuine spread: " + losing.length + " line(s) losing money (" + losing.map(function (s) { return s.k + " " + Math.round(s.f.combinedRatio * 100) + "%"; }).join(", ") + "), " + winning.length + " strongly profitable");
+})();
+
+/* The dashboard must render those computed figures, not its own separately-derived versions. */
+console.log("\n  dashboard financial section: renders the engine's own numbers");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var P = stub.PAS;
+  var f = P.bookFinancials(P.onRiskPolicies(P.getPolicies()));
+  var txt = renderText("dashboard");
+
+  ["Financial performance", "Written premium", "Earned premium", "Commission revenue", "Loss ratio", "Combined ratio", "Where the premium went", "Profit & loss by segment"].forEach(function (n) {
+    if (txt.indexOf(n) === -1) { fails++; console.log('  FAIL  dashboard financial section missing "' + n + '"'); }
+  });
+  console.log("  PASS  financial KPIs, the premium waterfall and the segment P&L all render");
+
+  function pct(x) { return (Math.round(x * 1000) / 10) + "%"; }
+  if (txt.indexOf(pct(f.combinedRatio)) === -1) { fails++; console.log('  FAIL  dashboard does not show the engine\'s real combined ratio "' + pct(f.combinedRatio) + '"'); }
+  else console.log("  PASS  the combined ratio on screen (" + pct(f.combinedRatio) + ") is the engine's own computed figure, not a separately-derived one");
+  if (txt.indexOf(P.moneyShort(f.netCommission)) === -1) { fails++; console.log('  FAIL  dashboard does not show real net commission revenue "' + P.moneyShort(f.netCommission) + '"'); }
+  else console.log("  PASS  revenue shown (" + P.moneyShort(f.netCommission) + ") is commission net of broker share — an MGA's actual revenue, not premium");
+
+  var verdict = f.combinedRatio < 1 ? "making an underwriting profit" : "losing money on underwriting";
+  if (txt.indexOf(verdict) === -1) { fails++; console.log('  FAIL  dashboard is missing the plain-language profitability verdict ("' + verdict + '")'); }
+  else console.log('  PASS  states the verdict in plain words ("' + verdict + '") rather than leaving the reader to know which side of 100% is good');
 })();
 
 /* Claims & loss ratio (MOM 2026-08-26): real charts and detail data for "loss vs. profitable
@@ -611,10 +735,25 @@ console.log("\n  claims & reserves: real data, internally consistent with the ex
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS5 = stub.PAS;
   var book5 = PAS5.seedPolicies();
+  /* Ironwood's ledger says "adverse loss ratio... 140% OVER TWO TERMS". That is a completed-terms
+     figure, so it must be checked against the premium earned across those two completed terms
+     (fully earned, 2 x annual), not against the policy's lifetime-to-date earned premium, which
+     also includes a partial third term still running. Checking it the second way would drift
+     every single day as the current term earns out, which is exactly the kind of date-dependent
+     assertion that turns into a flaky test. */
   var bharat = book5.find(function (p) { return p.id === "POL-2026-00988"; });
-  var bharatRatio = Math.round(PAS5.lossRatio([bharat]) * 100);
-  if (bharatRatio !== 140) { fails++; console.log("  FAIL  Ironwood Steel Works' claim loss ratio is " + bharatRatio + "%, expected exactly 140% to match its cancellation record's own \"adverse loss ratio... 140%\" narrative"); }
-  else console.log("  PASS  Ironwood Steel Works' seeded claim ($140,000 incurred ÷ $100,000 premium) computes to exactly 140% — matches its own cancellation narrative, not a coincidence");
+  var completedTerms = Math.max(1, (Number(bharat.termNumber) || 1) - 1);
+  var earnedOverCompletedTerms = bharat.premium * completedTerms;
+  var bharatIncurred = (bharat.claims || []).reduce(function (s, c) { return s + c.incurred; }, 0);
+  var bharatRatio = Math.round((bharatIncurred / earnedOverCompletedTerms) * 100);
+  if (bharatRatio !== 140) { fails++; console.log("  FAIL  Ironwood Steel Works' loss ratio over its " + completedTerms + " completed terms is " + bharatRatio + "%, expected exactly 140% to match its cancellation record's own \"adverse loss ratio... 140% over two terms\" narrative"); }
+  else console.log("  PASS  Ironwood Steel Works' claim ($" + bharatIncurred.toLocaleString("en-US") + " incurred ÷ $" + earnedOverCompletedTerms.toLocaleString("en-US") + " earned over " + completedTerms + " completed terms) computes to exactly 140% — matches its own cancellation narrative, not a coincidence");
+
+  /* And the corrected lifetime metric must still read as adverse, or the headline number would
+     quietly contradict the cancellation sitting on the same policy's ledger. */
+  var bharatLifetime = Math.round(PAS5.lossRatio([bharat]) * 100);
+  if (bharatLifetime <= 100) { fails++; console.log("  FAIL  Ironwood's lifetime earned loss ratio is " + bharatLifetime + "% — not adverse, which contradicts the cancellation on its own ledger"); }
+  else console.log("  PASS  its lifetime earned loss ratio (" + bharatLifetime + "%) is still clearly adverse — the corrected metric agrees with the ledger narrative rather than contradicting it");
 
   var active5 = book5.filter(function (p) { return p.status === "Active"; });
   var totalClaims = PAS5.allClaims(active5).length;
@@ -623,15 +762,20 @@ console.log("\n  claims & reserves: real data, internally consistent with the ex
   else console.log("  PASS  " + totalClaims + " real claims on file across the active book, $" + totalReserves.toLocaleString("en-US") + " in open reserves");
 
   /* MGA is scoped to its own book (Cornerstone MGA Partners), so the loss ratio shown in its
-     Claims & reserves panel must be computed over that same subset — the panel's own "this
-     filter" figure covers every status (not just Active, since the state/LOB filters default to
-     unrestricted), so the expectation matches that same unfiltered-by-status scope. */
-  var cornerstoneAll5 = book5.filter(function (p) { return p.mga === "Cornerstone MGA Partners"; });
+     Claims & reserves panel must be computed over that same subset — restricted to ON-RISK
+     policies and divided by EARNED premium, exactly as PAS.bookFinancials does for the full
+     operational dashboard. A Broker or MGA must never be shown a loss ratio derived differently
+     from the one an admin sees over the same policies. */
+  var cornerstoneOnRisk = PAS5.onRiskPolicies(book5.filter(function (p) { return p.mga === "Cornerstone MGA Partners"; }));
+  var cornerstoneFin = PAS5.bookFinancials(cornerstoneOnRisk);
   var mgaDom2 = renderDom("dashboard", "", "MGA");
   var mgaTxt2 = mgaDom2.textContent.replace(/\s+/g, " ");
-  var expectedRatio = Math.round(PAS5.lossRatio(cornerstoneAll5) * 100) + "%";
+  var expectedRatio = (Math.round(cornerstoneFin.lossRatio * 1000) / 10) + "%";
   if (mgaTxt2.indexOf(expectedRatio) === -1) { fails++; console.log('  FAIL  MGA dashboard does not show its own book\'s real loss ratio "' + expectedRatio + '"'); }
-  else console.log("  PASS  MGA dashboard's Claims & reserves panel (" + expectedRatio + ") matches the real computed figure for its own scoped book");
+  else console.log("  PASS  MGA dashboard's Claims & reserves panel (" + expectedRatio + ") matches the real earned-basis figure for its own scoped on-risk book");
+  var expectedCombined = (Math.round(cornerstoneFin.combinedRatio * 1000) / 10) + "%";
+  if (mgaTxt2.indexOf(expectedCombined) === -1) { fails++; console.log('  FAIL  MGA dashboard does not show its own combined ratio "' + expectedCombined + '" — a scoped role gets the loss ratio but not the profitability answer'); }
+  else console.log("  PASS  the scoped role also sees its own combined ratio (" + expectedCombined + "), not just the loss ratio");
 })();
 
 /* Refund-wise breakdown on the Cancellation desk: grouped totals must reconcile to the same sum

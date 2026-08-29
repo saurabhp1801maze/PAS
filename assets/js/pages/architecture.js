@@ -141,7 +141,7 @@
       columns: ["Reinsurer", { label: "Lines placed", what: "Which products this partner has appetite for." },
         { label: "Policies", what: "Records on their paper." },
         { label: "In-force premium", what: "Sum of active premium placed with them." },
-        { label: "Loss ratio", what: "Incurred claims ÷ premium, on their book only." }],
+        { label: "Loss ratio", what: "Incurred claims ÷ earned premium, on their book only." }],
       rows: PAS.CARRIERS.map(function (c) {
         var book = policies.filter(function (p) { return p.carrier === c; });
         var active = book.filter(function (p) { return p.status === "Active"; });

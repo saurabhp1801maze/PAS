@@ -312,6 +312,67 @@
     fromInput.addEventListener("change", function () { if (fromInput.value) customFrom = fromInput.value; buildAll(); });
     toInput.addEventListener("change", function () { if (toInput.value) customTo = toInput.value; buildAll(); });
 
+    /* ================= financial performance =================
+       This sits above the operational counts deliberately. Someone running this business opens
+       the dashboard to find out whether it is making money; "how many endorsements are pending"
+       is a real question but it is the second one, not the first. Every figure below comes from
+       PAS.bookFinancials, so the KPI row, the waterfall and the segment table are structurally
+       incapable of quoting different numbers for the same thing. */
+    var finKpiContainer = ui.h("div", {});
+    page.appendChild(finKpiContainer);
+    var finVerdictWrap = ui.h("div", {});
+    page.appendChild(finVerdictWrap);
+
+    var finGrid = ui.h("div", { class: "two-col-grid" });
+    var waterfallPanel = ui.panel({
+      title: "Where the premium went",
+      what: "Earned premium, less incurred claims, less the commission paid to place the business — what is left is the underwriting result.",
+      why: "A ratio tells you the shape of the problem; this tells you the size of it in actual money.",
+    }, []);
+    var waterfallBody = waterfallPanel.querySelector(".panel-body");
+    finGrid.appendChild(waterfallPanel);
+    var revenuePanel = ui.panel({
+      title: "Revenue — what Veridex actually earns",
+      what: "Veridex is an MGA: the premium belongs to the insurer whose paper the risk is written on. Veridex earns commission for placing and servicing it, and passes the larger share of that to the producing broker.",
+      why: "Reporting premium as revenue would overstate what this business earns by roughly seven times.",
+    }, []);
+    var revenueBody = revenuePanel.querySelector(".panel-body");
+    finGrid.appendChild(revenuePanel);
+    page.appendChild(finGrid);
+
+    /* The panel that answers "which is loss, where profit" directly. Ranked worst-first by
+       combined ratio, because the loss-making segments are the ones anyone actually needs to act
+       on — a table sorted alphabetically buries them. */
+    var SEGMENT_DIMS = [
+      { key: "product", label: "Line of business" },
+      { key: "state", label: "State" },
+      { key: "producer", label: "Broker" },
+      { key: "carrier", label: "Reinsurer" },
+    ];
+    var segmentDim = "product";
+    var segmentPanel = ui.panel({
+      title: "Profit & loss by segment",
+      what: "Every segment's earned premium, incurred claims, loss ratio, expense ratio and combined ratio, worst combined ratio first.",
+      why: "Combined ratio under 100% means the segment made an underwriting profit; over 100% means it lost money. This is the table that answers which business to write more of and which to fix or drop.",
+      right: (function () {
+        var chipRow = ui.h("div", { class: "chip-row" });
+        SEGMENT_DIMS.forEach(function (d) {
+          var chip = ui.h("button", { class: "chip" + (segmentDim === d.key ? " active" : ""), type: "button" }, d.label);
+          chip.addEventListener("click", function () { segmentDim = d.key; buildFinancials(); });
+          chipRow.appendChild(chip);
+        });
+        return chipRow;
+      })(),
+      pad: 0,
+    }, []);
+    var segmentBody = segmentPanel.querySelector(".panel-body");
+    page.appendChild(segmentPanel);
+
+    page.appendChild(ui.h("div", { class: "kpi-section-head", style: { marginTop: "26px" } }, [
+      ui.h("span", { class: "kpi-section-label" }, "Operations"),
+      ui.h("span", { class: "kpi-section-sub" }, "Volume and workload — what is moving through the desks"),
+    ]));
+
     var kpiContainer = ui.h("div", {});
     page.appendChild(kpiContainer);
 
@@ -480,13 +541,13 @@
     /* Claims & loss ratio: the panel this dashboard didn't have before (MOM 2026-08-26) — real
        claim records (PAS.CLAIMS_BY_ID), not an asserted number, broken out by product and state so
        "which is loss, where profit" is a chart read, not a spreadsheet exercise. Loss ratio =
-       incurred claims ÷ in-force premium, the standard industry figure underwriting appetite and
+       incurred claims ÷ earned premium, the standard industry figure underwriting appetite and
        renewal-pricing decisions actually turn on. */
     var claimsGrid = ui.h("div", { class: "two-col-grid" });
-    var lossByProductPanel = ui.panel({ title: "Loss ratio by product", what: "Incurred claims ÷ in-force premium, per product line.", why: "Which lines are profitable and which are running hot — the number underwriting appetite decisions actually turn on." }, []);
+    var lossByProductPanel = ui.panel({ title: "Loss ratio by product", what: "Incurred claims ÷ earned premium, per product line, across all on-risk business.", why: "Which lines are profitable and which are running hot — the number underwriting appetite decisions actually turn on." }, []);
     var lossByProductBody = lossByProductPanel.querySelector(".panel-body");
     claimsGrid.appendChild(lossByProductPanel);
-    var lossByStatePanel = ui.panel({ title: "Loss ratio by state", what: "Incurred claims ÷ in-force premium, per state with claim activity.", why: "Geographic concentration of loss, separate from geographic concentration of premium." }, []);
+    var lossByStatePanel = ui.panel({ title: "Loss ratio by state", what: "Incurred claims ÷ earned premium, per state with claim activity, top 8 worst.", why: "Geographic concentration of loss, separate from geographic concentration of premium." }, []);
     var lossByStateBody = lossByStatePanel.querySelector(".panel-body");
     claimsGrid.appendChild(lossByStatePanel);
     page.appendChild(claimsGrid);
@@ -625,25 +686,182 @@
     }
 
     function lossToneFor(ratio) { return ratio >= 0.85 ? "red" : ratio >= 0.6 ? "amber" : "green"; }
+    /* 100% is the break-even line for a combined ratio, so it is the only threshold that carries
+       real meaning here — 97% and 103% are a different business, 60% and 80% are not. */
+    function combinedToneFor(ratio) { return ratio >= 1 ? "red" : ratio >= 0.95 ? "amber" : "green"; }
+    function pct(x) { return (Math.round(x * 1000) / 10) + "%"; }
+
+    function buildFinancials() {
+      /* Financial views run over on-risk business only — see PAS.onRiskPolicies. Cancelled and
+         expired policies stay IN (they earned premium and had claims); referred, declined and
+         not-yet-incepted business stays out. */
+      var onRisk = PAS.onRiskPolicies(scopedPolicies());
+      var f = PAS.bookFinancials(onRisk);
+
+      finKpiContainer.innerHTML = "";
+      finKpiContainer.appendChild(ui.kpiSection({
+        label: "Financial performance",
+        sub: "On-risk business" + filterNote() + " — earned basis, as of today",
+      }, [
+        {
+          /* Deliberately NOT labelled "Gross written premium". GWP conventionally means premium
+             written within a stated period; this is the annual premium across every policy that
+             has been on risk, which is a different quantity. An audit finding on this dashboard
+             was specifically about a mislabelled GWP figure, so the label says exactly what the
+             number is and the tooltip spells out the basis. */
+          label: "Written premium", value: PAS.moneyShort(f.writtenPremium), tone: "gray",
+          tip: "Annual premium across all " + f.policies + " on-risk policies" + filterNote() + " — not a period figure.",
+          why: "Volume placed, not income. The premium belongs to the insurer whose paper the risk sits on, not to Veridex.",
+        },
+        {
+          label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue",
+          tip: "The portion of that premium the insurer has actually been on risk for, " + pct(f.earnedPremium / (f.writtenPremium || 1)) + " of written.",
+          why: "Every ratio below divides by this, not by written premium. A policy bound last week has its full annual premium written but has earned almost none of it — dividing claims by written premium would halve the apparent loss ratio.",
+        },
+        {
+          label: "Commission revenue", value: PAS.moneyShort(f.netCommission), tone: "green",
+          tip: PAS.money(f.commission) + " gross commission earned, less " + PAS.money(f.brokerCommission) + " passed to producing brokers.",
+          why: "This is Veridex's actual revenue line — what it keeps after the broker's share. Business written Direct has no broker share, so it retains all of its commission.",
+        },
+        {
+          label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red",
+          tip: PAS.money(f.paid) + " paid plus " + PAS.money(f.reserved) + " reserved, across " + f.claimCount + " claims (" + f.openClaimCount + " still open).",
+          why: "Incurred, not paid — an open claim's reserve is money already committed, and leaving it out would understate the cost of the business.",
+        },
+        {
+          label: "Loss ratio", value: pct(f.lossRatio), tone: lossToneFor(f.lossRatio),
+          tip: PAS.money(f.incurred) + " incurred ÷ " + PAS.money(f.earnedPremium) + " earned.",
+          why: "The core measure of whether the risk was priced correctly. Paid-only would read " + pct(f.paidLossRatio) + "; the gap between the two is open reserves.",
+        },
+        {
+          label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedToneFor(f.combinedRatio),
+          tip: pct(f.lossRatio) + " loss ratio + " + pct(f.expenseRatio) + " expense ratio.",
+          why: "The industry's profitability test: under 100% the book makes an underwriting profit, over 100% it loses money. Expense here is acquisition commission only — the insurer's own overhead is not in this system, so the true combined ratio is higher than this figure.",
+        },
+      ]));
+
+      /* A plain-language verdict, because a business owner should not have to remember which
+         side of 100% is the good side. */
+      finVerdictWrap.innerHTML = "";
+      var profitable = f.combinedRatio < 1;
+      var margin = Math.abs(1 - f.combinedRatio);
+      finVerdictWrap.appendChild(ui.callout(profitable ? "good" : "bad", [
+        ui.h("strong", {}, profitable ? "This book is making an underwriting profit. " : "This book is losing money on underwriting. "),
+        document.createTextNode(
+          "Combined ratio " + pct(f.combinedRatio) + " — " + pct(margin) + (profitable ? " below" : " above") +
+          " break-even, an underwriting " + (profitable ? "profit" : "loss") + " of " + PAS.money(Math.abs(f.underwritingResult)) +
+          " on " + PAS.money(f.earnedPremium) + " of earned premium. Acquisition commission is the only expense included, so the real margin is thinner than this."
+        ),
+      ]));
+
+      /* Waterfall: earned premium is the bar everything else is measured against, so each
+         component is drawn to the same scale rather than each to its own maximum. */
+      waterfallBody.innerHTML = "";
+      var scale = f.earnedPremium || 1;
+      [
+        { label: "Earned premium", value: f.earnedPremium, tone: "blue", note: PAS.money(f.earnedPremium) },
+        { label: "Less: incurred claims", value: f.incurred, tone: "red", note: "− " + PAS.money(f.incurred) + " · " + pct(f.lossRatio) },
+        { label: "Less: acquisition commission", value: f.commission, tone: "amber", note: "− " + PAS.money(f.commission) + " · " + pct(f.expenseRatio) },
+        { label: "= Underwriting result", value: Math.abs(f.underwritingResult), tone: f.underwritingResult >= 0 ? "green" : "red", note: (f.underwritingResult >= 0 ? "" : "− ") + PAS.money(Math.abs(f.underwritingResult)) + " · " + pct(Math.abs(1 - f.combinedRatio)) },
+      ].forEach(function (row) {
+        waterfallBody.appendChild(ui.hbar({ label: row.label, value: row.value, max: scale, note: row.note, tone: row.tone }));
+      });
+
+      revenueBody.innerHTML = "";
+      revenueBody.appendChild(ui.kv({
+        k: "Gross commission earned", v: PAS.money(f.commission),
+        what: "Earned on the same accrual basis as the premium — commission is recognised as the premium earns, not banked in full at inception.",
+        why: "Rates run " + Math.round(PAS.COMMISSION_RATES["Group Health"] * 100) + "–" + Math.round(PAS.COMMISSION_RATES["Term Life"] * 100) + "% depending on the line.",
+      }));
+      revenueBody.appendChild(ui.kv({
+        k: "Less: broker commission", v: "− " + PAS.money(f.brokerCommission),
+        what: "The producing broker's share, " + Math.round(PAS.BROKER_COMMISSION_SHARE * 100) + "% of commission on brokered business.",
+        why: "Business written Direct has no broker to pay, so it keeps all of its commission — which is why Direct is materially more profitable per premium dollar.",
+      }));
+      revenueBody.appendChild(ui.kv({
+        k: "Net revenue to Veridex", v: PAS.money(f.netCommission),
+        what: "What this business actually earns the MGA.",
+        why: "Against " + PAS.money(f.writtenPremium) + " of premium placed — roughly " + pct(f.netCommission / (f.writtenPremium || 1)) + " of the volume it handles.",
+      }));
+      revenueBody.appendChild(ui.kv({
+        k: "Unearned premium", v: PAS.money(f.unearnedPremium),
+        what: "Written but not yet earned — the insurer is still on risk for it, and it would be refundable on a pro-rata cancellation today.",
+        why: "This is the part of written premium that has not become revenue yet, and the reason written premium overstates performance.",
+      }));
+
+      /* ---- profit & loss by segment ---- */
+      var dimLabel = SEGMENT_DIMS.filter(function (d) { return d.key === segmentDim; })[0].label;
+      segmentPanel.querySelectorAll(".chip").forEach(function (c) {
+        c.classList.toggle("active", c.textContent === dimLabel);
+      });
+
+      var keys = Array.from(new Set(onRisk.map(function (p) { return p[segmentDim]; }).filter(Boolean)));
+      var segments = keys.map(function (k) {
+        var seg = onRisk.filter(function (p) { return p[segmentDim] === k; });
+        var sf = PAS.bookFinancials(seg);
+        return { k: k, f: sf, n: seg.length };
+      }).filter(function (s) { return s.f.earnedPremium > 0; })
+        .sort(function (a, b) { return b.f.combinedRatio - a.f.combinedRatio; });
+
+      segmentBody.innerHTML = "";
+      if (segments.length === 0) {
+        segmentBody.appendChild(ui.h("div", { class: "faint-note", style: { padding: "14px 15px" } }, "No on-risk business in this filter."));
+        return;
+      }
+      var losing = segments.filter(function (s) { return s.f.combinedRatio >= 1; });
+      segmentBody.appendChild(ui.h("div", { class: "faint-note", style: { padding: "13px 15px 0" } },
+        losing.length === 0
+          ? "Every " + dimLabel.toLowerCase() + " in this filter is running at an underwriting profit."
+          : losing.length + " of " + segments.length + " " + dimLabel.toLowerCase() + " segments are running at a combined ratio of 100% or worse — listed first."));
+
+      segmentBody.appendChild(ui.dataTable({
+        columns: [
+          dimLabel,
+          { label: "Policies", what: "On-risk policies in this segment." },
+          { label: "Earned premium", what: "The exposure base every ratio in this row divides by." },
+          { label: "Incurred", what: "Paid plus reserved claims." },
+          { label: "Loss ratio", what: "Incurred ÷ earned premium." },
+          { label: "Expense ratio", what: "Acquisition commission ÷ earned premium." },
+          { label: "Combined", what: "Loss ratio + expense ratio.", rule: "Under 100% is an underwriting profit; 100% or over is a loss." },
+          { label: "U/W result", what: "Earned premium less claims less commission — the money answer." },
+        ],
+        rows: segments.map(function (s) {
+          return [
+            s.k,
+            s.n,
+            PAS.moneyShort(s.f.earnedPremium),
+            PAS.moneyShort(s.f.incurred),
+            ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)),
+            pct(s.f.expenseRatio),
+            ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)),
+            (s.f.underwritingResult >= 0 ? "" : "− ") + PAS.moneyShort(Math.abs(s.f.underwritingResult)),
+          ];
+        }),
+        wrapCells: true,
+      }));
+    }
 
     function buildClaims() {
       var policies = scopedPolicies();
-      var active = policies.filter(function (p) { return p.status === "Active"; });
-      var claims = PAS.allClaims(policies);
+      /* On-risk, not Active-only. Measuring loss ratio across surviving policies alone is
+         survivorship bias: the business that went bad is precisely the business that got
+         cancelled, so excluding it reports the survivors' loss ratio and labels it the book's.
+         Earned premium (not written) is the denominator, matching PAS.bookFinancials exactly. */
+      var onRisk = PAS.onRiskPolicies(policies);
+      var claims = PAS.allClaims(onRisk);
 
       function byField(field) {
-        var keys = Array.from(new Set(active.map(function (p) { return p[field]; }).filter(Boolean)));
+        var keys = Array.from(new Set(onRisk.map(function (p) { return p[field]; }).filter(Boolean)));
         return keys.map(function (k) {
-          var forKey = active.filter(function (p) { return p[field] === k; });
-          var premium = sum(forKey, function (p) { return p.premium; });
-          var incurred = PAS.allClaims(forKey).reduce(function (s, x) { return s + x.c.incurred; }, 0);
-          return { k: k, premium: premium, incurred: incurred, ratio: premium ? incurred / premium : 0, claimN: PAS.allClaims(forKey).length };
+          var forKey = onRisk.filter(function (p) { return p[field] === k; });
+          var sf = PAS.bookFinancials(forKey);
+          return { k: k, premium: sf.earnedPremium, incurred: sf.incurred, ratio: sf.lossRatio, claimN: sf.claimCount };
         });
       }
 
       var byProduct = byField("product").sort(function (a, b) { return b.ratio - a.ratio; });
       lossByProductBody.innerHTML = "";
-      if (byProduct.length === 0) lossByProductBody.appendChild(ui.h("div", { class: "faint-note" }, "No in-force business in this filter."));
+      if (byProduct.length === 0) lossByProductBody.appendChild(ui.h("div", { class: "faint-note" }, "No on-risk business in this filter."));
       else {
         var maxProductRatio = Math.max.apply(null, byProduct.map(function (x) { return x.ratio * 100; }).concat([100]));
         byProduct.forEach(function (x) {
@@ -686,12 +904,12 @@
         claimsDetailBody.appendChild(ui.h("div", { class: "faint-note", style: { padding: "14px 15px" } }, "No claims on file in this filter."));
       } else {
         var totalIncurred = sortedClaims.reduce(function (s, x) { return s + x.c.incurred; }, 0);
-        var openReserves = PAS.reservesTotal(policies);
+        var cf = PAS.bookFinancials(onRisk);
         var summary = ui.h("div", { style: { display: "flex", gap: "20px", flexWrap: "wrap", padding: "13px 15px 4px" } });
         summary.appendChild(ui.kv({ k: "Claims (this filter)", v: sortedClaims.length, what: sortedClaims.filter(function (x) { return x.c.status === "Open"; }).length + " open, " + sortedClaims.filter(function (x) { return x.c.status === "Closed"; }).length + " closed." }));
         summary.appendChild(ui.kv({ k: "Total incurred", v: PAS.money(totalIncurred), what: "Paid plus reserved, across every claim in this filter." }));
-        summary.appendChild(ui.kv({ k: "Open reserves", v: PAS.money(openReserves), what: "Held against open claims, this filter." }));
-        summary.appendChild(ui.kv({ k: "Loss ratio", v: Math.round(PAS.lossRatio(policies) * 1000) / 10 + "%", what: "Total incurred ÷ in-force premium, this filter." }));
+        summary.appendChild(ui.kv({ k: "Open reserves", v: PAS.money(cf.reserved), what: "Held against open claims, this filter." }));
+        summary.appendChild(ui.kv({ k: "Loss ratio", v: pct(cf.lossRatio), what: PAS.money(cf.incurred) + " incurred ÷ " + PAS.money(cf.earnedPremium) + " earned premium, this filter.", why: "Earned, not written — see the Financial performance row at the top of this page." }));
         claimsDetailBody.appendChild(summary);
         var claimsTable = ui.sortableTable({
           storageKey: "pas.dashboard.claims.columns.v1",
@@ -744,7 +962,7 @@
       buildRankedList(topCarrierBody, policies, "carrier", carrierState);
     }
 
-    function buildAll() { renderToggle(); buildKpis(); buildChart(); buildSnapshotPanels(); buildClaims(); buildTopEntities(); }
+    function buildAll() { renderToggle(); buildFinancials(); buildKpis(); buildChart(); buildSnapshotPanels(); buildClaims(); buildTopEntities(); }
     buildAll();
   }
 
@@ -774,10 +992,33 @@
       why: spec.canRequest ? "Scoped to " + identity + "'s own book — can raise a request here, but not decide one." : "Read-only: " + spec.label + " sees its own book; decisions stay with an admin.",
     }));
 
+    /* Loss ratio and combined ratio go in the headline row for scoped roles too. Those two mean
+       the same thing no matter who is reading them, so unlike the MGA's commission-revenue panel
+       (which would be wrong for a Broker, whose revenue is its own share, and for a Carrier,
+       to whom commission is a cost rather than income) they can be shown to every role as-is.
+       Computed from the same PAS.bookFinancials over the same on-risk population as the full
+       operational dashboard — a scoped role sees a narrower book, never a different formula. */
+    var scopedFin = PAS.bookFinancials(PAS.onRiskPolicies(policies));
+    function pctOf(x) { return (Math.round(x * 1000) / 10) + "%"; }
+    function lossToneForScoped(r) { return r >= 0.85 ? "red" : r >= 0.6 ? "amber" : "green"; }
     page.appendChild(ui.kpiRow([
       { label: "In-force premium", value: PAS.moneyShort(inForcePremium), tone: "green", tip: "Sum of annual premium across in-force policies, as of today." },
+      {
+        label: "Earned premium", value: PAS.moneyShort(scopedFin.earnedPremium), tone: "blue",
+        tip: "Premium actually earned to date across this book's on-risk policies, including cancelled and expired ones.",
+        why: "The exposure base both ratios below divide by — written premium would flatter them, because a policy part-way through its term has not earned all of it.",
+      },
       { label: "Active policies", value: active.length, tip: "In force as of today, of " + policies.length + " total records." },
-      { label: "Avg premium", value: PAS.moneyShort(active.length ? inForcePremium / active.length : 0), tip: "Mean annual premium per in-force policy." },
+      {
+        label: "Loss ratio", value: pctOf(scopedFin.lossRatio), tone: lossToneForScoped(scopedFin.lossRatio),
+        tip: PAS.money(scopedFin.incurred) + " incurred ÷ " + PAS.money(scopedFin.earnedPremium) + " earned, across " + scopedFin.claimCount + " claims.",
+        why: "Whether the risk on this book was priced correctly.",
+      },
+      {
+        label: "Combined ratio", value: pctOf(scopedFin.combinedRatio), tone: scopedFin.combinedRatio >= 1 ? "red" : scopedFin.combinedRatio >= 0.95 ? "amber" : "green",
+        tip: pctOf(scopedFin.lossRatio) + " loss + " + pctOf(scopedFin.expenseRatio) + " acquisition commission.",
+        why: "Under 100% this book made an underwriting profit; over 100% it lost money. Acquisition commission is the only expense included, so the real figure is higher.",
+      },
       { label: "Product lines", value: Array.from(new Set(policies.map(function (p) { return p.product; }))).length, tip: "Distinct LOBs written." },
       { label: "States", value: Array.from(new Set(policies.map(function (p) { return p.state; }))).length, tip: "Distinct states with business on the books." },
     ], true));
@@ -910,16 +1151,27 @@
       drawTrendGraph(issuanceBody, ISSUANCE_SERIES, issuanceData, issuanceLabel, issuanceNote);
 
       claimsBody.innerHTML = "";
-      var scopedClaims = PAS.allClaims(scoped);
+      /* Same on-risk, earned-premium basis as the full operational dashboard, read from the same
+         PAS.bookFinancials — so a Broker or MGA viewing their own book never sees a loss ratio
+         computed a different way from the one an admin sees for the same policies. */
+      var scopedOnRisk = PAS.onRiskPolicies(scoped);
+      var scopedClaims = PAS.allClaims(scopedOnRisk);
       if (scopedClaims.length === 0) {
         claimsBody.appendChild(ui.h("div", { class: "faint-note" }, "No claims on file in this filter."));
       } else {
-        var scopedIncurred = scopedClaims.reduce(function (s, x) { return s + x.c.incurred; }, 0);
-        var scopedReserved = scopedClaims.filter(function (x) { return x.c.status === "Open"; }).reduce(function (s, x) { return s + x.c.reserved; }, 0);
-        var scopedRatio = PAS.lossRatio(scoped);
+        var sfin = PAS.bookFinancials(scopedOnRisk);
         var summary = ui.h("div", { class: "mt-6" });
-        summary.appendChild(ui.kv({ k: "Loss ratio (this filter)", v: Math.round(scopedRatio * 100) + "%", what: PAS.money(scopedIncurred) + " incurred ÷ " + PAS.money(sum(scoped, function (p) { return p.premium; })) + " premium." }));
-        summary.appendChild(ui.kv({ k: "Open reserves (this filter)", v: PAS.money(scopedReserved), what: scopedClaims.filter(function (x) { return x.c.status === "Open"; }).length + " open of " + scopedClaims.length + " total claims." }));
+        summary.appendChild(ui.kv({
+          k: "Loss ratio (this filter)", v: (Math.round(sfin.lossRatio * 1000) / 10) + "%",
+          what: PAS.money(sfin.incurred) + " incurred ÷ " + PAS.money(sfin.earnedPremium) + " earned premium.",
+          why: "Earned, not written — a policy only part-way through its term has not earned its full annual premium, and dividing by written premium would understate this ratio.",
+        }));
+        summary.appendChild(ui.kv({
+          k: "Combined ratio (this filter)", v: (Math.round(sfin.combinedRatio * 1000) / 10) + "%",
+          what: (Math.round(sfin.lossRatio * 1000) / 10) + "% loss + " + (Math.round(sfin.expenseRatio * 1000) / 10) + "% acquisition commission.",
+          why: "Under 100% this book made an underwriting profit; over 100% it lost money.",
+        }));
+        summary.appendChild(ui.kv({ k: "Open reserves (this filter)", v: PAS.money(sfin.reserved), what: sfin.openClaimCount + " open of " + sfin.claimCount + " total claims." }));
         claimsBody.appendChild(summary);
         claimsBody.appendChild(ui.dataTable({
           columns: ["Policy", "Type", "State", { label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid." }, { label: "Incurred", what: "Paid plus reserved — the total cost estimate." }, "Reserved"],

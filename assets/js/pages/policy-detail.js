@@ -145,7 +145,7 @@
         { label: "Claims on file", value: claims.length, tip: "Every claim recorded against this policy." },
         { label: "Total incurred", value: PAS.money(claims.reduce(function (s, c) { return s + (c.incurred || 0); }, 0)), tip: "Reported + paid + reserved, whichever the claim is at." },
         { label: "Open reserves", value: PAS.money(claims.filter(function (c) { return c.status === "Open"; }).reduce(function (s, c) { return s + (c.reserved || 0); }, 0)), tone: "amber", tip: "Money set aside for claims not yet closed." },
-        { label: "Loss ratio", value: Math.round(PAS.lossRatio([policy]) * 100) + "%", tip: "Incurred ÷ premium for this policy alone.", why: "Same formula the MGA/Carrier dashboards use, just scoped to one record." },
+        { label: "Loss ratio", value: Math.round(PAS.lossRatio([policy]) * 100) + "%", tip: "Incurred claims ÷ premium EARNED to date on this policy, across its whole life (every completed term plus however much of the current one has run).", why: "Earned, not written — the same corrected basis the dashboard uses, just scoped to one record. Dividing by full written premium would halve the apparent ratio on a policy only part-way through its term." },
       ]));
       body.appendChild(ui.tipLabel({ text: "Claims", what: "Every claim reported against this policy.", className: "label-11 block mt-15 mb-9" }));
       body.appendChild(ui.dataTable({

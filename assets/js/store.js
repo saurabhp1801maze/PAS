@@ -508,104 +508,237 @@
      ($100,000 × 1.4 = $140,000) rather than being regenerated into a number that would contradict
      the narrative already on file. */
 var CLAIMS_BY_ID = {
-    "POL-2024-00187": [{ type: "Fire", status: "Closed", reportedOn: "2026-06-10", incurred: 8090, paid: 8090, reserved: 0 }],
-    "POL-2025-09112": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-05", incurred: 14230, paid: 14230, reserved: 0 }],
-    "POL-2026-00988": [{ type: "Fire", status: "Closed", reportedOn: "2026-05-02", incurred: 140000, paid: 140000, reserved: 0 }],
-    "POL-2026-03005": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-06-06", incurred: 786520, paid: 786520, reserved: 0 }],
-    "POL-2026-03008": [{ type: "Windshield damage", status: "Closed", reportedOn: "2025-11-27", incurred: 509910, paid: 509910, reserved: 0 }],
-    "POL-2026-03010": [{ type: "Windshield damage", status: "Open", reportedOn: "2026-07-19", incurred: 421460, paid: 242490, reserved: 178970 }],
-    "POL-2026-03012": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-11", incurred: 169390, paid: 169390, reserved: 0 }],
-    "POL-2026-0435": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-04-28", incurred: 1664550, paid: 1664550, reserved: 0 }],
-    "POL-2026-0437": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-05-06", incurred: 25590, paid: 25590, reserved: 0 }],
-    "POL-2026-0440": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-08-14", incurred: 309400, paid: 309400, reserved: 0 }],
-    "POL-2026-0444": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-20", incurred: 20190, paid: 20190, reserved: 0 }],
-    "POL-2026-0457": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-03-22", incurred: 3760, paid: 3760, reserved: 0 }],
-    "POL-2026-0465": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-27", incurred: 11900, paid: 11900, reserved: 0 }],
-    "POL-2026-0467": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-06-23", incurred: 370230, paid: 370230, reserved: 0 }],
-    "POL-2026-0468": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-07-08", incurred: 461310, paid: 461310, reserved: 0 }],
-    "POL-2026-0469": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-02-01", incurred: 525990, paid: 525990, reserved: 0 }],
-    "POL-2026-0470": [{ type: "Storm damage", status: "Open", reportedOn: "2026-07-01", incurred: 473610, paid: 157070, reserved: 316540 }],
-    "POL-2026-0487": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-11", incurred: 8970, paid: 8970, reserved: 0 }],
-    "POL-2026-0492": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-08-04", incurred: 159470, paid: 159470, reserved: 0 }],
-    "POL-2026-0496": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-07-22", incurred: 687160, paid: 687160, reserved: 0 }],
-    "POL-2026-0512": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-28", incurred: 8620, paid: 8620, reserved: 0 }],
-    "POL-2026-0522": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-01-29", incurred: 421170, paid: 204360, reserved: 216810 }],
-    "POL-2026-0542": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-06-16", incurred: 603520, paid: 603520, reserved: 0 }],
-    "POL-2026-0549": [{ type: "Collision", status: "Closed", reportedOn: "2026-07-29", incurred: 2220, paid: 2220, reserved: 0 }],
-    "POL-2026-0552": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-08-20", incurred: 376220, paid: 376220, reserved: 0 }],
-    "POL-2026-0593": [{ type: "Water damage", status: "Closed", reportedOn: "2026-08-18", incurred: 1498060, paid: 1498060, reserved: 0 }],
-    "POL-2026-0604": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-01-19", incurred: 416780, paid: 416780, reserved: 0 }],
-    "POL-2026-0609": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-07-20", incurred: 302630, paid: 174350, reserved: 128280 }],
-    "POL-2026-0611": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-06-27", incurred: 336740, paid: 336740, reserved: 0 }],
-    "POL-2026-0612": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-06-01", incurred: 8630, paid: 8630, reserved: 0 }],
-    "POL-2026-0628": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-06-27", incurred: 248740, paid: 118700, reserved: 130040 }],
-    "POL-2026-0638": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-16", incurred: 1550, paid: 1550, reserved: 0 }],
-    "POL-2026-0643": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-08-18", incurred: 16230, paid: 16230, reserved: 0 }],
-    "POL-2026-0670": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-10", incurred: 2080, paid: 2080, reserved: 0 }],
-    "POL-2026-0674": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-07-16", incurred: 517140, paid: 517140, reserved: 0 }],
-    "POL-2026-0680": [{ type: "Fire", status: "Open", reportedOn: "2026-03-09", incurred: 38270, paid: 21220, reserved: 17050 }],
-    "POL-2026-0681": [{ type: "Collision", status: "Open", reportedOn: "2026-08-10", incurred: 6100, paid: 2370, reserved: 3730 }],
-    "POL-2026-0696": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-06-12", incurred: 642470, paid: 642470, reserved: 0 }],
-    "POL-2026-0697": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-07-11", incurred: 112610, paid: 112610, reserved: 0 }],
-    "POL-2026-0705": [{ type: "Death benefit", status: "Open", reportedOn: "2026-06-05", incurred: 11710, paid: 6320, reserved: 5390 }],
-    "POL-2026-0709": [{ type: "Fire", status: "Open", reportedOn: "2026-03-24", incurred: 624200, paid: 194250, reserved: 429950 }],
-    "POL-2026-0710": [{ type: "Collision", status: "Closed", reportedOn: "2026-03-24", incurred: 14890, paid: 14890, reserved: 0 }],
-    "POL-2026-0712": [{ type: "Death benefit", status: "Closed", reportedOn: "2025-12-16", incurred: 100600, paid: 100600, reserved: 0 }],
-    "POL-2026-0729": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-04-30", incurred: 746170, paid: 746170, reserved: 0 }],
-    "POL-2026-0742": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-05-01", incurred: 143450, paid: 143450, reserved: 0 }],
-    "POL-2026-0749": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-25", incurred: 8530, paid: 8530, reserved: 0 }],
-    "POL-2026-0758": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-04-11", incurred: 139340, paid: 139340, reserved: 0 }],
-    "POL-2026-0773": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-08-07", incurred: 10160, paid: 10160, reserved: 0 }],
-    "POL-2026-0777": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-05-13", incurred: 9730, paid: 9730, reserved: 0 }],
-    "POL-2026-0793": [{ type: "Fire", status: "Closed", reportedOn: "2026-08-19", incurred: 127050, paid: 127050, reserved: 0 }],
-    "POL-2026-0802": [{ type: "Theft", status: "Open", reportedOn: "2026-07-04", incurred: 14180, paid: 3340, reserved: 10840 }],
-    "POL-2026-0803": [{ type: "Collision", status: "Closed", reportedOn: "2026-07-08", incurred: 9220, paid: 9220, reserved: 0 }],
-    "POL-2026-0804": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-05-30", incurred: 790220, paid: 790220, reserved: 0 }],
-    "POL-2026-0807": [{ type: "Collision", status: "Open", reportedOn: "2026-06-02", incurred: 12760, paid: 3030, reserved: 9730 }],
-    "POL-2026-0834": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-03-03", incurred: 351090, paid: 351090, reserved: 0 }],
-    "POL-2026-0836": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-13", incurred: 1330, paid: 1330, reserved: 0 }],
-    "POL-2026-0838": [{ type: "Theft", status: "Closed", reportedOn: "2026-04-23", incurred: 20270, paid: 20270, reserved: 0 }],
-    "POL-2026-0843": [{ type: "Theft", status: "Closed", reportedOn: "2026-03-03", incurred: 11060, paid: 11060, reserved: 0 }],
-    "POL-2026-0851": [{ type: "Storm damage", status: "Closed", reportedOn: "2026-08-18", incurred: 1350630, paid: 1350630, reserved: 0 }],
-    "POL-2026-0854": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-08-09", incurred: 39640, paid: 39640, reserved: 0 }],
-    "POL-2026-0856": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-01-18", incurred: 145590, paid: 145590, reserved: 0 }],
-    "POL-2026-0865": [{ type: "Collision", status: "Closed", reportedOn: "2026-04-17", incurred: 8350, paid: 8350, reserved: 0 }],
-    "POL-2026-0868": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-06-30", incurred: 11210, paid: 11210, reserved: 0 }],
-    "POL-2026-0874": [{ type: "Inpatient treatment", status: "Open", reportedOn: "2026-04-09", incurred: 304160, paid: 98330, reserved: 205830 }],
-    "POL-2026-0876": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-19", incurred: 15210, paid: 15210, reserved: 0 }],
-    "POL-2026-0879": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-08-05", incurred: 151470, paid: 151470, reserved: 0 }],
-    "POL-2026-0883": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-01-13", incurred: 753580, paid: 753580, reserved: 0 }],
-    "POL-2026-0888": [{ type: "Machinery breakdown", status: "Open", reportedOn: "2026-06-25", incurred: 410900, paid: 180620, reserved: 230280 }],
-    "POL-2026-0900": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-08-21", incurred: 32460, paid: 32460, reserved: 0 }],
-    "POL-2026-0911": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-02", incurred: 45010, paid: 45010, reserved: 0 }],
-    "POL-2026-0912": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-16", incurred: 2260, paid: 2260, reserved: 0 }],
-    "POL-2026-0925": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-08-11", incurred: 568600, paid: 568600, reserved: 0 }],
-    "POL-2026-0935": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-05-02", incurred: 334000, paid: 334000, reserved: 0 }],
-    "POL-2026-0943": [{ type: "Water damage", status: "Closed", reportedOn: "2026-08-08", incurred: 23220, paid: 23220, reserved: 0 }],
-    "POL-2026-0949": [{ type: "Theft", status: "Closed", reportedOn: "2026-08-18", incurred: 14340, paid: 14340, reserved: 0 }],
-    "POL-2026-0977": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-03-16", incurred: 350740, paid: 350740, reserved: 0 }],
-    "POL-2026-0979": [{ type: "Theft in transit", status: "Open", reportedOn: "2026-06-12", incurred: 596560, paid: 113830, reserved: 482730 }],
-    "POL-2026-0980": [{ type: "Chronic condition management", status: "Open", reportedOn: "2026-08-07", incurred: 370170, paid: 82390, reserved: 287780 }],
-    "POL-2026-0988": [{ type: "Theft", status: "Closed", reportedOn: "2026-07-21", incurred: 2020, paid: 2020, reserved: 0 }],
-    "POL-2026-1013": [{ type: "Windshield damage", status: "Open", reportedOn: "2026-05-13", incurred: 15610, paid: 6110, reserved: 9500 }],
-    "POL-2026-1029": [{ type: "Wind damage", status: "Open", reportedOn: "2026-08-16", incurred: 22540, paid: 6980, reserved: 15560 }],
-    "POL-2026-1038": [{ type: "Fire", status: "Open", reportedOn: "2026-08-07", incurred: 424210, paid: 182840, reserved: 241370 }],
-    "POL-2026-1039": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-06-10", incurred: 477690, paid: 477690, reserved: 0 }],
-    "POL-2026-1042": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-21", incurred: 6060, paid: 6060, reserved: 0 }],
-    "POL-2026-1049": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2025-12-09", incurred: 178730, paid: 178730, reserved: 0 }],
-    "POL-2026-1055": [{ type: "Fire", status: "Closed", reportedOn: "2026-05-24", incurred: 1431410, paid: 1431410, reserved: 0 }],
-    "POL-2026-1056": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-02-21", incurred: 102730, paid: 102730, reserved: 0 }],
-    "POL-2026-1058": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-06-27", incurred: 286470, paid: 286470, reserved: 0 }],
-    "POL-2026-1061": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-04-24", incurred: 319930, paid: 319930, reserved: 0 }],
-    "POL-2026-1063": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-04-18", incurred: 10910, paid: 10910, reserved: 0 }],
-    "POL-2026-1073": [{ type: "Fire", status: "Closed", reportedOn: "2026-08-23", incurred: 20320, paid: 20320, reserved: 0 }],
-    "POL-2026-1079": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-08-16", incurred: 48430, paid: 48430, reserved: 0 }],
-    "POL-2026-1083": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-06-09", incurred: 259800, paid: 259800, reserved: 0 }],
-    "POL-2026-1091": [{ type: "Chronic condition management", status: "Open", reportedOn: "2026-08-14", incurred: 145260, paid: 78230, reserved: 67030 }],
-    "POL-2026-1111": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-04-21", incurred: 382770, paid: 382770, reserved: 0 }],
-    "POL-2026-1129": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-05-01", incurred: 164120, paid: 66580, reserved: 97540 }],
-    "POL-2026-1130": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-19", incurred: 4650, paid: 4650, reserved: 0 }],
-    "POL-2026-1135": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-05-05", incurred: 138420, paid: 138420, reserved: 0 }],
+    "POL-2024-09321": [{ type: "Fire", status: "Closed", reportedOn: "2026-05-11", incurred: 157660, paid: 157660, reserved: 0 }],
+    "POL-2025-11044": [{ type: "Collision", status: "Closed", reportedOn: "2026-03-03", incurred: 3420, paid: 3420, reserved: 0 }],
+    "POL-2025-12200": [{ type: "Water damage", status: "Closed", reportedOn: "2026-05-02", incurred: 8110, paid: 8110, reserved: 0 }],
+    "POL-2026-00988": [{ type: "Fire", status: "Closed", reportedOn: "2026-05-02", incurred: 280000, paid: 280000, reserved: 0 }],
+    "POL-2026-0244": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2025-06-01", incurred: 72710, paid: 72710, reserved: 0 }, { type: "Chronic condition management", status: "Closed", reportedOn: "2025-06-01", incurred: 91190, paid: 91190, reserved: 0 }],
+    "POL-2026-0246": [{ type: "Water damage", status: "Closed", reportedOn: "2025-07-08", incurred: 1730, paid: 1730, reserved: 0 }],
+    "POL-2026-0249": [{ type: "Death benefit", status: "Open", reportedOn: "2025-10-18", incurred: 270, paid: 80, reserved: 190 }],
+    "POL-2026-0264": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2025-08-29", incurred: 77700, paid: 77700, reserved: 0 }],
+    "POL-2026-0268": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2025-06-09", incurred: 73730, paid: 73730, reserved: 0 }, { type: "Inpatient treatment", status: "Closed", reportedOn: "2026-04-02", incurred: 87550, paid: 87550, reserved: 0 }],
+    "POL-2026-0273": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2025-06-01", incurred: 103040, paid: 103040, reserved: 0 }],
+    "POL-2026-0278": [{ type: "Hail damage", status: "Closed", reportedOn: "2025-06-01", incurred: 5620, paid: 5620, reserved: 0 }],
+    "POL-2026-0279": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2025-06-01", incurred: 266830, paid: 266830, reserved: 0 }],
+    "POL-2026-0282": [{ type: "Windshield damage", status: "Open", reportedOn: "2025-10-03", incurred: 3170, paid: 1680, reserved: 1490 }],
+    "POL-2026-0289": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2025-06-23", incurred: 301460, paid: 301460, reserved: 0 }, { type: "Surgical procedure", status: "Closed", reportedOn: "2025-07-04", incurred: 311850, paid: 311850, reserved: 0 }],
+    "POL-2026-0293": [{ type: "Collision", status: "Open", reportedOn: "2025-07-25", incurred: 7400, paid: 1330, reserved: 6070 }],
+    "POL-2026-0294": [{ type: "Water intrusion", status: "Open", reportedOn: "2025-11-03", incurred: 119230, paid: 42680, reserved: 76550 }],
+    "POL-2026-0298": [{ type: "Collision", status: "Open", reportedOn: "2025-11-29", incurred: 2090, paid: 1110, reserved: 980 }],
+    "POL-2026-0300": [{ type: "Theft", status: "Open", reportedOn: "2025-07-23", incurred: 2710, paid: 930, reserved: 1780 }],
+    "POL-2026-03003": [{ type: "Windshield damage", status: "Closed", reportedOn: "2026-06-11", incurred: 156080, paid: 156080, reserved: 0 }],
+    "POL-2026-03007": [{ type: "Collision", status: "Closed", reportedOn: "2026-03-13", incurred: 187700, paid: 187700, reserved: 0 }],
+    "POL-2026-03010": [{ type: "Windshield damage", status: "Open", reportedOn: "2026-07-15", incurred: 215270, paid: 116040, reserved: 99230 }],
+    "POL-2026-03013": [{ type: "Collision", status: "Open", reportedOn: "2026-01-23", incurred: 230940, paid: 83490, reserved: 147450 }],
+    "POL-2026-03014": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-03-07", incurred: 152080, paid: 152080, reserved: 0 }, { type: "Theft", status: "Closed", reportedOn: "2026-05-22", incurred: 236600, paid: 236600, reserved: 0 }],
+    "POL-2026-03015": [{ type: "Theft", status: "Closed", reportedOn: "2026-04-08", incurred: 258060, paid: 258060, reserved: 0 }],
+    "POL-2026-03016": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-02-09", incurred: 108220, paid: 108220, reserved: 0 }],
+    "POL-2026-03017": [{ type: "Collision", status: "Closed", reportedOn: "2026-05-23", incurred: 86340, paid: 86340, reserved: 0 }],
+    "POL-2026-03018": [{ type: "Windshield damage", status: "Closed", reportedOn: "2026-01-14", incurred: 187470, paid: 187470, reserved: 0 }],
+    "POL-2026-0302": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2025-06-01", incurred: 182990, paid: 182990, reserved: 0 }, { type: "Chronic condition management", status: "Open", reportedOn: "2025-06-01", incurred: 126980, paid: 59670, reserved: 67310 }],
+    "POL-2026-03020": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-05-10", incurred: 292790, paid: 292790, reserved: 0 }],
+    "POL-2026-0303": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2025-07-24", incurred: 132270, paid: 132270, reserved: 0 }, { type: "Surgical procedure", status: "Closed", reportedOn: "2025-12-11", incurred: 55850, paid: 55850, reserved: 0 }],
+    "POL-2026-0308": [{ type: "Cargo damage", status: "Closed", reportedOn: "2025-10-25", incurred: 93250, paid: 93250, reserved: 0 }],
+    "POL-2026-0309": [{ type: "Windshield damage", status: "Open", reportedOn: "2025-07-13", incurred: 2980, paid: 1070, reserved: 1910 }, { type: "Theft", status: "Open", reportedOn: "2025-08-06", incurred: 2270, paid: 550, reserved: 1720 }],
+    "POL-2026-0313": [{ type: "Death benefit", status: "Closed", reportedOn: "2025-06-15", incurred: 830, paid: 830, reserved: 0 }],
+    "POL-2026-0316": [{ type: "Cargo damage", status: "Closed", reportedOn: "2025-09-09", incurred: 129530, paid: 129530, reserved: 0 }, { type: "Cargo damage", status: "Closed", reportedOn: "2025-12-30", incurred: 109790, paid: 109790, reserved: 0 }, { type: "Cargo damage", status: "Open", reportedOn: "2026-01-23", incurred: 135300, paid: 63480, reserved: 71820 }],
+    "POL-2026-0318": [{ type: "Collision", status: "Closed", reportedOn: "2025-08-04", incurred: 8080, paid: 8080, reserved: 0 }],
+    "POL-2026-0320": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2025-10-25", incurred: 292400, paid: 292400, reserved: 0 }, { type: "Storm damage", status: "Closed", reportedOn: "2026-03-20", incurred: 172820, paid: 172820, reserved: 0 }],
+    "POL-2026-0323": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-03-10", incurred: 97520, paid: 97520, reserved: 0 }, { type: "Chronic condition management", status: "Closed", reportedOn: "2026-04-30", incurred: 54210, paid: 54210, reserved: 0 }],
+    "POL-2026-0325": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-08-19", incurred: 71460, paid: 71460, reserved: 0 }],
+    "POL-2026-0327": [{ type: "Theft in transit", status: "Closed", reportedOn: "2026-02-06", incurred: 163930, paid: 163930, reserved: 0 }],
+    "POL-2026-0334": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-04-17", incurred: 241850, paid: 241850, reserved: 0 }],
+    "POL-2026-0338": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-03-16", incurred: 147280, paid: 67080, reserved: 80200 }],
+    "POL-2026-0341": [{ type: "Storm damage", status: "Closed", reportedOn: "2026-01-26", incurred: 129930, paid: 129930, reserved: 0 }, { type: "Fire", status: "Open", reportedOn: "2026-06-04", incurred: 103340, paid: 31800, reserved: 71540 }],
+    "POL-2026-0342": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-24", incurred: 5710, paid: 5710, reserved: 0 }],
+    "POL-2026-0352": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-04-15", incurred: 208960, paid: 208960, reserved: 0 }],
+    "POL-2026-0353": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2025-11-16", incurred: 160120, paid: 160120, reserved: 0 }, { type: "Inpatient treatment", status: "Closed", reportedOn: "2026-07-16", incurred: 182630, paid: 182630, reserved: 0 }],
+    "POL-2026-0357": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-01-10", incurred: 253210, paid: 253210, reserved: 0 }, { type: "Inpatient treatment", status: "Closed", reportedOn: "2026-07-19", incurred: 163370, paid: 163370, reserved: 0 }],
+    "POL-2026-0360": [{ type: "Windshield damage", status: "Closed", reportedOn: "2025-11-24", incurred: 1500, paid: 1500, reserved: 0 }],
+    "POL-2026-0362": [{ type: "Theft", status: "Closed", reportedOn: "2025-11-21", incurred: 7170, paid: 7170, reserved: 0 }],
+    "POL-2026-0363": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-08-17", incurred: 159690, paid: 159690, reserved: 0 }],
+    "POL-2026-0364": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-07-11", incurred: 269630, paid: 269630, reserved: 0 }],
+    "POL-2026-0365": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-02-03", incurred: 1360, paid: 1360, reserved: 0 }],
+    "POL-2026-0374": [{ type: "Windshield damage", status: "Closed", reportedOn: "2026-05-28", incurred: 2100, paid: 2100, reserved: 0 }],
+    "POL-2026-0376": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-15", incurred: 2720, paid: 2720, reserved: 0 }],
+    "POL-2026-0378": [{ type: "Theft", status: "Closed", reportedOn: "2026-07-14", incurred: 5100, paid: 5100, reserved: 0 }],
+    "POL-2026-0380": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-07-09", incurred: 2900, paid: 2900, reserved: 0 }],
+    "POL-2026-0386": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-04-03", incurred: 148860, paid: 148860, reserved: 0 }, { type: "Theft in transit", status: "Closed", reportedOn: "2026-06-09", incurred: 203940, paid: 203940, reserved: 0 }],
+    "POL-2026-0395": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-03-15", incurred: 7950, paid: 7950, reserved: 0 }, { type: "Fire", status: "Closed", reportedOn: "2026-08-03", incurred: 9700, paid: 9700, reserved: 0 }],
+    "POL-2026-0398": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-04-08", incurred: 170790, paid: 170790, reserved: 0 }],
+    "POL-2026-0407": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2025-11-11", incurred: 178830, paid: 178830, reserved: 0 }],
+    "POL-2026-0412": [{ type: "Water damage", status: "Open", reportedOn: "2025-12-23", incurred: 212740, paid: 41040, reserved: 171700 }],
+    "POL-2026-0413": [{ type: "Theft in transit", status: "Closed", reportedOn: "2026-06-04", incurred: 104520, paid: 104520, reserved: 0 }],
+    "POL-2026-0415": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-06-20", incurred: 7110, paid: 7110, reserved: 0 }],
+    "POL-2026-0423": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-06-14", incurred: 400, paid: 400, reserved: 0 }],
+    "POL-2026-0429": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-07-01", incurred: 2310, paid: 2310, reserved: 0 }],
+    "POL-2026-0430": [{ type: "Windshield damage", status: "Open", reportedOn: "2026-08-15", incurred: 5000, paid: 2420, reserved: 2580 }],
+    "POL-2026-0436": [{ type: "Theft", status: "Closed", reportedOn: "2025-12-06", incurred: 4290, paid: 4290, reserved: 0 }],
+    "POL-2026-0439": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2025-12-01", incurred: 301110, paid: 301110, reserved: 0 }, { type: "Inpatient treatment", status: "Open", reportedOn: "2026-02-28", incurred: 216780, paid: 50920, reserved: 165860 }, { type: "Inpatient treatment", status: "Closed", reportedOn: "2026-03-17", incurred: 360790, paid: 360790, reserved: 0 }],
+    "POL-2026-0441": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-04-29", incurred: 311470, paid: 311470, reserved: 0 }],
+    "POL-2026-0442": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-08-19", incurred: 1340, paid: 1340, reserved: 0 }, { type: "Hail damage", status: "Closed", reportedOn: "2026-08-19", incurred: 1370, paid: 1370, reserved: 0 }, { type: "Hail damage", status: "Closed", reportedOn: "2026-08-19", incurred: 1970, paid: 1970, reserved: 0 }],
+    "POL-2026-0443": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-01-04", incurred: 1200, paid: 1200, reserved: 0 }],
+    "POL-2026-0444": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-20", incurred: 4610, paid: 4610, reserved: 0 }],
+    "POL-2026-0449": [{ type: "Fire", status: "Closed", reportedOn: "2026-04-09", incurred: 225400, paid: 225400, reserved: 0 }],
+    "POL-2026-0450": [{ type: "Storm damage", status: "Closed", reportedOn: "2026-07-19", incurred: 34020, paid: 34020, reserved: 0 }],
+    "POL-2026-0451": [{ type: "Theft in transit", status: "Closed", reportedOn: "2026-06-23", incurred: 48850, paid: 48850, reserved: 0 }],
+    "POL-2026-0453": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-06-19", incurred: 209020, paid: 209020, reserved: 0 }, { type: "Chronic condition management", status: "Closed", reportedOn: "2026-07-30", incurred: 138310, paid: 138310, reserved: 0 }],
+    "POL-2026-0454": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-26", incurred: 1880, paid: 1880, reserved: 0 }],
+    "POL-2026-0460": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-08-13", incurred: 440, paid: 440, reserved: 0 }],
+    "POL-2026-0461": [{ type: "Water damage", status: "Open", reportedOn: "2026-05-26", incurred: 499570, paid: 288380, reserved: 211190 }],
+    "POL-2026-0462": [{ type: "Storm damage", status: "Closed", reportedOn: "2026-05-28", incurred: 263450, paid: 263450, reserved: 0 }, { type: "Fire", status: "Closed", reportedOn: "2026-06-14", incurred: 234490, paid: 234490, reserved: 0 }],
+    "POL-2026-0464": [{ type: "Theft", status: "Closed", reportedOn: "2026-02-23", incurred: 2620, paid: 2620, reserved: 0 }, { type: "Windshield damage", status: "Closed", reportedOn: "2026-07-15", incurred: 1850, paid: 1850, reserved: 0 }],
+    "POL-2026-0465": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-25", incurred: 5000, paid: 5000, reserved: 0 }],
+    "POL-2026-0468": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-07-05", incurred: 204580, paid: 204580, reserved: 0 }],
+    "POL-2026-0469": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-01-31", incurred: 233640, paid: 233640, reserved: 0 }],
+    "POL-2026-0470": [{ type: "Storm damage", status: "Open", reportedOn: "2026-06-29", incurred: 74580, paid: 24620, reserved: 49960 }],
+    "POL-2026-0475": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-07-31", incurred: 313580, paid: 313580, reserved: 0 }, { type: "Machinery breakdown", status: "Open", reportedOn: "2026-08-02", incurred: 274130, paid: 142920, reserved: 131210 }, { type: "Machinery breakdown", status: "Closed", reportedOn: "2026-08-12", incurred: 269410, paid: 269410, reserved: 0 }],
+    "POL-2026-0477": [{ type: "Fire", status: "Open", reportedOn: "2026-03-05", incurred: 220800, paid: 120580, reserved: 100220 }],
+    "POL-2026-0480": [{ type: "Theft in transit", status: "Closed", reportedOn: "2026-06-27", incurred: 257320, paid: 257320, reserved: 0 }],
+    "POL-2026-0481": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-08-06", incurred: 200190, paid: 200190, reserved: 0 }],
+    "POL-2026-0484": [{ type: "Theft in transit", status: "Closed", reportedOn: "2026-03-30", incurred: 71860, paid: 71860, reserved: 0 }],
+    "POL-2026-0488": [{ type: "Windshield damage", status: "Open", reportedOn: "2026-03-02", incurred: 3020, paid: 1250, reserved: 1770 }, { type: "Windshield damage", status: "Closed", reportedOn: "2026-03-24", incurred: 1510, paid: 1510, reserved: 0 }],
+    "POL-2026-0491": [{ type: "Machinery breakdown", status: "Open", reportedOn: "2026-06-07", incurred: 96590, paid: 46760, reserved: 49830 }],
+    "POL-2026-0492": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-07-27", incurred: 206910, paid: 206910, reserved: 0 }, { type: "Surgical procedure", status: "Closed", reportedOn: "2026-08-03", incurred: 111240, paid: 111240, reserved: 0 }],
+    "POL-2026-0495": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-08-17", incurred: 1320, paid: 1320, reserved: 0 }],
+    "POL-2026-0498": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-01-27", incurred: 161790, paid: 161790, reserved: 0 }],
+    "POL-2026-0499": [{ type: "Water intrusion", status: "Closed", reportedOn: "2026-06-01", incurred: 117520, paid: 117520, reserved: 0 }, { type: "Cargo damage", status: "Closed", reportedOn: "2026-08-09", incurred: 110280, paid: 110280, reserved: 0 }],
+    "POL-2026-0501": [{ type: "Water intrusion", status: "Closed", reportedOn: "2025-11-19", incurred: 137170, paid: 137170, reserved: 0 }],
+    "POL-2026-0502": [{ type: "Water intrusion", status: "Closed", reportedOn: "2026-05-26", incurred: 165120, paid: 165120, reserved: 0 }],
+    "POL-2026-0505": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-16", incurred: 3320, paid: 3320, reserved: 0 }, { type: "Hail damage", status: "Closed", reportedOn: "2026-05-19", incurred: 4050, paid: 4050, reserved: 0 }],
+    "POL-2026-0507": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-05-25", incurred: 2550, paid: 2550, reserved: 0 }],
+    "POL-2026-0508": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-08-10", incurred: 340560, paid: 340560, reserved: 0 }],
+    "POL-2026-0509": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-06-11", incurred: 4910, paid: 4910, reserved: 0 }],
+    "POL-2026-0510": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-08-06", incurred: 1450, paid: 1450, reserved: 0 }],
+    "POL-2026-0511": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-07-25", incurred: 145580, paid: 145580, reserved: 0 }],
+    "POL-2026-0512": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-27", incurred: 3850, paid: 3850, reserved: 0 }],
+    "POL-2026-0513": [{ type: "Windshield damage", status: "Open", reportedOn: "2025-11-17", incurred: 2520, paid: 760, reserved: 1760 }],
+    "POL-2026-0519": [{ type: "Windshield damage", status: "Closed", reportedOn: "2026-04-17", incurred: 5640, paid: 5640, reserved: 0 }],
+    "POL-2026-0521": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-02-15", incurred: 3950, paid: 3950, reserved: 0 }],
+    "POL-2026-0522": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-01-27", incurred: 192230, paid: 90670, reserved: 101560 }],
+    "POL-2026-0523": [{ type: "Windshield damage", status: "Closed", reportedOn: "2026-03-02", incurred: 4130, paid: 4130, reserved: 0 }, { type: "Hail damage", status: "Closed", reportedOn: "2026-04-08", incurred: 3110, paid: 3110, reserved: 0 }],
+    "POL-2026-0524": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-06", incurred: 1570, paid: 1570, reserved: 0 }],
+    "POL-2026-0527": [{ type: "Hail damage", status: "Closed", reportedOn: "2025-12-01", incurred: 6890, paid: 6890, reserved: 0 }],
+    "POL-2026-0528": [{ type: "Cargo damage", status: "Open", reportedOn: "2026-08-09", incurred: 25900, paid: 13480, reserved: 12420 }],
+    "POL-2026-0530": [{ type: "Water intrusion", status: "Closed", reportedOn: "2026-05-26", incurred: 234000, paid: 234000, reserved: 0 }],
+    "POL-2026-0531": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-28", incurred: 4490, paid: 4490, reserved: 0 }],
+    "POL-2026-0540": [{ type: "Windshield damage", status: "Open", reportedOn: "2026-05-30", incurred: 5710, paid: 1380, reserved: 4330 }],
+    "POL-2026-0548": [{ type: "Inpatient treatment", status: "Open", reportedOn: "2026-08-01", incurred: 188980, paid: 43630, reserved: 145350 }],
+    "POL-2026-0549": [{ type: "Collision", status: "Closed", reportedOn: "2026-07-26", incurred: 1810, paid: 1810, reserved: 0 }],
+    "POL-2026-0557": [{ type: "Water intrusion", status: "Closed", reportedOn: "2026-07-20", incurred: 8250, paid: 8250, reserved: 0 }],
+    "POL-2026-0560": [{ type: "Death benefit", status: "Closed", reportedOn: "2025-10-30", incurred: 280, paid: 280, reserved: 0 }, { type: "Death benefit", status: "Closed", reportedOn: "2026-03-16", incurred: 650, paid: 650, reserved: 0 }, { type: "Death benefit", status: "Closed", reportedOn: "2026-05-12", incurred: 390, paid: 390, reserved: 0 }],
+    "POL-2026-0562": [{ type: "Hail damage", status: "Open", reportedOn: "2026-06-04", incurred: 2520, paid: 1310, reserved: 1210 }],
+    "POL-2026-0566": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-05-10", incurred: 6320, paid: 6320, reserved: 0 }],
+    "POL-2026-0567": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-27", incurred: 1330, paid: 1330, reserved: 0 }],
+    "POL-2026-0576": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-01-19", incurred: 364370, paid: 364370, reserved: 0 }],
+    "POL-2026-0579": [{ type: "Fire", status: "Open", reportedOn: "2026-04-14", incurred: 1760, paid: 650, reserved: 1110 }],
+    "POL-2026-0583": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2025-11-06", incurred: 231960, paid: 231960, reserved: 0 }],
+    "POL-2026-0585": [{ type: "Death benefit", status: "Open", reportedOn: "2026-05-14", incurred: 3520, paid: 1290, reserved: 2230 }],
+    "POL-2026-0594": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-08-10", incurred: 2890, paid: 2890, reserved: 0 }],
+    "POL-2026-0603": [{ type: "Water damage", status: "Closed", reportedOn: "2026-03-17", incurred: 274850, paid: 274850, reserved: 0 }],
+    "POL-2026-0604": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-01-18", incurred: 227820, paid: 227820, reserved: 0 }],
+    "POL-2026-0606": [{ type: "Fire", status: "Closed", reportedOn: "2026-03-13", incurred: 262520, paid: 262520, reserved: 0 }],
+    "POL-2026-0609": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-02-21", incurred: 288720, paid: 288720, reserved: 0 }, { type: "Surgical procedure", status: "Open", reportedOn: "2026-07-16", incurred: 181370, paid: 104630, reserved: 76740 }],
+    "POL-2026-0611": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-06-23", incurred: 198160, paid: 198160, reserved: 0 }],
+    "POL-2026-0613": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-07-25", incurred: 114250, paid: 114250, reserved: 0 }],
+    "POL-2026-0619": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-05-09", incurred: 1620, paid: 1620, reserved: 0 }],
+    "POL-2026-0621": [{ type: "Water damage", status: "Open", reportedOn: "2026-04-08", incurred: 3590, paid: 1110, reserved: 2480 }],
+    "POL-2026-0622": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-03-12", incurred: 2570, paid: 2570, reserved: 0 }],
+    "POL-2026-0625": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-03-14", incurred: 32770, paid: 32770, reserved: 0 }],
+    "POL-2026-0627": [{ type: "Collision", status: "Closed", reportedOn: "2026-07-21", incurred: 2340, paid: 2340, reserved: 0 }],
+    "POL-2026-0630": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-02-12", incurred: 3060, paid: 3060, reserved: 0 }],
+    "POL-2026-0640": [{ type: "Theft in transit", status: "Closed", reportedOn: "2025-12-12", incurred: 126930, paid: 126930, reserved: 0 }],
+    "POL-2026-0645": [{ type: "Theft", status: "Closed", reportedOn: "2026-04-26", incurred: 1140, paid: 1140, reserved: 0 }, { type: "Windshield damage", status: "Closed", reportedOn: "2026-05-17", incurred: 1530, paid: 1530, reserved: 0 }],
+    "POL-2026-0647": [{ type: "Fire", status: "Closed", reportedOn: "2026-02-03", incurred: 6960, paid: 6960, reserved: 0 }],
+    "POL-2026-0659": [{ type: "Machinery breakdown", status: "Closed", reportedOn: "2026-08-11", incurred: 13310, paid: 13310, reserved: 0 }],
+    "POL-2026-0661": [{ type: "Water damage", status: "Closed", reportedOn: "2026-02-03", incurred: 28110, paid: 28110, reserved: 0 }],
+    "POL-2026-0675": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-05-26", incurred: 3250, paid: 3250, reserved: 0 }],
+    "POL-2026-0677": [{ type: "Water intrusion", status: "Open", reportedOn: "2026-01-28", incurred: 117340, paid: 61880, reserved: 55460 }],
+    "POL-2026-0680": [{ type: "Fire", status: "Open", reportedOn: "2026-03-07", incurred: 8150, paid: 3740, reserved: 4410 }, { type: "Wind damage", status: "Open", reportedOn: "2026-07-12", incurred: 5550, paid: 2640, reserved: 2910 }],
+    "POL-2026-0685": [{ type: "Inpatient treatment", status: "Open", reportedOn: "2026-03-04", incurred: 152370, paid: 65140, reserved: 87230 }],
+    "POL-2026-0696": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-06-10", incurred: 286810, paid: 286810, reserved: 0 }],
+    "POL-2026-0703": [{ type: "Theft in transit", status: "Closed", reportedOn: "2025-12-14", incurred: 5390, paid: 5390, reserved: 0 }, { type: "Water intrusion", status: "Closed", reportedOn: "2026-07-09", incurred: 6440, paid: 6440, reserved: 0 }],
+    "POL-2026-0708": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-04-27", incurred: 520, paid: 520, reserved: 0 }],
+    "POL-2026-0711": [{ type: "Water damage", status: "Closed", reportedOn: "2026-05-02", incurred: 288840, paid: 288840, reserved: 0 }],
+    "POL-2026-0727": [{ type: "Collision", status: "Closed", reportedOn: "2026-01-02", incurred: 4450, paid: 4450, reserved: 0 }],
+    "POL-2026-0729": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-03-26", incurred: 291070, paid: 291070, reserved: 0 }, { type: "Surgical procedure", status: "Closed", reportedOn: "2026-04-28", incurred: 301290, paid: 301290, reserved: 0 }],
+    "POL-2026-0734": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-01-11", incurred: 42550, paid: 42550, reserved: 0 }],
+    "POL-2026-0740": [{ type: "Death benefit", status: "Closed", reportedOn: "2025-12-15", incurred: 1390, paid: 1390, reserved: 0 }, { type: "Death benefit", status: "Open", reportedOn: "2026-06-08", incurred: 970, paid: 160, reserved: 810 }],
+    "POL-2026-0752": [{ type: "Chronic condition management", status: "Open", reportedOn: "2026-05-02", incurred: 159530, paid: 78870, reserved: 80660 }],
+    "POL-2026-0757": [{ type: "Windshield damage", status: "Closed", reportedOn: "2026-02-27", incurred: 2370, paid: 2370, reserved: 0 }],
+    "POL-2026-0760": [{ type: "Collision", status: "Closed", reportedOn: "2025-10-13", incurred: 5050, paid: 5050, reserved: 0 }],
+    "POL-2026-0764": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-30", incurred: 1210, paid: 1210, reserved: 0 }],
+    "POL-2026-0765": [{ type: "Collision", status: "Closed", reportedOn: "2026-08-02", incurred: 2290, paid: 2290, reserved: 0 }],
+    "POL-2026-0769": [{ type: "Cargo damage", status: "Closed", reportedOn: "2026-03-17", incurred: 70060, paid: 70060, reserved: 0 }],
+    "POL-2026-0781": [{ type: "Storm damage", status: "Closed", reportedOn: "2025-09-23", incurred: 264050, paid: 264050, reserved: 0 }],
+    "POL-2026-0792": [{ type: "Theft", status: "Closed", reportedOn: "2026-06-16", incurred: 4310, paid: 4310, reserved: 0 }],
+    "POL-2026-0795": [{ type: "Death benefit", status: "Open", reportedOn: "2026-01-25", incurred: 2840, paid: 1210, reserved: 1630 }],
+    "POL-2026-0804": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-05-27", incurred: 329630, paid: 329630, reserved: 0 }],
+    "POL-2026-0820": [{ type: "Fire", status: "Closed", reportedOn: "2026-01-19", incurred: 2590, paid: 2590, reserved: 0 }],
+    "POL-2026-0829": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-07-12", incurred: 250, paid: 250, reserved: 0 }],
+    "POL-2026-0836": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-12", incurred: 1220, paid: 1220, reserved: 0 }],
+    "POL-2026-0843": [{ type: "Theft", status: "Closed", reportedOn: "2026-03-01", incurred: 4750, paid: 4750, reserved: 0 }],
+    "POL-2026-0844": [{ type: "Theft", status: "Closed", reportedOn: "2026-03-18", incurred: 2970, paid: 2970, reserved: 0 }],
+    "POL-2026-0846": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-03-29", incurred: 1620, paid: 1620, reserved: 0 }],
+    "POL-2026-0847": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-08-16", incurred: 1040, paid: 1040, reserved: 0 }],
+    "POL-2026-0856": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-01-18", incurred: 87110, paid: 87110, reserved: 0 }, { type: "Surgical procedure", status: "Open", reportedOn: "2026-08-02", incurred: 143920, paid: 34460, reserved: 109460 }],
+    "POL-2026-0865": [{ type: "Collision", status: "Closed", reportedOn: "2026-04-15", incurred: 4980, paid: 4980, reserved: 0 }],
+    "POL-2026-0876": [{ type: "Theft", status: "Closed", reportedOn: "2026-01-18", incurred: 6550, paid: 6550, reserved: 0 }],
+    "POL-2026-0880": [{ type: "Fire", status: "Open", reportedOn: "2026-05-27", incurred: 1610, paid: 810, reserved: 800 }],
+    "POL-2026-0881": [{ type: "Water damage", status: "Closed", reportedOn: "2026-04-28", incurred: 115300, paid: 115300, reserved: 0 }],
+    "POL-2026-0891": [{ type: "Water damage", status: "Closed", reportedOn: "2025-11-12", incurred: 260470, paid: 260470, reserved: 0 }],
+    "POL-2026-0899": [{ type: "Windshield damage", status: "Closed", reportedOn: "2026-08-03", incurred: 2740, paid: 2740, reserved: 0 }],
+    "POL-2026-0900": [{ type: "Wind damage", status: "Closed", reportedOn: "2026-08-18", incurred: 7240, paid: 7240, reserved: 0 }],
+    "POL-2026-0903": [{ type: "Water damage", status: "Closed", reportedOn: "2026-07-26", incurred: 56470, paid: 56470, reserved: 0 }],
+    "POL-2026-0907": [{ type: "Theft in transit", status: "Closed", reportedOn: "2026-02-06", incurred: 77570, paid: 77570, reserved: 0 }],
+    "POL-2026-0921": [{ type: "Collision", status: "Closed", reportedOn: "2026-08-16", incurred: 3090, paid: 3090, reserved: 0 }],
+    "POL-2026-0922": [{ type: "Theft", status: "Closed", reportedOn: "2026-07-02", incurred: 5520, paid: 5520, reserved: 0 }],
+    "POL-2026-0930": [{ type: "Water damage", status: "Closed", reportedOn: "2026-01-09", incurred: 1550, paid: 1550, reserved: 0 }],
+    "POL-2026-0931": [{ type: "Fire", status: "Open", reportedOn: "2026-03-04", incurred: 1120, paid: 520, reserved: 600 }],
+    "POL-2026-0935": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-04-29", incurred: 175110, paid: 175110, reserved: 0 }],
+    "POL-2026-0940": [{ type: "Water damage", status: "Closed", reportedOn: "2026-03-05", incurred: 239140, paid: 239140, reserved: 0 }],
+    "POL-2026-0944": [{ type: "Collision", status: "Closed", reportedOn: "2026-07-26", incurred: 4600, paid: 4600, reserved: 0 }],
+    "POL-2026-0949": [{ type: "Theft", status: "Closed", reportedOn: "2026-08-14", incurred: 6100, paid: 6100, reserved: 0 }],
+    "POL-2026-0958": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-07-07", incurred: 4180, paid: 4180, reserved: 0 }],
+    "POL-2026-0959": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-04-18", incurred: 277180, paid: 277180, reserved: 0 }, { type: "Surgical procedure", status: "Closed", reportedOn: "2026-06-17", incurred: 200810, paid: 200810, reserved: 0 }],
+    "POL-2026-0968": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-01-09", incurred: 220990, paid: 220990, reserved: 0 }, { type: "Surgical procedure", status: "Closed", reportedOn: "2026-06-20", incurred: 188810, paid: 188810, reserved: 0 }, { type: "Inpatient treatment", status: "Closed", reportedOn: "2026-07-10", incurred: 167080, paid: 167080, reserved: 0 }],
+    "POL-2026-0975": [{ type: "Water intrusion", status: "Closed", reportedOn: "2026-08-02", incurred: 24040, paid: 24040, reserved: 0 }],
+    "POL-2026-0976": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-08-07", incurred: 1310, paid: 1310, reserved: 0 }],
+    "POL-2026-0991": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-08-16", incurred: 500, paid: 500, reserved: 0 }],
+    "POL-2026-0999": [{ type: "Water damage", status: "Open", reportedOn: "2026-06-29", incurred: 2390, paid: 440, reserved: 1950 }],
+    "POL-2026-1000": [{ type: "Theft", status: "Open", reportedOn: "2026-06-26", incurred: 1520, paid: 530, reserved: 990 }],
+    "POL-2026-1004": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-07-30", incurred: 181290, paid: 181290, reserved: 0 }],
+    "POL-2026-1009": [{ type: "Water damage", status: "Closed", reportedOn: "2026-03-30", incurred: 9060, paid: 9060, reserved: 0 }, { type: "Fire", status: "Closed", reportedOn: "2026-04-23", incurred: 7940, paid: 7940, reserved: 0 }],
+    "POL-2026-1010": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-01-24", incurred: 1860, paid: 1860, reserved: 0 }],
+    "POL-2026-1014": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-04-27", incurred: 88050, paid: 88050, reserved: 0 }],
+    "POL-2026-1018": [{ type: "Water intrusion", status: "Closed", reportedOn: "2025-12-10", incurred: 71710, paid: 71710, reserved: 0 }, { type: "Water intrusion", status: "Open", reportedOn: "2026-05-06", incurred: 93620, paid: 18980, reserved: 74640 }],
+    "POL-2026-1024": [{ type: "Water intrusion", status: "Closed", reportedOn: "2025-11-05", incurred: 66900, paid: 66900, reserved: 0 }],
+    "POL-2026-1039": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-06-08", incurred: 185910, paid: 185910, reserved: 0 }],
+    "POL-2026-1040": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-08-10", incurred: 3330, paid: 3330, reserved: 0 }],
+    "POL-2026-1042": [{ type: "Theft", status: "Closed", reportedOn: "2026-05-26", incurred: 1600, paid: 1600, reserved: 0 }, { type: "Hail damage", status: "Closed", reportedOn: "2026-07-18", incurred: 2880, paid: 2880, reserved: 0 }],
+    "POL-2026-1044": [{ type: "Windshield damage", status: "Closed", reportedOn: "2026-02-28", incurred: 1870, paid: 1870, reserved: 0 }],
+    "POL-2026-1049": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2025-12-09", incurred: 106180, paid: 106180, reserved: 0 }],
+    "POL-2026-1050": [{ type: "Water damage", status: "Open", reportedOn: "2026-04-21", incurred: 163620, paid: 39730, reserved: 123890 }],
+    "POL-2026-1056": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-02-19", incurred: 82670, paid: 82670, reserved: 0 }],
+    "POL-2026-1061": [{ type: "Surgical procedure", status: "Closed", reportedOn: "2026-04-22", incurred: 190080, paid: 190080, reserved: 0 }],
+    "POL-2026-1064": [{ type: "Storm damage", status: "Closed", reportedOn: "2026-01-20", incurred: 55240, paid: 55240, reserved: 0 }],
+    "POL-2026-1066": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-07-14", incurred: 1210, paid: 1210, reserved: 0 }],
+    "POL-2026-1067": [{ type: "Water damage", status: "Open", reportedOn: "2026-01-31", incurred: 102290, paid: 20230, reserved: 82060 }],
+    "POL-2026-1079": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-03-22", incurred: 108000, paid: 108000, reserved: 0 }, { type: "Inpatient treatment", status: "Closed", reportedOn: "2026-08-12", incurred: 46760, paid: 46760, reserved: 0 }],
+    "POL-2026-1082": [{ type: "Inpatient treatment", status: "Closed", reportedOn: "2026-07-27", incurred: 272820, paid: 272820, reserved: 0 }],
+    "POL-2026-1089": [{ type: "Machinery breakdown", status: "Open", reportedOn: "2026-07-15", incurred: 54860, paid: 18360, reserved: 36500 }],
+    "POL-2026-1092": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-07-30", incurred: 1290, paid: 1290, reserved: 0 }],
+    "POL-2026-1096": [{ type: "Surgical procedure", status: "Open", reportedOn: "2025-10-01", incurred: 263610, paid: 53960, reserved: 209650 }],
+    "POL-2026-1102": [{ type: "Hail damage", status: "Closed", reportedOn: "2025-11-07", incurred: 4440, paid: 4440, reserved: 0 }, { type: "Theft", status: "Closed", reportedOn: "2025-11-13", incurred: 8520, paid: 8520, reserved: 0 }],
+    "POL-2026-1103": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-04-28", incurred: 102810, paid: 102810, reserved: 0 }],
+    "POL-2026-1104": [{ type: "Theft in transit", status: "Closed", reportedOn: "2026-05-22", incurred: 151910, paid: 151910, reserved: 0 }],
+    "POL-2026-1105": [{ type: "Water damage", status: "Closed", reportedOn: "2026-04-04", incurred: 3350, paid: 3350, reserved: 0 }],
+    "POL-2026-1109": [{ type: "Water damage", status: "Open", reportedOn: "2026-04-27", incurred: 33970, paid: 20370, reserved: 13600 }],
+    "POL-2026-1116": [{ type: "Hail damage", status: "Closed", reportedOn: "2026-07-08", incurred: 6210, paid: 6210, reserved: 0 }],
+    "POL-2026-1121": [{ type: "Death benefit", status: "Closed", reportedOn: "2026-02-28", incurred: 1800, paid: 1800, reserved: 0 }],
+    "POL-2026-1123": [{ type: "Fire", status: "Open", reportedOn: "2026-02-26", incurred: 7030, paid: 3080, reserved: 3950 }, { type: "Theft", status: "Open", reportedOn: "2026-04-26", incurred: 7790, paid: 3300, reserved: 4490 }, { type: "Theft", status: "Closed", reportedOn: "2026-07-28", incurred: 3410, paid: 3410, reserved: 0 }],
+    "POL-2026-1129": [{ type: "Surgical procedure", status: "Open", reportedOn: "2026-04-28", incurred: 120240, paid: 59320, reserved: 60920 }],
+    "POL-2026-1140": [{ type: "Chronic condition management", status: "Closed", reportedOn: "2026-01-06", incurred: 301680, paid: 301680, reserved: 0 }],
   };
   PAS.CLAIMS_BY_ID = CLAIMS_BY_ID;
 
@@ -772,14 +905,139 @@ var CLAIMS_BY_ID = {
     return out;
   }
   PAS.allClaims = allClaims;
-  /* Loss ratio: incurred ÷ premium, across whatever set of policies is passed in — the caller
-     decides the denominator (the whole active book, one state, one LOB) by filtering first. */
-  function lossRatio(policies) {
-    var premium = policies.reduce(function (s, p) { return s + (Number(p.premium) || 0); }, 0);
-    var incurred = allClaims(policies).reduce(function (s, x) { return s + x.c.incurred; }, 0);
-    return premium ? incurred / premium : 0;
+
+  /* ================= the financial model =================
+     Everything the dashboard reports as revenue, cost or profit comes from this one block, so
+     two panels can never quote different numbers for the same thing.
+
+     ---- Why EARNED premium, not WRITTEN premium ----
+     Written premium is the whole annual premium the moment a policy incepts. Earned premium is
+     only the part the insurer has actually been on risk for. A policy written last week has its
+     full annual premium "written" but has earned barely any of it — so dividing claims by
+     WRITTEN premium flatters the loss ratio badly on a growing book. This book is roughly half
+     earned on average, so the old written-basis figure understated the true loss ratio by
+     about half (it read ~57% when the earned basis says ~116%): the difference between
+     "comfortably profitable" and "underwater". Loss ratio is always incurred ÷ EARNED. */
+
+  /* A policy earns its premium evenly across its term. Lifetime basis: every completed prior
+     term is fully earned, plus however much of the current term has run. termNumber is 1-based,
+     so a policy in term 3 that is 40% through has earned 2.4x its annual premium over its life —
+     which is the right denominator for `p.claims`, since that array is the policy's whole claim
+     history, not just this term's. */
+  function earnedFraction(policy) {
+    var totalDays = Math.max(1, daysBetween(policy.effectiveDate, policy.expirationDate));
+    var elapsed = daysBetween(policy.effectiveDate, todayISO());
+    var thisTerm = Math.max(0, Math.min(1, elapsed / totalDays));
+    var priorTerms = Math.max(0, (Number(policy.termNumber) || 1) - 1);
+    return priorTerms + thisTerm;
   }
+  function earnedPremium(policy) { return (Number(policy.premium) || 0) * earnedFraction(policy); }
+  PAS.earnedFraction = earnedFraction;
+  PAS.earnedPremium = earnedPremium;
+
+  /* ---- Commission: an MGA's actual revenue ----
+     Veridex is an MGA. It does NOT own the premium — that belongs to the carrier whose paper the
+     risk is written on. The MGA's revenue is the COMMISSION it earns for placing and servicing
+     the business, so reporting premium as "revenue" would overstate what this business actually
+     earns by roughly 7x. Rates vary by line: personal lines pay more than large commercial,
+     because the same percentage on a small premium has to cover the same handling cost. */
+  var COMMISSION_RATES = {
+    "Commercial Property": 0.15,
+    "Comprehensive Auto": 0.12,
+    "Marine Cargo": 0.15,
+    "Group Health": 0.10,
+    "Home Owners": 0.18,
+    "Term Life": 0.20,
+  };
+  var DEFAULT_COMMISSION_RATE = 0.15;
+  /* Where a broker placed the risk, they take the larger share of that commission and the MGA
+     keeps the rest. Business written "Direct" has no broker to pay, so the MGA keeps all of it —
+     which is why Direct business earns far more per premium dollar than brokered business, a
+     real margin difference the segment table below surfaces rather than averaging away. */
+  var BROKER_COMMISSION_SHARE = 0.55;
+  PAS.COMMISSION_RATES = COMMISSION_RATES;
+  PAS.DEFAULT_COMMISSION_RATE = DEFAULT_COMMISSION_RATE;
+  PAS.BROKER_COMMISSION_SHARE = BROKER_COMMISSION_SHARE;
+
+  function commissionRateOf(policy) {
+    var r = COMMISSION_RATES[policy.product];
+    return typeof r === "number" ? r : DEFAULT_COMMISSION_RATE;
+  }
+  function isDirect(policy) { return !policy.producer || policy.producer === "Direct"; }
+  PAS.commissionRateOf = commissionRateOf;
+
+  /* The full P&L for any set of policies. One function, so the KPI row, the segment table and
+     the waterfall are mathematically incapable of disagreeing — they all read this.
+     Combined ratio is the industry's profitability test: under 100% the book makes an
+     underwriting profit, over 100% it loses money before any investment return. */
+  function bookFinancials(policies) {
+    var written = 0, earned = 0, commission = 0, brokerCommission = 0;
+    policies.forEach(function (p) {
+      var prem = Number(p.premium) || 0;
+      var e = earnedPremium(p);
+      var rate = commissionRateOf(p);
+      written += prem;
+      earned += e;
+      /* Commission is earned as the premium is earned, not banked up-front — the same accrual
+         basis as the loss ratio, so revenue and losses are always measured over one period. */
+      var comm = e * rate;
+      commission += comm;
+      if (!isDirect(p)) brokerCommission += comm * BROKER_COMMISSION_SHARE;
+    });
+    var claims = allClaims(policies);
+    var incurred = claims.reduce(function (s, x) { return s + (Number(x.c.incurred) || 0); }, 0);
+    var paid = claims.reduce(function (s, x) { return s + (Number(x.c.paid) || 0); }, 0);
+    var reserved = claims.filter(function (x) { return x.c.status === "Open"; })
+      .reduce(function (s, x) { return s + (Number(x.c.reserved) || 0); }, 0);
+
+    var lr = earned ? incurred / earned : 0;
+    /* Expense ratio here is ACQUISITION cost only — the commission paid away to put the business
+       on the books. It deliberately excludes the carrier's own overhead, which this system has
+       no data for. So the combined ratio below is a FLOOR: the real one is higher by whatever
+       opex the carrier carries. Stated plainly rather than quietly passed off as complete. */
+    var er = earned ? commission / earned : 0;
+    return {
+      policies: policies.length,
+      writtenPremium: written,
+      earnedPremium: earned,
+      unearnedPremium: Math.max(0, written - earned),
+      commission: commission,
+      brokerCommission: brokerCommission,
+      netCommission: commission - brokerCommission,
+      claimCount: claims.length,
+      openClaimCount: claims.filter(function (x) { return x.c.status === "Open"; }).length,
+      incurred: incurred,
+      paid: paid,
+      reserved: reserved,
+      lossRatio: lr,
+      paidLossRatio: earned ? paid / earned : 0,
+      expenseRatio: er,
+      combinedRatio: lr + er,
+      /* The money answer, not just a percentage: what this business actually made or lost. */
+      underwritingResult: earned - incurred - commission,
+    };
+  }
+  PAS.bookFinancials = bookFinancials;
+
+  /* Loss ratio: incurred ÷ EARNED premium, across whatever set of policies is passed in — the
+     caller decides the denominator (the whole book, one state, one LOB) by filtering first. */
+  function lossRatio(policies) { return bookFinancials(policies).lossRatio; }
   PAS.lossRatio = lossRatio;
+
+  /* ---- Which policies belong in a financial view ----
+     Only business that actually went on risk. A Referred or Declined submission never attached,
+     and a Bound policy has not incepted yet, so none of them have earned a rupee or could have
+     had a claim — including them would dilute every ratio with pure zeroes.
+
+     Cancelled, Expired and Non-renewed policies ARE included, and that matters: they were on
+     risk, they earned premium, and they had claims. Measuring loss ratio over Active policies
+     alone is survivorship bias in its purest form — the business that went bad is exactly the
+     business that gets cancelled, so excluding it reports the loss ratio of the survivors and
+     calls it the loss ratio of the book. */
+  var ON_RISK_STATUSES = { Active: 1, Cancelled: 1, Expired: 1, "Non-renewed": 1 };
+  PAS.ON_RISK_STATUSES = ON_RISK_STATUSES;
+  PAS.isOnRisk = function (p) { return !!ON_RISK_STATUSES[p.status]; };
+  PAS.onRiskPolicies = function (policies) { return policies.filter(PAS.isOnRisk); };
   /* ---------- coverage-wise breakdown ----------
      Every product's premium is split across the layers of cover it's actually built from — real
      percentages applied to each policy's own premium, not a fabricated number. The split is a

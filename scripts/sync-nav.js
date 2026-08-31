@@ -26,11 +26,14 @@ function navItemHtml(pageKey, label, icon, href, active) {
 }
 
 function sidebarHtml(activeNavKey) {
-  var out = ['    <nav class="sidebar" id="sidebar" role="navigation" aria-label="Main">'];
+  var out = ['    <nav class="sidebar" id="sidebar" role="navigation" aria-label="Primary">'];
   out.push('  <div class="sidebar-brand">');
-  out.push('    <div class="sidebar-brand-mark">' + PAS.iconHtml("building-2", { size: 13, color: "#fff" }) + "</div>");
-  out.push("    <div>");
-  out.push('      <div class="sidebar-brand-name">Veridex PAS</div>');
+  /* The vD monogram mark (framework §2/§23) — a lettermark, not a Phosphor icon glyph, so it's
+     inlined directly rather than routed through PAS.iconHtml/ICONS. Matches assets/favicon.svg's
+     "vD" letterform so the shell mark and the browser-tab mark are the same brand asset. */
+  out.push('    <div class="sidebar-brand-mark" aria-hidden="true">vD</div>');
+  out.push('    <div class="sidebar-brand-text">');
+  out.push('      <div class="sidebar-brand-name">VeriDex PAS</div>');
   out.push('      <div class="sidebar-brand-sub">Policy administration</div>');
   out.push("    </div>");
   out.push("  </div>");
@@ -44,7 +47,8 @@ function sidebarHtml(activeNavKey) {
     out.push("  </div>");
   });
   out.push('  <div class="sidebar-footer">');
-  out.push('    <button class="reset-demo-btn" id="reset-demo-btn" type="button">' + PAS.iconHtml("rotate-ccw", { size: 12 }) + " Reset demo data</button>");
+  out.push('    <button class="reset-demo-btn" id="reset-demo-btn" type="button">' + PAS.iconHtml("rotate-ccw", { size: 12 }) + ' <span class="reset-demo-label">Reset demo data</span></button>');
+  out.push('    <button class="nav-collapse-btn" id="nav-collapse-btn" type="button" aria-label="Collapse navigation" aria-expanded="true">' + PAS.iconHtml("arrow-left", { size: 12 }) + ' <span class="nav-collapse-label">Collapse nav</span></button>');
   out.push("  </div>");
   out.push("</nav>");
   return out.join("\n");

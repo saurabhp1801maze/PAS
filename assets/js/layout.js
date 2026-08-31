@@ -7,6 +7,37 @@
   var PAS = global.PAS;
   var ui = PAS.ui;
 
+  /* §12 dirty-state warning: a native confirm() before leaving a page with unsaved input.
+     Every page here is a real HTML document (no client-side router), so a plain `beforeunload`
+     listener already fires for all four vectors the framework lists — nav-item click, browser
+     back, tab close, browser close — a `<a href>` click is a real navigation, not a route change.
+     ".field-input" is this app's existing convention for genuine data-entry fields (request forms,
+     decision-desk comments, admin config) as opposed to search boxes/filters (".register-search-
+     input", ".register-select"), so scoping to it avoids nagging on read-only filter changes.
+     Cleared centrally from store.js's PAS.decide*() commit points on a successful/declined
+     decision, so the redirect right after a submit doesn't itself trip the warning. */
+  var dirty = false;
+  PAS.setDirty = function (v) { dirty = !!v; };
+  PAS.isDirty = function () { return dirty; };
+  PAS.clearDirty = function () { dirty = false; };
+
+  function wireDirtyStateWarning() {
+    /* Listens on document, not #page-content: the decision-confirmation modal (ui.js
+       confirmDecision) appends its overlay straight to document.body as a floating layer, so a
+       page-content-scoped listener never sees input typed into its required comment field. */
+    function onFieldEvent(e) {
+      if (e.target && e.target.classList && e.target.classList.contains("field-input")) PAS.setDirty(true);
+    }
+    document.addEventListener("input", onFieldEvent);
+    document.addEventListener("change", onFieldEvent);
+    window.addEventListener("beforeunload", function (e) {
+      if (!dirty) return;
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    });
+  }
+
   function ensureToastContainer() {
     var el = document.getElementById("toast-container");
     if (!el) {
@@ -343,6 +374,7 @@
     wireReset();
     wireNavCollapse();
     wireDensityToggle();
+    wireDirtyStateWarning();
     wireSearch();
     wireBell();
     wireRole();

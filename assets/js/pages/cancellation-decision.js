@@ -202,6 +202,7 @@
             onRun: function (c) { return decide(true, c); },
             disabled: approveBlocked,
             disabledReason: approveDisabledReason,
+            typedConfirm: p.id,
           }),
           ui.confirmable(p.id, txnId, "Decline", { label: "Decline request", icon: "ban", onRun: function (c) { return decide(false, c); } }),
           ui.confirmable(p.id, txnId, "Escalate", { label: "Escalate", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate") }),

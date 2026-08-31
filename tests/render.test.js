@@ -511,7 +511,14 @@ console.log("\n  dashboard financial section: renders the engine's own numbers")
   vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var P = stub.PAS;
-  var f = P.bookFinancials(P.onRiskPolicies(P.getPolicies()));
+  /* The dashboard's Financial performance section is period-scoped (Monthly/Quarterly/Yearly/
+     custom, default Monthly) via PAS.bookFinancialsInWindow, not the as-of-today PAS.bookFinancials
+     snapshot — so the figure to match on screen is the current calendar month's window, the
+     toggle's default, not the whole book to date. */
+  var today = new Date(P.todayISO() + "T00:00:00Z");
+  var monthFrom = P.todayISO().slice(0, 7) + "-01";
+  var monthTo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
+  var f = P.bookFinancialsInWindow(P.onRiskPolicies(P.getPolicies()), monthFrom, monthTo);
   var txt = renderText("dashboard");
 
   ["Financial performance", "Written premium", "Earned premium", "Commission revenue", "Loss ratio", "Combined ratio", "Where the premium went", "Profit & loss by segment"].forEach(function (n) {
@@ -949,7 +956,7 @@ console.log("\n  policy-detail: \"Underwritten by\" shows the real decision-make
   var uwRow = withUw.history.filter(function (h) { return h.type === "Underwriting" && h.status === "Completed"; }).sort(function (a, b) { return b.seq - a.seq; })[0];
   if (uwRow.user === withUw.producer) { fails++; console.log("  FAIL  test fixture coincidence — decision-maker and producer are the same string, can't prove they're independently sourced"); return; }
 
-  var txt = renderText("policy-detail", "?policy=" + encodeURIComponent(withUw.id) + "&tab=cover");
+  var txt = renderText("policy-detail", "?policy=" + encodeURIComponent(withUw.id) + "&tab=parties");
   if (txt.indexOf("Underwritten by") === -1) { fails++; console.log('  FAIL  policy-detail missing "Underwritten by"'); }
   else if (txt.indexOf(uwRow.user) === -1) { fails++; console.log('  FAIL  policy-detail does not show the real decision-maker "' + uwRow.user + '"'); }
   else if (txt.indexOf(withUw.producer) === -1) { fails++; console.log('  FAIL  policy-detail no longer shows the real Producer "' + withUw.producer + '"'); }

@@ -167,7 +167,7 @@ button { font-family: inherit; }
 .sidebar.collapsed .nav-item-label, .sidebar.collapsed .reset-demo-label, .sidebar.collapsed .nav-collapse-label { display: none; }
 .sidebar.collapsed .nav-item, .sidebar.collapsed .reset-demo-btn, .sidebar.collapsed .nav-collapse-btn { justify-content: center; padding-inline: 0; }
 .sidebar-brand { display: flex; align-items: center; gap: 8px; padding: 0 7px 16px; }
-.sidebar-brand-mark { width: 24px; height: 24px; border-radius: 6px; background: var(--color-brand-gradient); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.sidebar-brand-mark { width: 24px; height: 24px; border-radius: 6px; background: var(--color-brand-gradient); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 11px; font-weight: 800; color: #fff; line-height: 1; letter-spacing: -0.3px; }
 .sidebar-brand-name { font-size: 13px; font-weight: 800; color: #fff; line-height: 1.2; }
 .sidebar-brand-sub { font-size: 9px; color: var(--color-shell-text); }
 .nav-group { margin-bottom: 12px; }

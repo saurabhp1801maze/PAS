@@ -860,7 +860,7 @@
       var confirmBtn = h("button", { class: "btn tone-" + btnTone, type: "button", disabled: true }, PAS.t("action.confirm", "Confirm"));
       function sync() {
         var n = ta.value.trim().length;
-        var ok = n > 0;
+        var ok = n > 0 && (!opts.typedConfirm || (typedInput && typedInput.value.trim() === opts.typedConfirm));
         confirmBtn.disabled = !ok;
         counter.textContent = n + " / " + minRec + " recommended";
         counter.setAttribute("data-state", n === 0 ? "empty" : n < minRec ? "short" : "ok");
@@ -884,6 +884,17 @@
         categorySelect = h("select", { class: "field-input" });
         (PAS.ISSUE_CATEGORIES || ["Other"]).forEach(function (c) { categorySelect.appendChild(h("option", { value: c }, c)); });
         modal.appendChild(field({ label: "Category", hint: "Routes this to the right team — one dropdown instead of a separate button per issue type." }, categorySelect));
+      }
+
+      /* §10.16 typed confirmation: for the handful of actions that are genuinely hard to reverse
+         (cancelling a bound policy, for example), requiring the record ID to be retyped is extra
+         friction the framework says to spend specifically where the risk justifies it — not on
+         every decision, which is why this is opt-in via opts.typedConfirm rather than default. */
+      var typedInput = null;
+      if (opts.typedConfirm) {
+        typedInput = h("input", { class: "field-input", type: "text", autocomplete: "off", spellcheck: "false" });
+        modal.appendChild(field({ label: "Type " + opts.typedConfirm + " to confirm", hint: "This action is hard to reverse — retype the record ID to proceed." }, typedInput));
+        typedInput.addEventListener("input", sync);
       }
 
       var actions = h("div", { class: "decision-modal-actions" });
@@ -925,6 +936,12 @@
       confirmBtn.addEventListener("click", function () {
         var comment = ta.value.trim();
         if (!comment) return;
+        if (opts.typedConfirm && (!typedInput || typedInput.value.trim() !== opts.typedConfirm)) return;
+        /* The record is being submitted now — every decision desk (Approve/Decline/Escalate/
+           Request more information/etc.) funnels through this one modal, so this is the single
+           place that needs to clear the §12 dirty flag, rather than every store.js commit point
+           (some of which, like the Escalate/hold path, never call a PAS.decide*() function at all). */
+        if (PAS.clearDirty) PAS.clearDirty();
         close((opts.showEmail || opts.showCategory)
           ? { comment: comment, email: emailInput ? emailInput.value.trim() : "", category: categorySelect ? categorySelect.value : "" }
           : comment);
@@ -933,7 +950,7 @@
   }
   function confirmable(policyNo, txnNo, action, spec) {
     return Object.assign({}, spec, {
-      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning, showEmail: spec.showEmail, emailPlaceholder: spec.emailPlaceholder, emailDefault: spec.emailDefault, showCategory: spec.showCategory },
+      confirm: { policyNo: policyNo, txnNo: txnNo || "—", action: action, warning: spec.warning, showEmail: spec.showEmail, emailPlaceholder: spec.emailPlaceholder, emailDefault: spec.emailDefault, showCategory: spec.showCategory, typedConfirm: spec.typedConfirm },
     });
   }
   function decisionTrail(rows) {

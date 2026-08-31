@@ -84,6 +84,25 @@
     }
     return out;
   }
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  /* [fromISO, toISO] — the real calendar bounds of whichever period/offset (or custom range) is
+     currently selected. Drives PAS.bookFinancialsInWindow so the Financial performance section can
+     answer "what did this book do in the selected period" rather than only "as of today". */
+  function periodBounds(period, offset, customFrom, customTo) {
+    if (period === "custom") return [customFrom, customTo];
+    if (period === "year") { var y = yearOffset(offset); return [y + "-01-01", y + "-12-31"]; }
+    if (period === "quarter") {
+      var qKey = quarterKeyOffset(offset), qy = Number(qKey.slice(0, 4)), q = Number(qKey.slice(6));
+      var firstMonth0 = (q - 1) * 3;
+      var from = qy + "-" + pad2(firstMonth0 + 1) + "-01";
+      var lastDay = new Date(Date.UTC(qy, firstMonth0 + 3, 0));
+      var to = lastDay.getUTCFullYear() + "-" + pad2(lastDay.getUTCMonth() + 1) + "-" + pad2(lastDay.getUTCDate());
+      return [from, to];
+    }
+    var mk = monthKeyOffset(offset), my = Number(mk.slice(0, 4)), mm0 = Number(mk.slice(5, 7)) - 1;
+    var mLast = new Date(Date.UTC(my, mm0 + 1, 0));
+    return [mk + "-01", mLast.getUTCFullYear() + "-" + pad2(mLast.getUTCMonth() + 1) + "-" + pad2(mLast.getUTCDate())];
+  }
 
   var TREND_SERIES = [
     { type: "Renewal", label: "Renewed", tone: "blue" },
@@ -219,12 +238,14 @@
     /* Single source of truth for "is this ledger date inside the selected period" — used by the
        KPI cards and both trend charts so they can never disagree. */
     function periodMatches(dateStr) {
+      if (period === "all") return !!dateStr;
       if (period === "month") return inMonth(dateStr, monthKeyOffset(periodOffset));
       if (period === "quarter") return inQuarter(dateStr, quarterKeyOffset(periodOffset));
       if (period === "year") return inYear(dateStr, yearOffset(periodOffset));
       return !!dateStr && dateStr >= customFrom && dateStr <= customTo; /* custom range, inclusive */
     }
     function periodNoteText() {
+      if (period === "all") return "across the whole book";
       if (period === "month") { var mk = monthKeyOffset(periodOffset); return "in " + MONTH_NAMES[Number(mk.slice(5, 7)) - 1] + " " + mk.slice(0, 4); }
       if (period === "quarter") return "in " + quarterKeyOffset(periodOffset);
       if (period === "year") return "in " + yearOffset(periodOffset);
@@ -387,15 +408,17 @@
 
     function renderToggle() {
       toggle.innerHTML = "";
-      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"]].forEach(function (opt) {
+      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"], ["all", "All"]].forEach(function (opt) {
         var btn = ui.h("button", { class: "chip" + (period === opt[0] ? " active" : "") }, opt[1]);
         btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; periodOffset = 0; buildAll(); } });
         toggle.appendChild(btn);
       });
       customBtn.className = "chip" + (period === "custom" ? " active" : "");
-      navWrap.style.display = period === "custom" ? "none" : "flex";
+      /* "All" has no offset to step through (there's no "previous All") any more than custom range
+         does — its date span is however much history the book has, not a nameable unit. */
+      navWrap.style.display = (period === "custom" || period === "all") ? "none" : "flex";
       rangeRow.style.display = period === "custom" ? "" : "none";
-      if (period !== "custom") {
+      if (period !== "custom" && period !== "all") {
         navLabel.textContent = periodNoteText().replace(/^in /, "");
         nextBtn.disabled = periodOffset >= 0;
       }
@@ -415,7 +438,15 @@
       var renewed = countTxns("Renewal", "Completed");
       var cancelled = countTxns("Cancellation", "Completed");
       var reinstated = countTxns("Reinstatement", "Completed");
-      var expiring = active.filter(function (p) { return periodMatches(p.expirationDate); }).length;
+      /* "Expiring soon" is a bounded, forward-looking idea — under "All" every active policy's
+         term ends at *some* point, so periodMatches (which just means "has a date" there) would
+         trivially match every one of them and duplicate Active policies exactly. Falls back to a
+         fixed 30-day lookahead instead, so "All" still shows a real near-term renewal queue rather
+         than a degenerate, always-100% count. */
+      var expiringSoonWindow = period === "all";
+      var expiring = expiringSoonWindow
+        ? active.filter(function (p) { return p.expirationDate >= PAS.todayISO() && p.expirationDate <= PAS.addDays(PAS.todayISO(), 30); }).length
+        : active.filter(function (p) { return periodMatches(p.expirationDate); }).length;
       var periodNote = periodNoteText();
       /* Not period-scoped, same reasoning as Pending transactions below — it's the live count of
          requests sitting in the Endorsement desk's queue right now, not a completed-this-period
@@ -427,7 +458,7 @@
         { label: "Total policies", value: policies.length, href: "registry.html", tip: "Every record in the register" + filterNote() + ".", why: "Portfolio size — not period-scoped, the book has no past-state snapshots to filter this against." },
         { label: "Active policies", value: active.length, tone: "green", href: "registry.html?status=Active", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
         { label: "Renewed", value: renewed, tone: "blue", href: "renewal.html", tip: "Renewals completed " + periodNote + "." },
-        { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: "Active policies whose term ends " + periodNote + "." },
+        { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: expiringSoonWindow ? "Active policies whose term ends within the next 30 days — \"All\" has no bounded window of its own to use here." : ("Active policies whose term ends " + periodNote + ".") },
         { label: "Endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html", tip: "Endorsement requests awaiting decision, right now.", why: "Operational queue, not period-scoped — same reasoning as Pending transactions." },
         { label: "Reinstated", value: reinstated, tone: reinstated > 0 ? "green" : "gray", href: "reinstatement.html", tip: "Reinstatements completed " + periodNote + "." },
         { label: "Cancelled", value: cancelled, tone: cancelled > 0 ? "red" : "gray", href: "cancellation.html", tip: "Cancellations completed " + periodNote + "." },
@@ -442,7 +473,7 @@
     function bucketData(seriesList) {
       var policies = scopedPolicies();
       var keys = period === "month" ? trailingMonths(6, periodOffset) : period === "quarter" ? trailingQuarters(6, periodOffset)
-        : period === "year" ? trailingYears(4, periodOffset) : ["custom"]; /* one bucket: the selected range itself */
+        : period === "year" ? trailingYears(4, periodOffset) : ["all"]; /* one bucket: custom range, or everything for "All" */
       var matches = period === "month" ? inMonth : period === "quarter" ? inQuarter
         : period === "year" ? inYear : function (dateStr) { return periodMatches(dateStr); };
       return keys.map(function (key) {
@@ -459,12 +490,14 @@
       if (period === "month") return MONTH_NAMES[Number(key.slice(5, 7)) - 1] + " '" + key.slice(2, 4);
       if (period === "quarter") return "Q" + key.slice(6) + " '" + key.slice(2, 4);
       if (period === "year") return key;
+      if (period === "all") return "All time";
       return customFrom + " – " + customTo;
     }
     function windowNote() {
       if (period === "month") return "Trailing 6 months, completed transactions by their effective date.";
       if (period === "quarter") return "Trailing 6 quarters, completed transactions by their effective date.";
       if (period === "year") return "Trailing 4 years, completed transactions by their effective date.";
+      if (period === "all") return "Every completed transaction on the book, by effective date.";
       return "From " + customFrom + " to " + customTo + ", completed transactions by their effective date.";
     }
 
@@ -755,29 +788,42 @@
     function buildFinancials() {
       /* Financial views run over on-risk business only — see PAS.onRiskPolicies. Cancelled and
          expired policies stay IN (they earned premium and had claims); referred, declined and
-         not-yet-incepted business stays out. */
+         not-yet-incepted business stays out. Period-scoped to the Monthly/Quarterly/Yearly/custom
+         toggle above via PAS.bookFinancialsInWindow — a flow of what this book did IN the selected
+         window, not an as-of-today snapshot. See that function's own comment for the one honest
+         simplification this carries: a renewed policy's earned premium in a period before its
+         latest renewal isn't reconstructable from the record, so it undercounts (never overcounts)
+         earned premium for periods further back than a policy's current term. "All" opts back out
+         of that window entirely and uses the plain lifetime PAS.bookFinancials snapshot instead —
+         the one figure that doesn't carry the current-term-only simplification, since it isn't
+         trying to isolate any one slice of time. */
       var onRisk = PAS.onRiskPolicies(scopedPolicies());
-      var f = PAS.bookFinancials(onRisk);
+      var bounds = period === "all" ? null : periodBounds(period, periodOffset, customFrom, customTo);
+      function financialsFor(policies) { return bounds ? PAS.bookFinancialsInWindow(policies, bounds[0], bounds[1]) : PAS.bookFinancials(policies); }
+      var f = financialsFor(onRisk);
 
       finKpiContainer.innerHTML = "";
       finKpiContainer.appendChild(ui.kpiSection({
         label: "Financial performance",
-        sub: "On-risk business" + filterNote() + " — earned basis, as of today",
+        sub: "On-risk business" + filterNote() + " — " + periodNoteText(),
       }, [
         {
-          /* Deliberately NOT labelled "Gross written premium". GWP conventionally means premium
-             written within a stated period; this is the annual premium across every policy that
-             has been on risk, which is a different quantity. An audit finding on this dashboard
-             was specifically about a mislabelled GWP figure, so the label says exactly what the
-             number is and the tooltip spells out the basis. */
+          /* Deliberately NOT labelled "Gross written premium" as a blanket claim about the whole
+             book — this is genuinely a period figure now: premium from policies actually issued or
+             renewed within the selected window, read off each transaction's own dated premium
+             (not today's, which a later renewal may have since changed). */
           label: "Written premium", value: PAS.moneyShort(f.writtenPremium), tone: "gray",
-          tip: "Annual premium across all " + f.policies + " on-risk policies" + filterNote() + " — not a period figure.",
+          tip: period === "all"
+            ? ("Annual premium across all " + f.policies + " on-risk policies" + filterNote() + " — not a period figure.")
+            : ("Premium from policies issued or renewed " + periodNoteText() + filterNote() + "."),
           why: "Volume placed, not income. The premium belongs to the insurer whose paper the risk sits on, not to Veridex.",
         },
         {
           label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue",
-          tip: "The portion of that premium the insurer has actually been on risk for, " + pct(f.earnedPremium / (f.writtenPremium || 1)) + " of written.",
-          why: "Every ratio below divides by this, not by written premium. A policy bound last week has its full annual premium written but has earned almost none of it — dividing claims by written premium would halve the apparent loss ratio.",
+          tip: period === "all"
+            ? ("The portion of that premium the insurer has actually been on risk for, " + pct(f.earnedPremium / (f.writtenPremium || 1)) + " of written.")
+            : ("The slice of premium actually earned " + periodNoteText() + " — day-prorated across each policy's current term."),
+          why: "Every ratio below divides by this, not by written premium. A policy bound mid-period has earned only part of its annual premium so far — dividing claims by written premium would understate the true loss ratio.",
         },
         {
           label: "Commission revenue", value: PAS.moneyShort(f.netCommission), tone: "green",
@@ -812,7 +858,7 @@
         finVerdictWrap.appendChild(ui.callout(profitable ? "good" : "bad", [
           ui.h("strong", {}, profitable ? "This book is making an underwriting profit. " : "This book is losing money on underwriting. "),
           document.createTextNode(
-            "Combined ratio " + pct(f.combinedRatio) + " — " + pct(margin) + (profitable ? " below" : " above") +
+            "Combined ratio " + pct(f.combinedRatio) + " " + periodNoteText() + " — " + pct(margin) + (profitable ? " below" : " above") +
             " break-even, an underwriting " + (profitable ? "profit" : "loss") + " of " + PAS.money(Math.abs(f.underwritingResult)) +
             " on " + PAS.money(f.earnedPremium) + " of earned premium. Acquisition commission is the only expense included, so the real margin is thinner than this."
           ),
@@ -863,7 +909,7 @@
       var keys = Array.from(new Set(onRisk.map(function (p) { return p[segmentDim]; }).filter(Boolean)));
       var segments = keys.map(function (k) {
         var seg = onRisk.filter(function (p) { return p[segmentDim] === k; });
-        var sf = PAS.bookFinancials(seg);
+        var sf = financialsFor(seg);
         return { k: k, f: sf, n: seg.length };
       }).filter(function (s) { return s.f.earnedPremium > 0; })
         .sort(function (a, b) { return b.f.combinedRatio - a.f.combinedRatio; });

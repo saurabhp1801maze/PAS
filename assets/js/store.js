@@ -929,15 +929,19 @@ var CLAIMS_BY_ID = {
      the "as of" date for the current term is that date, read from the completed Cancellation
      transaction, rather than todayISO(). Without this, a policy cancelled months ago keeps
      "earning" premium all the way up to today. */
+  /* The last date this policy's current term was actually on risk — today, unless it's Cancelled,
+     in which case it stopped on the completed Cancellation's effective date. Shared by the
+     lifetime earnedFraction below and by the period-windowed version, so "when did this term
+     stop earning" is answered once. */
+  function currentTermEndsOn(policy) {
+    if (policy.status !== "Cancelled") return todayISO();
+    var cx = (policy.history || []).filter(function (h) { return h.type === "Cancellation" && h.status === "Completed"; })
+      .sort(function (a, b) { return b.seq - a.seq; })[0];
+    return cx ? cx.date : todayISO();
+  }
   function earnedFraction(policy) {
     var totalDays = Math.max(1, daysBetween(policy.effectiveDate, policy.expirationDate));
-    var asOf = todayISO();
-    if (policy.status === "Cancelled") {
-      var cx = (policy.history || []).filter(function (h) { return h.type === "Cancellation" && h.status === "Completed"; })
-        .sort(function (a, b) { return b.seq - a.seq; })[0];
-      if (cx) asOf = cx.date;
-    }
-    var elapsed = daysBetween(policy.effectiveDate, asOf);
+    var elapsed = daysBetween(policy.effectiveDate, currentTermEndsOn(policy));
     var thisTerm = Math.max(0, Math.min(1, elapsed / totalDays));
     var priorTerms = Math.max(0, (Number(policy.termNumber) || 1) - 1);
     return priorTerms + thisTerm;
@@ -945,6 +949,40 @@ var CLAIMS_BY_ID = {
   function earnedPremium(policy) { return (Number(policy.premium) || 0) * earnedFraction(policy); }
   PAS.earnedFraction = earnedFraction;
   PAS.earnedPremium = earnedPremium;
+
+  /* Earned premium recognized strictly within [fromDate, toDate], pro-rated by day-overlap with
+     the policy's CURRENT term only. Known simplification: a renewal overwrites the policy's
+     effectiveDate/expirationDate/premium in place with the new term's values (see
+     PAS.decideRenewal), so a policy's *prior* terms leave no dated premium on the record itself to
+     reconstruct exactly what was earned in a period before the latest renewal — the same
+     simplification earnedFraction above already makes by treating every prior term as fully
+     earned rather than dating exactly when each was. A period entirely before the current term
+     started (or after it stopped being on risk) earns this policy $0 for that period — an
+     undercount for long-lived renewed policies on a period further back than their latest
+     renewal, not an overcount, so this errs toward being conservative rather than wrong-high. */
+  function earnedPremiumInWindow(policy, fromDate, toDate) {
+    var onRiskTo = currentTermEndsOn(policy);
+    var start = policy.effectiveDate > fromDate ? policy.effectiveDate : fromDate;
+    var end = onRiskTo < toDate ? onRiskTo : toDate;
+    if (start > end) return 0;
+    var totalDays = Math.max(1, daysBetween(policy.effectiveDate, policy.expirationDate));
+    var overlapDays = daysBetween(start, end) + 1; /* inclusive on both ends */
+    return (Number(policy.premium) || 0) * (overlapDays / totalDays);
+  }
+  PAS.earnedPremiumInWindow = earnedPremiumInWindow;
+
+  /* The premium a given Issuance/Renewal transaction actually established — not necessarily this
+     policy's current p.premium, since an OLDER renewal (relevant when a custom range reaches back
+     past the latest one) wrote a smaller, since-superseded amount. Renewal transactions log their
+     own newPremium; Issuance doesn't, so the term-1 premium is read off the earliest Renewal's
+     previousPremium, falling back to the current premium only when the policy has never renewed
+     (in which case "current" and "term 1" are the same thing). */
+  function premiumEstablishedBy(policy, txn) {
+    if (txn.type === "Renewal") return (txn.meta && Number(txn.meta.newPremium)) || 0;
+    var renewals = (policy.history || []).filter(function (h) { return h.type === "Renewal" && h.status === "Completed"; })
+      .sort(function (a, b) { return a.seq - b.seq; });
+    return renewals.length ? Number(renewals[0].meta && renewals[0].meta.previousPremium) || 0 : (Number(policy.premium) || 0);
+  }
 
   /* ---- Commission: an MGA's actual revenue ----
      Veridex is an MGA. It does NOT own the premium — that belongs to the carrier whose paper the
@@ -1030,6 +1068,59 @@ var CLAIMS_BY_ID = {
     };
   }
   PAS.bookFinancials = bookFinancials;
+
+  /* Same shape as bookFinancials, but as a period FLOW instead of an as-of-today snapshot: earned
+     premium/commission is only the slice actually earned within [fromDate,toDate] (see
+     earnedPremiumInWindow), written premium is only business actually issued or renewed within
+     the window (read off each Issuance/completed-Renewal transaction's own dated premium, not
+     today's p.premium), and claims count only those reported within the window. This is what
+     drives the dashboard's period toggle for the Financial performance section — bookFinancials
+     itself stays an as-of-today view for every other caller (Broker/MGA/Reinsurer/policy-detail),
+     which is a deliberately different question ("how healthy is this book right now") from this
+     one ("what did this book do in August"). */
+  function bookFinancialsInWindow(policies, fromDate, toDate) {
+    var written = 0, earned = 0, commission = 0, brokerCommission = 0;
+    policies.forEach(function (p) {
+      var e = earnedPremiumInWindow(p, fromDate, toDate);
+      var rate = commissionRateOf(p);
+      earned += e;
+      var comm = e * rate;
+      commission += comm;
+      if (!isDirect(p)) brokerCommission += comm * BROKER_COMMISSION_SHARE;
+      (p.history || []).forEach(function (h) {
+        var isWriteEvent = h.type === "Issuance" ? h.status === "Completed" : (h.type === "Renewal" && h.status === "Completed");
+        if (isWriteEvent && h.date >= fromDate && h.date <= toDate) written += premiumEstablishedBy(p, h);
+      });
+    });
+    var claims = allClaims(policies).filter(function (x) { return x.c.reportedOn >= fromDate && x.c.reportedOn <= toDate; });
+    var incurred = claims.reduce(function (s, x) { return s + (Number(x.c.incurred) || 0); }, 0);
+    var paid = claims.reduce(function (s, x) { return s + (Number(x.c.paid) || 0); }, 0);
+    var reserved = claims.filter(function (x) { return x.c.status === "Open"; })
+      .reduce(function (s, x) { return s + (Number(x.c.reserved) || 0); }, 0);
+
+    var lr = earned ? incurred / earned : 0;
+    var er = earned ? commission / earned : 0;
+    return {
+      policies: policies.length,
+      writtenPremium: written,
+      earnedPremium: earned,
+      unearnedPremium: Math.max(0, written - earned),
+      commission: commission,
+      brokerCommission: brokerCommission,
+      netCommission: commission - brokerCommission,
+      claimCount: claims.length,
+      openClaimCount: claims.filter(function (x) { return x.c.status === "Open"; }).length,
+      incurred: incurred,
+      paid: paid,
+      reserved: reserved,
+      lossRatio: lr,
+      paidLossRatio: earned ? paid / earned : 0,
+      expenseRatio: er,
+      combinedRatio: lr + er,
+      underwritingResult: earned - incurred - commission,
+    };
+  }
+  PAS.bookFinancialsInWindow = bookFinancialsInWindow;
 
   /* Loss ratio: incurred ÷ EARNED premium, across whatever set of policies is passed in — the
      caller decides the denominator (the whole book, one state, one LOB) by filtering first. */
@@ -2007,6 +2098,7 @@ var CLAIMS_BY_ID = {
     });
   };
   PAS.decideCancellation = function (id, txnId, approve, effDate, q, audit) {
+    if (PAS.clearDirty) PAS.clearDirty();
     return patch(id, function (p) {
       var held = p.history.find(function (h) { return h.id === txnId; });
       var meta = (held && held.meta) || {};
@@ -2041,6 +2133,7 @@ var CLAIMS_BY_ID = {
     });
   };
   PAS.decideReinstatement = function (id, txnId, approve, m, audit) {
+    if (PAS.clearDirty) PAS.clearDirty();
     return patch(id, function (p) {
       var history = p.history.map(function (h) {
         if (h.id !== txnId) return h;
@@ -2057,6 +2150,7 @@ var CLAIMS_BY_ID = {
     });
   };
   PAS.decideRenewal = function (id, txnId, approve, prem, audit) {
+    if (PAS.clearDirty) PAS.clearDirty();
     return patch(id, function (p) {
       var history = p.history.map(function (h) {
         if (h.id !== txnId) return h;
@@ -2088,6 +2182,7 @@ var CLAIMS_BY_ID = {
   var TRANSFER_REASONS = ["Business Sale", "Ownership Change", "Estate/Inheritance", "Other"];
   PAS.TRANSFER_REASONS = TRANSFER_REASONS;
   PAS.decideTransfer = function (id, txnId, approve, newHolder, audit) {
+    if (PAS.clearDirty) PAS.clearDirty();
     return patch(id, function (p) {
       var prevHolder = p.holder;
       var history = p.history.map(function (h) {
@@ -2119,6 +2214,7 @@ var CLAIMS_BY_ID = {
     });
   };
   PAS.decideTxn = function (pid, tid, ok, audit) {
+    if (PAS.clearDirty) PAS.clearDirty();
     return patch(pid, function (p) {
       var held = p.history.find(function (h) { return h.id === tid; });
       if (!held) return p;

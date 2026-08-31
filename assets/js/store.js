@@ -1172,6 +1172,14 @@ var CLAIMS_BY_ID = {
      — rounding each share independently and summing can drift a dollar off in either direction
      whenever the premium doesn't divide the shares evenly. */
   function coverageBreakdown(policy) {
+    /* An imported rating quote (PAS.importQuote) carries its own real per-coverage subtotals —
+       prefer those over the fixed template split, which has no entry for a rated LOB like
+       "Commercial Trucking" anyway and would otherwise silently fall back to an empty []. */
+    if (policy.quote && policy.quote.coverages && policy.quote.coverages.length) {
+      return policy.quote.coverages.map(function (c) {
+        return { name: c.name, share: policy.premium ? c.subtotal / policy.premium : 0, premium: c.subtotal };
+      });
+    }
     var template = COVERAGE_TEMPLATE[policy.product] || [];
     var running = 0;
     return template.map(function (c, i) {

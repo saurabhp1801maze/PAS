@@ -175,6 +175,9 @@
       var loyalty = PAS.loyaltyScore(policy);
       cb.appendChild(ui.kv({ k: "Loyalty tier", v: ui.pill(loyalty.tone, loyalty.tier + " · " + loyalty.score + " pts"), what: "Computed from renewal count, claims and cancellation history.", why: "Same formula the Loyalty page uses — nothing here is a stored points balance." }));
     }
+    if (policy.quote && policy.quote.eligibility && (policy.quote.eligibility.refers || []).length) {
+      cb.appendChild(ui.callout("warn", "Refers on the imported quote, not yet cleared: " + policy.quote.eligibility.refers.join(", ") + "."));
+    }
     var breakdown = PAS.coverageBreakdown(policy);
     if (breakdown.length) {
       var covWrap = ui.h("div", { class: "mt-13" });
@@ -379,13 +382,42 @@
         .then(function () { PAS.generateDoc(policy.id, "Policy schedule", "Schedule"); rerender(); });
     });
     headRow.appendChild(genBtn);
+    if (policy.quote) {
+      var invBtn = ui.h("button", { class: "btn" }, [PAS.icon("file-text", { size: 13 }), document.createTextNode(" Generate invoice")]);
+      invBtn.addEventListener("click", function () {
+        PAS.api.call("POST", "/api/v1/policies/" + policy.id + "/documents", { template: "invoice" },
+          { module: "Servicing", policyId: policy.id, statusCode: 201, label: "Generate invoice — " + policy.holder, response: { documentId: PAS.uid("DOC"), name: "Invoice", events: ["documentGenerated"] } })
+          .then(function () {
+            var updated = PAS.generateInvoice(policy.id);
+            var newDoc = updated.documents.filter(function (d) { return d.type === "Invoice"; }).pop();
+            location.href = "invoice.html?policy=" + encodeURIComponent(policy.id) + "&doc=" + encodeURIComponent(newDoc.id);
+          });
+      });
+      headRow.appendChild(invBtn);
+    }
     var table = ui.dataTable({
-      columns: ["Document", { label: "Type", what: "Schedule, certificate or notice." }, { label: "Version", what: "Incremented each regeneration.", why: "Lets you prove what the customer held on any date." }, "Generated", { label: "Delivery", what: "PAS document delivery status." }, { label: "Txn", what: "Ledger row that triggered generation." }, ""],
+      columns: ["Document", { label: "Type", what: "Schedule, certificate, invoice or notice." }, { label: "Version", what: "Incremented each regeneration.", why: "Lets you prove what the customer held on any date." }, "Generated", { label: "Delivery", what: "PAS document delivery status." }, { label: "Txn", what: "Ledger row that triggered generation." }, ""],
       rows: (policy.documents || []).map(function (d) {
         var nameSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "7px", fontWeight: "600" } }, [PAS.icon("file-text", { size: 13, color: "var(--color-link)" }), document.createTextNode(d.name)]);
-        var delBtn = ui.h("button", { class: "btn small" }, "Mark delivered");
+        var actions = ui.h("span", { style: { display: "inline-flex", gap: "6px" } });
+        if (d.type === "Invoice") {
+          var viewBtn = ui.h("button", { class: "btn small" }, "View");
+          viewBtn.addEventListener("click", function (e) { e.stopPropagation(); location.href = "invoice.html?policy=" + encodeURIComponent(policy.id) + "&doc=" + encodeURIComponent(d.id); });
+          actions.appendChild(viewBtn);
+          var downloadBtn = ui.h("button", { class: "btn small" }, [PAS.icon("download", { size: 12 }), document.createTextNode(" Download")]);
+          downloadBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            var payload = PAS.invoicePayload(policy, d);
+            PAS.api.call("GET", "/api/v1/policies/" + policy.id + "/invoices/" + d.id, {},
+              { module: "Servicing", policyId: policy.id, statusCode: 200, label: "Download invoice — " + policy.holder, response: payload })
+              .then(function () { PAS.downloadJson((payload.invoiceNumber || d.name) + ".json", payload); });
+          });
+          actions.appendChild(downloadBtn);
+        }
+        var delBtn = ui.h("button", { class: "btn small" }, d.type === "Invoice" ? "Mark sent" : "Mark delivered");
         delBtn.addEventListener("click", function (e) { e.stopPropagation(); PAS.markDocumentDelivered(policy.id, d.id); rerender(); });
-        return [nameSpan, d.type, ui.pill("gray", "v" + d.version), PAS.fmtDate(d.generatedAt), ui.pill(d.deliveryStatus === "Delivered" ? "green" : "amber", d.deliveryStatus || "Generated"), d.transactionId ? d.transactionId.slice(0, 12) : "—", delBtn];
+        actions.appendChild(delBtn);
+        return [nameSpan, d.type, ui.pill("gray", "v" + d.version), PAS.fmtDate(d.generatedAt), ui.pill(d.deliveryStatus === "Delivered" ? "green" : "amber", d.deliveryStatus || "Generated"), d.transactionId ? d.transactionId.slice(0, 12) : "—", actions];
       }),
       emptyText: "No documents yet. Issuing the policy generates the schedule and certificate.",
     });

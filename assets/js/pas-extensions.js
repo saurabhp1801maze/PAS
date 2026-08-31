@@ -369,6 +369,125 @@
     return policy;
   };
 
+  /* Imports a rating-engine quote payload (the { quote, coverages, eligibility, adapter } shape
+     produced upstream — see Import quote page) and mints a brand-new, immediately-Active policy
+     from it. `extra` carries the fields a rating quote can't know on its own: who the insured is
+     and who placed the business. The raw payload is kept in full on `quote` — it's what the
+     invoice (PAS.generateInvoice) and the Cover tab's coverage breakdown read back later, so
+     nothing about the original rating detail is lost on the way in. */
+  PAS.importQuote = function (raw, extra) {
+    extra = extra || {};
+    var q = raw.quote || {};
+    var qh = raw.quote_header || {};
+    var id = uid("POL");
+    var effectiveDate = extra.effectiveDate || qh.effective_date || todayISO();
+    /* Prefer the quote's own stated expiration over a computed +1yr — quote_header carries a real
+       term (term_months, validity window) when present; only fall back to the assumed annual term
+       when the payload doesn't say. */
+    var expirationDate = qh.expiration_date || addYears(effectiveDate, 1);
+    var policy = PAS.ensurePolicyStructure({
+      id: id, holder: extra.holder, product: q.lob || "Imported Quote", status: "Active",
+      effectiveDate: effectiveDate, expirationDate: expirationDate,
+      premium: q.finalPremium || 0, termNumber: 1,
+      producer: extra.producer || "Direct", state: extra.state || q.state || "—",
+      submittedOn: todayISO(), sumInsured: extra.sumInsured || "—",
+      carrier: extra.carrier || PAS.CARRIERS[0], mga: extra.mga || null,
+      documents: [], risk: {}, claims: [],
+      history: [{
+        id: uid("TXN"), seq: 1, date: todayISO(), recordedAt: new Date().toISOString(),
+        status: "Completed", user: PAS.getPasAdminIdentity(), type: "Issuance",
+        title: "Policy created from imported rating quote",
+        detail: "Imported " + (q.lob || "quote") + " quote for " + (q.state || "—") +
+          (q.ratingVersion ? " (rating " + q.ratingVersion + ")" : "") + " — final premium " + money(q.finalPremium) + ".",
+        meta: { source: "quote-import", ratingVersion: q.ratingVersion },
+      }],
+      quote: raw,
+    });
+    var list = PAS.getPolicies();
+    list.push(policy);
+    PAS._savePolicies(list);
+    PAS.appendAuditLog({ action: "inbound.quoteImport", policyId: id, detail: "Policy created from imported quote JSON" });
+    return policy;
+  };
+
+  /* Invoice generation reuses the same document/ledger primitives every other lifecycle action
+     (schedules, COIs, DNOC notices) already goes through — PAS._docRecord + PAS._pushTxn — rather
+     than inventing separate billing plumbing. The line items themselves live on policy.quote and
+     are rendered by invoice.html; nothing here recomputes them. */
+  PAS.generateInvoice = function (policyId) {
+    return PAS._patchPolicy(policyId, function (p) {
+      var count = (p.documents || []).filter(function (d) { return d.type === "Invoice"; }).length;
+      var invoiceNumber = "INV-" + p.id.replace(/^POL-/, "") + "-" + (count + 1);
+      var doc = PAS._docRecord(invoiceNumber, "Invoice", count + 1, null);
+      doc.invoiceNumber = invoiceNumber;
+      var withDoc = Object.assign({}, p, { documents: (p.documents || []).concat([doc]) });
+      return PAS._pushTxn(withDoc, {
+        date: todayISO(), type: "Servicing", title: "Invoice generated",
+        detail: invoiceNumber + " generated for " + money(p.premium) + ".",
+        meta: { invoiceNumber: invoiceNumber, category: "Billing & Payments" },
+      });
+    });
+  };
+
+  /* Simulated hand-off to Accounts — same convention every other "notification" in this app
+     follows (PAS.recordHeldDecision's emailTo path, etc.): a real, inspectable ledger row rather
+     than an actual mail transport, which nothing in this static frontend has. */
+  PAS.sendInvoiceToAccounts = function (policyId, docId, emailTo) {
+    var to = emailTo || "accounts@veridex.internal";
+    return PAS._patchPolicy(policyId, function (p) {
+      var doc = (p.documents || []).find(function (d) { return d.id === docId; });
+      var withDoc = Object.assign({}, p, {
+        documents: (p.documents || []).map(function (d) {
+          return d.id === docId ? Object.assign({}, d, { deliveryStatus: "Delivered", deliveredAt: todayISO() }) : d;
+        }),
+      });
+      return PAS._pushTxn(withDoc, {
+        date: todayISO(), type: "Servicing", title: "Invoice sent to accounts",
+        detail: (doc && doc.invoiceNumber ? doc.invoiceNumber : "Invoice") + " emailed to " + to + " via SMTP.",
+        meta: { emailTo: to, category: "Billing & Payments" },
+      });
+    });
+  };
+
+  /* The wire shape for GET /api/v1/policies/{id}/invoices/{docId} — this is both the simulated
+     API response (shown in the policy detail's "API & event lifecycle" panel) and, verbatim, the
+     file the Download button saves: the prototype mimics the Billing module receiving this exact
+     JSON over the API, rather than inventing a separate export format. */
+  PAS.invoicePayload = function (policy, doc) {
+    var q = (policy.quote && policy.quote.quote) || {};
+    var coverages = (policy.quote && policy.quote.coverages) || [];
+    return {
+      invoiceNumber: doc.invoiceNumber || doc.name,
+      invoiceDate: doc.generatedAt,
+      policyId: policy.id,
+      namedInsured: policy.holder,
+      producer: policy.producer,
+      state: policy.state,
+      lineOfBusiness: q.lob || policy.product,
+      policyTerm: { effectiveDate: policy.effectiveDate, expirationDate: policy.expirationDate },
+      coverages: coverages.map(function (c) { return { name: c.name, subtotal: c.subtotal }; }),
+      coveragePremium: q.coveragePremium,
+      discounts: q.discounts || [],
+      surcharges: q.surcharges || [],
+      fees: q.fees || [],
+      tax: { pct: q.taxPct, amount: q.tax },
+      countyTax: q.countyName ? { name: q.countyName, rate: q.countyRate, amount: q.countyTax } : null,
+      totalPremium: q.finalPremium,
+      deliveryStatus: doc.deliveryStatus,
+      deliveredAt: doc.deliveredAt || null,
+    };
+  };
+
+  /* Same Blob + object-URL + temporary <a download> pattern as registry.js's "Export CSV" button —
+     the one other place in this app that saves a file to disk. */
+  PAS.downloadJson = function (filename, data) {
+    var blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+  };
+
   PAS.checkBinderExpiries = function () {
     var lapsed = [];
     PAS.getPolicies().forEach(function (p) {
@@ -650,12 +769,31 @@
       if (adminIdx === -1) PAS.NAV.push(integrationGroup);
       else PAS.NAV.splice(adminIdx, 0, integrationGroup);
     }
+    var intGroup = PAS.NAV.find(function (g) { return g.label === "Integration"; });
+    if (intGroup && !intGroup.items.some(function (it) { return it[0] === "import-quote"; })) {
+      intGroup.items.push(["import-quote", "Import quote", "arrow-down-left", "import-quote.html"]);
+    }
   }
   PAS.PAGE_META["advanced-desk"] = { nav: "advanced-desk", title: "Decision desks / Advanced PAS" };
   PAS.PAGE_META["advanced-detail"] = { nav: "advanced-desk", title: "Decision desks / Advanced PAS" };
   PAS.PAGE_META["integration-hub"] = { nav: "integration-hub", title: "Integration / PAS hub" };
+  PAS.PAGE_META["import-quote"] = { nav: "import-quote", title: "Integration / Import quote" };
+  PAS.PAGE_META["invoice"] = { nav: "registry", title: "Records / Invoice" };
   PAS.PAGE_APIS["advanced-desk"] = [["GET", "/api/v1/advanced-transactions", "Advanced PAS transaction queue"], ["POST", "/api/v1/policies/{id}/rewrites", "Rewrite policy"]];
   PAS.PAGE_APIS["integration-hub"] = [["GET", "/api/v1/policies/{id}", "Policy query with ETag"], ["POST", "/api/v1/inbound/bind", "Receive bound policy from UW module"]];
+  PAS.PAGE_APIS["import-quote"] = [["POST", "/api/v1/inbound/quote", "Imports a rating-quote payload and creates a policy from it"]];
+  PAS.PAGE_APIS["invoice"] = [["POST", "/api/v1/policies/{policyId}/documents", "Renders and stores the invoice document"], ["GET", "/api/v1/policies/{policyId}/invoices/{docId}", "Returns the invoice as JSON — what the Download button saves"], ["POST", "/api/v1/policies/{policyId}/invoices/{docId}/send", "Marks the invoice delivered to Accounts"]];
+  if (PAS.PAGE_APIS.detail) PAS.PAGE_APIS.detail.push(["GET", "/api/v1/policies/{policyId}/invoices/{docId}", "Downloads the invoice as JSON — the Billing module's own view of it"]);
+  if (PAS.API_CATALOGUE) {
+    var policiesResource = PAS.API_CATALOGUE.find(function (r) { return r.resource === "Policies"; });
+    if (policiesResource) {
+      policiesResource.endpoints.push(
+        ["POST", "/api/v1/policies/{policyId}/invoices", "Generates an invoice from the policy's imported quote.", "Only available once a quote has been imported onto the policy (policy.quote present)."],
+        ["GET", "/api/v1/policies/{policyId}/invoices/{docId}", "Returns the invoice as JSON.", "Same payload the policy detail page's Download button saves to disk — this endpoint is the Billing module's read path on the same data."],
+        ["POST", "/api/v1/policies/{policyId}/invoices/{docId}/send", "Marks the invoice delivered to Accounts.", "Simulated hand-off — this prototype has no real SMTP transport."]
+      );
+    }
+  }
 
   /* Wrap decideRenewal to maintain term history */
   var _decideRenewal = PAS.decideRenewal;

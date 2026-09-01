@@ -43,17 +43,6 @@
       { label: "Cancellations", value: pending.filter(function (t) { return t.h.type === "Cancellation"; }).length, tip: "Insured, broker or underwriter initiated." },
     ]));
 
-    var bulkBar = ui.h("div", { style: { display: "flex", gap: "10px", marginBottom: "14px" } });
-    var bulkBtn = ui.h("button", { class: "btn tone-primary" }, "Bulk approve immaterial");
-    bulkBtn.addEventListener("click", function () {
-      var items = pending.filter(function (t) { return t.h.type === "Endorsement" && t.h.meta && t.h.meta.materiality === "Minor"; })
-        .map(function (t) { return { policyId: t.p.id, txnId: t.h.id }; });
-      if (items.length && PAS.bulkApprove) PAS.bulkApprove(items);
-      render();
-    });
-    bulkBar.appendChild(bulkBtn);
-    page.appendChild(bulkBar);
-
     var toolbar = ui.h("div", { class: "register-toolbar" });
     var searchWrap = ui.h("div", { class: "register-search" });
     searchWrap.appendChild(PAS.icon("search", { size: 14 }));

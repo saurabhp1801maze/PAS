@@ -44,13 +44,15 @@
     var page = ui.h("div", {});
     page.appendChild(ui.backLink("Policy register", function () { location.href = "registry.html"; }));
     page.appendChild(ui.recordHead(policy));
-    page.appendChild(ui.kpiRow([
+    var overviewKpis = ui.kpiRow([
       { label: "Term", value: PAS.fmtDate(policy.effectiveDate) + " → " + PAS.fmtDate(policy.expirationDate), tip: "Current coverage period." },
       { label: "Premium", value: PAS.money(policy.premium), tip: "Annual written premium." },
       { label: "Sum insured", value: policy.sumInsured || "—", tip: "Total limit of indemnity." },
       { label: "Transactions", value: policy.history.length, tip: "Entries in the append-only ledger." },
       { label: "Documents", value: (policy.documents && policy.documents.length) || 0, tip: "Stored document versions." },
-    ]));
+    ]);
+    overviewKpis.classList.add("pd-overview-kpis");
+    page.appendChild(overviewKpis);
 
     var fleet = PAS.vehicleFleetFor(policy);
 
@@ -79,7 +81,7 @@
     if (fleet) sectionFns.vehicles = function () { return vehiclesSection(fleet); };
     var activeTab = sectionFns[tab] ? tab : "cover";
 
-    var tabsRow = ui.h("div", { class: "tabs", role: "tablist" });
+    var tabsRow = ui.h("div", { class: "tabs pd-tabs", role: "tablist" });
     tabDefs.forEach(function (td) {
       var btn = ui.h("button", { class: "tab-btn" + (activeTab === td[0] ? " active" : ""), role: "tab", "aria-selected": activeTab === td[0] ? "true" : "false" }, td[1]);
       btn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(policy.id) + "&tab=" + td[0]; });

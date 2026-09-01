@@ -365,6 +365,9 @@ textarea.field-input { min-height: 54px; resize: vertical; }
 .kpi-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi-value-row { display: flex; align-items: baseline; gap: 5px; margin-top: 3px; }
 .kpi-value { font-size: 18px; font-weight: 800; color: var(--color-ink); white-space: nowrap; }
+/* Policy detail overview strip — the Term date range is long, shrink its value so it doesn't
+   overflow into the Premium card. */
+.pd-overview-kpis .kpi-card:first-child .kpi-value { font-size: 16px; }
 .kpi-value.toned { color: var(--tone-fg); }
 .kpi-delta { font-size: 11px; font-weight: 700; }
 .kpi-delta.up { color: var(--color-success); }
@@ -809,6 +812,8 @@ body[data-density="compact"] .panel-head { margin-bottom: 8px; }
 .tabs { display: flex; gap: 4px; margin-bottom: 14px; border-bottom: 1px solid var(--color-border); }
 .tab-btn { display: inline-flex; align-items: center; height: 44px; background: none; border: none; padding: 0 14px; font-size: 15px; font-weight: 500; cursor: pointer; color: var(--color-muted); border-bottom: 2px solid transparent; }
 .tab-btn.active { color: var(--color-link); border-bottom-color: var(--color-link); }
+/* Policy detail page tabs — slightly smaller so the ten tab labels fit without wrapping. */
+.pd-tabs .tab-btn { height: 40px; padding: 0 11px; font-size: 13px; }
 /* §10.6 Panel tabs (pill style): 13px Inter 500, brand-light fill + link text when active — for
    sub-section switching inside a card/panel rather than a whole page. */
 .tabs.pill { gap: 4px; margin-bottom: 12px; border-bottom: none; }

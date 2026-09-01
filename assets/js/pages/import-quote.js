@@ -16,6 +16,34 @@
     return null;
   }
 
+  function wait(ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); }
+
+  /* Modal shell around ui.stepper — re-renders it as the create-policy flow advances through
+     "Verifying details" -> "Generating policy document" -> "Issuing policy" so the user sees
+     the same three stages the backend calls below actually run through, not just a spinner. */
+  function showProgressModal(steps) {
+    var overlay = ui.h("div", { class: "decision-modal-overlay", role: "presentation" });
+    var modal = ui.h("div", { class: "decision-modal", role: "dialog", "aria-modal": "true" });
+    modal.appendChild(ui.h("div", { class: "decision-modal-head" }, [
+      ui.h("div", { class: "decision-modal-kicker" }, "Generating policy"),
+      ui.h("h2", { class: "decision-modal-title" }, "Please wait…"),
+    ]));
+    var stepperHost = ui.h("div", { class: "mt-13" });
+    modal.appendChild(stepperHost);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    function setActive(i) {
+      stepperHost.innerHTML = "";
+      stepperHost.appendChild(ui.stepper({ steps: steps, activeIndex: i }));
+    }
+    setActive(0);
+    return {
+      advance: setActive,
+      close: function () { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); },
+    };
+  }
+
   function render() {
     var root = document.getElementById("page-content");
     root.innerHTML = "";
@@ -32,6 +60,9 @@
 
     var textarea = ui.h("textarea", { class: "field-input mono", rows: 14, style: { fontSize: "11.5px", resize: "vertical" }, placeholder: "Paste the quote JSON here…" });
     pb.appendChild(ui.field({ label: "Quote JSON", hint: "The full { quote, coverages, eligibility, adapter } payload from the rating engine." }, textarea));
+
+    var fileInput = ui.h("input", { class: "field-input", type: "file", accept: ".json,application/json" });
+    pb.appendChild(ui.field({ label: "Or upload a JSON file", hint: "Pick a .json file from disk instead of pasting — it fills the field above." }, fileInput));
 
     var errorBox = ui.h("div", {});
     pb.appendChild(errorBox);
@@ -62,7 +93,7 @@
     formRow.appendChild(ui.field({ label: "Carrier" }, carrierSelect));
     pb.appendChild(formRow);
 
-    var createBtn = ui.h("button", { class: "btn tone-primary mt-13" }, [PAS.icon("arrow-down-left", { size: 13 }), document.createTextNode(" Create policy")]);
+    var createBtn = ui.h("button", { class: "btn tone-primary mt-13" }, [PAS.icon("arrow-down-left", { size: 13 }), document.createTextNode(" Generate policy")]);
     pb.appendChild(createBtn);
 
     var parsed = null;
@@ -114,22 +145,64 @@
     }
     textarea.addEventListener("input", reparse);
 
+    fileInput.addEventListener("change", function () {
+      var file = fileInput.files && fileInput.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        textarea.value = String(reader.result);
+        reparse();
+      };
+      reader.onerror = function () {
+        errorBox.innerHTML = "";
+        errorBox.appendChild(ui.callout("bad", "Couldn't read " + file.name + " — " + (reader.error && reader.error.message ? reader.error.message : "unknown error") + "."));
+      };
+      reader.readAsText(file);
+    });
+
     createBtn.addEventListener("click", function () {
       reparse();
       if (!parsed) { errorBox.innerHTML = ""; errorBox.appendChild(ui.callout("bad", "Paste a valid quote JSON before creating the policy.")); return; }
       if (!holderInput.value.trim()) { errorBox.innerHTML = ""; errorBox.appendChild(ui.callout("bad", "Named insured is required.")); return; }
+      var q = parsed.quote || {};
       var extra = {
         holder: holderInput.value.trim(), producer: producerInput.value.trim() || "Direct",
         effectiveDate: effDateInput.value || PAS.todayISO(), state: stateInput.value.trim(), carrier: carrierSelect.value,
+        /* The quote payload has no separate "sum insured" field — coveragePremium (the rated
+           premium for the coverage layer) is what this demo treats as the sum assured. */
+        sumInsured: q.coveragePremium != null ? PAS.money(q.coveragePremium) : "—",
       };
-      PAS.api.call("POST", "/api/v1/inbound/quote", { quote: extra }, {
-        module: "Bind", statusCode: 201, label: "Import quote — " + extra.holder,
-        response: { events: ["policyIssued"] },
-      }).then(function () {
-        var policy = PAS.importQuote(parsed, extra);
-        ui.flashThenGo("policy-detail.html?policy=" + encodeURIComponent(policy.id) + "&tab=cover",
-          { title: "Policy created", detail: policy.id + " created from imported quote.", tone: "green" });
-      });
+
+      var steps = ["Verifying details", "Generating policy document", "Issuing policy"];
+      var progress = showProgressModal(steps);
+      var policy = null;
+
+      wait(600)
+        .then(function () {
+          return PAS.api.call("POST", "/api/v1/inbound/quote", { quote: extra }, {
+            module: "Bind", statusCode: 201, label: "Import quote — " + extra.holder,
+            response: { events: ["policyIssued"] },
+          });
+        })
+        .then(function () {
+          progress.advance(1);
+          return wait(700);
+        })
+        .then(function () {
+          policy = PAS.importQuote(parsed, extra);
+          PAS.generateQuoteDocuments(policy.id);
+          progress.advance(2);
+          return wait(600);
+        })
+        .then(function () {
+          progress.advance(3);
+          return wait(400);
+        })
+        .then(function () {
+          progress.close();
+          ui.flashThenGo("policy-detail.html?policy=" + encodeURIComponent(policy.id) + "&tab=documents",
+            { title: "Policy created", detail: policy.id + " created from imported quote.", tone: "green" });
+        });
     });
 
     page.appendChild(panel);

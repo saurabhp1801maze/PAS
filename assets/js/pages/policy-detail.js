@@ -415,6 +415,13 @@
               .then(function () { PAS.downloadJson((payload.invoiceNumber || d.name) + ".json", payload); });
           });
           actions.appendChild(downloadBtn);
+        } else if (d.type === "Policy Document" && d.payload) {
+          /* Policy documents leave PAS as a PDF (browser print-to-PDF on the formatted view),
+             matching how a customer actually receives one — unlike the invoice, which stays JSON
+             for the Billing module to consume programmatically. */
+          var viewDocBtn = ui.h("button", { class: "btn small" }, "View");
+          viewDocBtn.addEventListener("click", function (e) { e.stopPropagation(); location.href = "policy-document.html?policy=" + encodeURIComponent(policy.id) + "&doc=" + encodeURIComponent(d.id); });
+          actions.appendChild(viewDocBtn);
         }
         var delBtn = ui.h("button", { class: "btn small" }, d.type === "Invoice" ? "Mark sent" : "Mark delivered");
         delBtn.addEventListener("click", function (e) { e.stopPropagation(); PAS.markDocumentDelivered(policy.id, d.id); rerender(); });

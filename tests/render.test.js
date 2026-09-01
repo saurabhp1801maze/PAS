@@ -1400,7 +1400,11 @@ console.log("\n  documents: search + type filter genuinely narrow the table, and
   vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
-  var bookD = stub.PAS.seedPolicies();
+  vm.runInContext(fs.readFileSync("assets/js/pas-extensions.js", "utf8"), stub);
+  /* The rendered page reads through PAS.getPolicies (wrapped by pas-extensions.js to run
+     ensurePolicyStructure, which auto-injects a "Policy document" per policy) rather than the raw
+     seed — load pas-extensions.js here too so this expectation is computed the same way. */
+  var bookD = stub.PAS.getPolicies();
   var totalDocs = bookD.reduce(function (s, p) { return s + (p.documents || []).length; }, 0);
 
   var out = renderDom("documents");

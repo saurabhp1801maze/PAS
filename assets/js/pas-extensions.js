@@ -250,6 +250,20 @@
     if (!p.auditLog) p.auditLog = [];
     if (p.archived === undefined) p.archived = false;
     if (!p.packageLines) p.packageLines = p.product.indexOf("Commercial") !== -1 ? [{ line: "Property", premiumShare: 0.6 }, { line: "Liability", premiumShare: 0.4 }] : null;
+    /* Every policy — not just ones created through Import quote — gets a full-detail "Policy
+       document" in its Documents tab, generated (like every other field here) on read rather than
+       persisted at seed time. The id is derived from the policy id, not a random uid(), so it stays
+       the same across independent reads — a "View" link built from one read must still resolve on
+       the next, unrelated PAS.getPolicy(id) call the linked page makes. PAS.policyDocumentPayload
+       is a pure function of p's own fields, so recomputing it per read never drifts. */
+    if (!(p.documents || []).some(function (d) { return d.type === "Policy Document"; })) {
+      p.documents = (p.documents || []).concat([{
+        id: "DOC-" + p.id + "-POLICYDOC", name: "Policy document", type: "Policy Document", version: 1,
+        generatedAt: p.submittedOn || p.effectiveDate, transactionId: null,
+        deliveryStatus: "Generated", deliveredAt: null,
+        payload: PAS.policyDocumentPayload(p),
+      }]);
+    }
     return p;
   };
 
@@ -486,6 +500,60 @@
     a.href = URL.createObjectURL(blob);
     a.download = filename;
     a.click();
+  };
+
+  /* The full policy record as a customer-facing document. `coverages` reuses the same split the
+     Cover tab renders from (PAS.coverageBreakdown) so the two never disagree; `coveragePremium`
+     and the discount/surcharge/fee/tax lines are the raw quote figures invoice.js's line items
+     are built from — kept separate because they decompose the premium two different, mutually
+     exclusive ways (see the field-level comment below). Viewed on policy-document.html. */
+  PAS.policyDocumentPayload = function (policy) {
+    var q = (policy.quote && policy.quote.quote) || {};
+    return {
+      documentType: "Policy document",
+      policyId: policy.id,
+      namedInsured: policy.holder,
+      producer: policy.producer,
+      carrier: policy.carrier,
+      state: policy.state,
+      product: policy.product,
+      status: policy.status,
+      term: { number: policy.termNumber, effectiveDate: policy.effectiveDate, expirationDate: policy.expirationDate },
+      sumInsured: policy.sumInsured,
+      premium: policy.premium,
+      /* Informational only — how the FINAL premium splits across lines of cover. Not part of the
+         additive composition below: that starts from the quote's own pre-adjustment coveragePremium
+         (distinct from this split, which already nets in every discount/surcharge/fee/tax), same
+         as invoice.js's line items. Mixing the two would double-count the adjustments. */
+      coverages: PAS.coverageBreakdown(policy),
+      coveragePremium: q.coveragePremium,
+      discounts: q.discounts || [],
+      surcharges: q.surcharges || [],
+      fees: q.fees || [],
+      tax: { pct: q.taxPct, amount: q.tax },
+      ratingVersion: q.ratingVersion || null,
+    };
+  };
+
+  /* Mints the paperwork a quote import produces immediately — a policy document and an invoice —
+     rather than leaving the Documents tab empty until an admin generates each by hand. Both ride
+     the same document/ledger primitives (_docRecord + _pushTxn) as every other lifecycle doc.
+     _patchPolicy reads p through the wrapped PAS.getPolicies, which (via ensurePolicyStructure)
+     has already auto-injected a placeholder "Policy document" for any policy that doesn't have a
+     real one yet — filter that placeholder out before concatenating the real, freshly-dated one so
+     the Documents tab doesn't end up with two. */
+  PAS.generateQuoteDocuments = function (policyId) {
+    PAS._patchPolicy(policyId, function (p) {
+      var doc = PAS._docRecord("Policy document", "Policy Document", 1, null);
+      doc.payload = PAS.policyDocumentPayload(p);
+      var docs = (p.documents || []).filter(function (d) { return d.type !== "Policy Document"; }).concat([doc]);
+      return PAS._pushTxn(Object.assign({}, p, { documents: docs }), {
+        date: todayISO(), type: "Servicing", title: "Policy document generated",
+        detail: "Policy document generated for " + p.holder + ".",
+        meta: { category: "Documents" },
+      });
+    });
+    return PAS.generateInvoice(policyId);
   };
 
   PAS.checkBinderExpiries = function () {
@@ -779,10 +847,12 @@
   PAS.PAGE_META["integration-hub"] = { nav: "integration-hub", title: "Integration / PAS hub" };
   PAS.PAGE_META["import-quote"] = { nav: "import-quote", title: "Integration / Import quote" };
   PAS.PAGE_META["invoice"] = { nav: "registry", title: "Records / Invoice" };
+  PAS.PAGE_META["policy-document"] = { nav: "registry", title: "Records / Policy document" };
   PAS.PAGE_APIS["advanced-desk"] = [["GET", "/api/v1/advanced-transactions", "Advanced PAS transaction queue"], ["POST", "/api/v1/policies/{id}/rewrites", "Rewrite policy"]];
   PAS.PAGE_APIS["integration-hub"] = [["GET", "/api/v1/policies/{id}", "Policy query with ETag"], ["POST", "/api/v1/inbound/bind", "Receive bound policy from UW module"]];
   PAS.PAGE_APIS["import-quote"] = [["POST", "/api/v1/inbound/quote", "Imports a rating-quote payload and creates a policy from it"]];
   PAS.PAGE_APIS["invoice"] = [["POST", "/api/v1/policies/{policyId}/documents", "Renders and stores the invoice document"], ["GET", "/api/v1/policies/{policyId}/invoices/{docId}", "Returns the invoice as JSON — what the Download button saves"], ["POST", "/api/v1/policies/{policyId}/invoices/{docId}/send", "Marks the invoice delivered to Accounts"]];
+  PAS.PAGE_APIS["policy-document"] = [["POST", "/api/v1/policies/{policyId}/documents", "Renders and stores the policy document"]];
   if (PAS.PAGE_APIS.detail) PAS.PAGE_APIS.detail.push(["GET", "/api/v1/policies/{policyId}/invoices/{docId}", "Downloads the invoice as JSON — the Billing module's own view of it"]);
   if (PAS.API_CATALOGUE) {
     var policiesResource = PAS.API_CATALOGUE.find(function (r) { return r.resource === "Policies"; });

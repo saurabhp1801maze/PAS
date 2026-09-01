@@ -176,6 +176,10 @@
     container.appendChild(svg);
   }
   function monthKeyLabel(key) { return MONTH_NAMES[Number(key.slice(5, 7)) - 1] + " '" + key.slice(2, 4); }
+  function displayDate(iso) {
+    if (!iso) return "—";
+    return MONTH_NAMES[Number(iso.slice(5, 7)) - 1] + " " + Number(iso.slice(8, 10)) + ", " + iso.slice(0, 4);
+  }
 
   /* The dashboard is the one screen every role lands on. Full-access roles (Super Admin, Admin)
      get the operational view below unchanged; any role scoped to less than the whole book (MGA,
@@ -254,8 +258,7 @@
 
     page.appendChild(ui.pageHeader({
       icon: "layout-dashboard", tone: "indigo", title: "Portfolio Dashboard",
-      sub: "Live position of the book, filtered by period, line of business, state and user",
-      what: "Portfolio KPIs computed live from the book for the selected period and scope.", why: "A PAS is judged on what it tells you to do next.",
+      sub: "Portfolio performance and operational workload by line of business, state, broker, MGA and carrier",
     }));
 
     /* One wrapping row, every filter a same-shaped group (label above control) — the pattern
@@ -263,6 +266,7 @@
        own layout. */
     var filterBlock = ui.h("div", { class: "filter-block" });
     page.appendChild(filterBlock);
+    var updateStatus = ui.h("div", { class: "sr-only", "aria-live": "polite", "aria-atomic": "true" });
 
     var lobGroup = ui.h("div", {});
     lobGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Line of business"));
@@ -285,23 +289,23 @@
     filterBlock.appendChild(mgaGroup);
 
     var carrierGroup = ui.h("div", {});
-    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Reinsurer"));
-    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All reinsurers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
+    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Carrier"));
+    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All carriers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
     filterBlock.appendChild(carrierGroup);
 
     var toggleRow = ui.h("div", { class: "period-toggle-row" });
-    toggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Portfolio KPIs"));
-    var toggleAndNav = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "10px" } });
-    var toggle = ui.h("div", { class: "period-toggle" });
+    toggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Reporting period"));
+    var toggleAndNav = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "10px" }, role: "group", "aria-label": "Reporting period" });
+    var toggle = ui.h("div", { class: "period-toggle", role: "group", "aria-label": "Period type" });
     toggleAndNav.appendChild(toggle);
     /* ◀ current-period-label ▶ — steps periodOffset back/forward one unit of whatever period is
        selected (a month, a quarter, a year). Forward is disabled at offset 0: this book has no
        data past today, so "next" would only ever land on an empty period. Hidden entirely in
        custom-range mode, where the date pair below is the only control. */
     var navWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
-    var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period" }, "◀");
+    var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period", "aria-label": "Previous reporting period" }, "◀");
     var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--color-ink)", minWidth: "108px", textAlign: "center" } });
-    var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period" }, "▶");
+    var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period", "aria-label": "Next reporting period" }, "▶");
     navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
     toggleAndNav.appendChild(navWrap);
     toggleRow.appendChild(toggleAndNav);
@@ -309,22 +313,17 @@
     nextBtn.addEventListener("click", function () { if (periodOffset < 0) { periodOffset += 1; buildAll(); } });
     page.appendChild(toggleRow);
 
-    /* Custom range is a deliberately separate control, not a fifth chip in the toggle above —
-       switching it on replaces the Monthly/Quarterly/Yearly selection entirely rather than
-       sitting alongside it as another option of the same kind. */
-    var customToggleRow = ui.h("div", { class: "period-toggle-row" });
-    customToggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Or a custom range"));
-    var customBtn = ui.h("button", { class: "chip" }, "Custom range");
-    customToggleRow.appendChild(customBtn);
+    /* Custom range is one of the reporting-period choices, not a separate hierarchy level. */
+    var customBtn = ui.h("button", { class: "chip", type: "button", "aria-pressed": "false" }, "Custom dates");
+    toggle.appendChild(customBtn);
     customBtn.addEventListener("click", function () { period = period === "custom" ? "month" : "custom"; periodOffset = 0; buildAll(); });
-    page.appendChild(customToggleRow);
 
     /* Only visible when period === "custom" — a plain date pair, inclusive on both ends. */
     var rangeRow = ui.h("div", { class: "period-toggle-row" });
     rangeRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Date range"));
-    var rangeWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
-    var fromInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customFrom });
-    var toInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customTo });
+    var rangeWrap = ui.h("div", { class: "date-range-controls" });
+    var fromInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customFrom, "aria-label": "Reporting period start date" });
+    var toInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customTo, "aria-label": "Reporting period end date" });
     rangeWrap.appendChild(fromInput);
     rangeWrap.appendChild(ui.h("span", { style: { color: "var(--color-muted)", fontSize: "12px" } }, "to"));
     rangeWrap.appendChild(toInput);
@@ -332,6 +331,7 @@
     page.appendChild(rangeRow);
     fromInput.addEventListener("change", function () { if (fromInput.value) customFrom = fromInput.value; buildAll(); });
     toInput.addEventListener("change", function () { if (toInput.value) customTo = toInput.value; buildAll(); });
+    page.appendChild(updateStatus);
 
     /* ================= financial performance =================
        This sits above the operational counts deliberately. Someone running this business opens
@@ -346,16 +346,12 @@
 
     var finGrid = ui.h("div", { class: "two-col-grid" });
     var waterfallPanel = ui.panel({
-      title: "Where the premium went",
-      what: "Earned premium, less incurred claims, less the commission paid to place the business — what is left is the underwriting result.",
-      why: "A ratio tells you the shape of the problem; this tells you the size of it in actual money.",
+      title: "Carrier underwriting result",
     }, []);
     var waterfallBody = waterfallPanel.querySelector(".panel-body");
     finGrid.appendChild(waterfallPanel);
     var revenuePanel = ui.panel({
-      title: "Revenue — what Veridex actually earns",
-      what: "Veridex is an MGA: the premium belongs to the insurer whose paper the risk is written on. Veridex earns commission for placing and servicing it, and passes the larger share of that to the producing broker.",
-      why: "Reporting premium as revenue would overstate what this business earns by roughly seven times.",
+      title: "Veridex commission revenue",
     }, []);
     var revenueBody = revenuePanel.querySelector(".panel-body");
     finGrid.appendChild(revenuePanel);
@@ -368,17 +364,15 @@
       { key: "product", label: "Line of business" },
       { key: "state", label: "State" },
       { key: "producer", label: "Broker" },
-      { key: "carrier", label: "Reinsurer" },
+      { key: "carrier", label: "Carrier" },
     ];
     var segmentDim = "product";
     var segmentPanel = ui.panel({
-      title: "Profit & loss by segment",
-      what: "Every segment's earned premium, incurred claims, loss ratio, expense ratio and combined ratio, worst combined ratio first.",
-      why: "Combined ratio under 100% means the segment made an underwriting profit; over 100% means it lost money. This is the table that answers which business to write more of and which to fix or drop.",
+      title: "Underwriting performance by segment",
       right: (function () {
         var chipRow = ui.h("div", { class: "chip-row" });
         SEGMENT_DIMS.forEach(function (d) {
-          var chip = ui.h("button", { class: "chip" + (segmentDim === d.key ? " active" : ""), type: "button" }, d.label);
+          var chip = ui.h("button", { class: "chip" + (segmentDim === d.key ? " active" : ""), type: "button", "aria-pressed": String(segmentDim === d.key) }, d.label);
           chip.addEventListener("click", function () { segmentDim = d.key; buildFinancials(); });
           chipRow.appendChild(chip);
         });
@@ -391,29 +385,35 @@
 
     page.appendChild(ui.h("div", { class: "kpi-section-head", style: { marginTop: "26px" } }, [
       ui.h("span", { class: "kpi-section-label" }, "Operations"),
-      ui.h("span", { class: "kpi-section-sub" }, "Volume and workload — what is moving through the desks"),
+      ui.h("span", { class: "kpi-section-sub" }, "Current queues and completed activity for the selected reporting period"),
     ]));
 
     var kpiContainer = ui.h("div", {});
     page.appendChild(kpiContainer);
 
+    /* Actionable queues come before historical trend charts in the operations workflow. */
+    var summaryGrid = ui.h("div", { class: "two-col-grid" });
+    page.appendChild(summaryGrid);
+
     var chartGrid = ui.h("div", { class: "two-col-grid" });
-    var chartPanel = ui.panel({ title: "Renewal, cancellation & reinstatement activity", what: "Completed transactions per period, same three series as the KPI cards above.", why: "A count alone doesn't show whether it's rising or falling — the trend does." }, []);
+    var chartPanel = ui.panel({ title: "Renewal, cancellation & reinstatement activity" }, []);
     var chartBody = chartPanel.querySelector(".panel-body");
     chartGrid.appendChild(chartPanel);
-    var issuancePanel = ui.panel({ title: "New business issued", what: "Policies formally issued per period.", why: "The activity chart on the left covers what happens to existing business — this is what's coming in behind it." }, []);
+    var issuancePanel = ui.panel({ title: "New policies issued" }, []);
     var issuanceBody = issuancePanel.querySelector(".panel-body");
     chartGrid.appendChild(issuancePanel);
     page.appendChild(chartGrid);
 
     function renderToggle() {
       toggle.innerHTML = "";
-      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"], ["all", "All"]].forEach(function (opt) {
-        var btn = ui.h("button", { class: "chip" + (period === opt[0] ? " active" : "") }, opt[1]);
+      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"], ["all", "All history"]].forEach(function (opt) {
+        var btn = ui.h("button", { class: "chip" + (period === opt[0] ? " active" : ""), type: "button", "aria-pressed": String(period === opt[0]) }, opt[1]);
         btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; periodOffset = 0; buildAll(); } });
         toggle.appendChild(btn);
       });
+      toggle.appendChild(customBtn);
       customBtn.className = "chip" + (period === "custom" ? " active" : "");
+      customBtn.setAttribute("aria-pressed", String(period === "custom"));
       /* "All" has no offset to step through (there's no "previous All") any more than custom range
          does — its date span is however much history the book has, not a nameable unit. */
       navWrap.style.display = (period === "custom" || period === "all") ? "none" : "flex";
@@ -448,23 +448,33 @@
         ? active.filter(function (p) { return p.expirationDate >= PAS.todayISO() && p.expirationDate <= PAS.addDays(PAS.todayISO(), 30); }).length
         : active.filter(function (p) { return periodMatches(p.expirationDate); }).length;
       var periodNote = periodNoteText();
-      /* Not period-scoped, same reasoning as Pending transactions below — it's the live count of
+      /* Not period-scoped, same reasoning as Pending approvals below — it's the live count of
          requests sitting in the Endorsement desk's queue right now, not a completed-this-period
          figure. */
       var endorsementPending = PAS.pendingOf(policies, "Endorsement").length;
 
       kpiContainer.innerHTML = "";
-      kpiContainer.appendChild(ui.kpiRow([
-        { label: "Total policies", value: policies.length, href: "registry.html", tip: "Every record in the register" + filterNote() + ".", why: "Portfolio size — not period-scoped, the book has no past-state snapshots to filter this against." },
-        { label: "Active policies", value: active.length, tone: "green", href: "registry.html?status=Active", tip: "In force as of today.", why: "A snapshot count, same reason as Total policies." },
-        { label: "Renewed", value: renewed, tone: "blue", href: "renewal.html", tip: "Renewals completed " + periodNote + "." },
-        { label: "Expiring soon", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: expiringSoonWindow ? "Active policies whose term ends within the next 30 days — \"All\" has no bounded window of its own to use here." : ("Active policies whose term ends " + periodNote + ".") },
-        { label: "Endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html", tip: "Endorsement requests awaiting decision, right now.", why: "Operational queue, not period-scoped — same reasoning as Pending transactions." },
-        { label: "Reinstated", value: reinstated, tone: reinstated > 0 ? "green" : "gray", href: "reinstatement.html", tip: "Reinstatements completed " + periodNote + "." },
-        { label: "Cancelled", value: cancelled, tone: cancelled > 0 ? "red" : "gray", href: "cancellation.html", tip: "Cancellations completed " + periodNote + "." },
-        { label: "Pending transactions", value: pending.length, tone: "red", href: "approvals.html", tip: "Held transactions of every type except Underwriting, exactly what Pending Approvals lists.", why: "Operational queue, not period-scoped: it's what needs action right now, regardless of which period you're viewing." },
-        { label: "Bound, awaiting issue", value: bound.length, tone: bound.length > 0 ? "amber" : "gray", tip: "Bound policies with nothing left to review — they issue automatically once no subjectivity remains outstanding, not from a manual decision here.", why: "A different queue from Pending transactions: nobody decides these, the system auto-issues once nothing is blocking." },
-      ], true));
+      kpiContainer.appendChild(ui.kpiSection({
+        label: "Current position and workload",
+        sub: "As of " + displayDate(PAS.todayISO()),
+        rowClass: "operations-kpi-row",
+      }, [
+        { label: "Total policies", value: policies.length, href: "registry.html", tip: "Current total records in this filtered portfolio." },
+        { label: "Active policies", value: active.length, tone: "green", href: "registry.html?status=Active", tip: "Policies in force as of " + displayDate(PAS.todayISO()) + "." },
+        { label: expiringSoonWindow ? "Policies expiring in 30 days" : "Policies expiring in period", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: expiringSoonWindow ? "Active policies whose term ends within the next 30 days." : ("Active policies whose term ends " + periodNote + ".") },
+        { label: "Pending endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html" },
+        { label: "Pending approvals", value: pending.length, tone: "red", href: "approvals.html", tip: "Transactions awaiting approval now; underwriting referrals are handled separately." },
+        { label: "Bound, awaiting automatic issuance", value: bound.length, tone: bound.length > 0 ? "amber" : "gray", tip: "Bound policies waiting for automatic issuance after all blockers are cleared." },
+      ]));
+      kpiContainer.appendChild(ui.kpiSection({
+        label: "Completed in selected period",
+        sub: periodNote.replace(/^in /, ""),
+        rowClass: "operations-kpi-row",
+      }, [
+        { label: "Renewals completed", value: renewed, tone: "blue", href: "renewal.html" },
+        { label: "Reinstatements completed", value: reinstated, tone: reinstated > 0 ? "green" : "gray", href: "reinstatement.html" },
+        { label: "Cancellations completed", value: cancelled, tone: cancelled > 0 ? "red" : "gray", href: "cancellation.html" },
+      ]));
     }
 
     /* Shared period-bucketing: both the left chart and the right graph read the same trailing
@@ -513,7 +523,10 @@
       container.innerHTML = "";
       container.appendChild(ui.h("div", { class: "faint-note", style: { marginBottom: "10px" } }, windowNote()));
 
-      var chart = ui.h("div", { class: "trend-bar-chart" });
+      var chartSummary = data.map(function (row) {
+        return periodLabel(row.key) + ": " + seriesList.map(function (s) { return s.label + " " + row[s.type]; }).join(", ");
+      }).join("; ");
+      var chart = ui.h("div", { class: "trend-bar-chart", role: "img", "aria-label": "Policy servicing activity. " + chartSummary });
       data.forEach(function (row) {
         var cluster = ui.h("div", { class: "trend-cluster" });
         var bars = ui.h("div", { class: "trend-bars" });
@@ -534,7 +547,7 @@
       var legend = ui.h("div", { class: "trend-legend" });
       seriesList.forEach(function (s) {
         var item = ui.h("div", { class: "trend-legend-item" });
-        item.appendChild(ui.h("span", { class: "trend-legend-swatch", style: { background: "var(--" + s.tone + ")" } }));
+        item.appendChild(ui.h("span", { class: "trend-legend-swatch", style: { background: "var(--" + s.tone + ")" }, "aria-hidden": "true" }));
         item.appendChild(document.createTextNode(s.label));
         legend.appendChild(item);
       });
@@ -546,7 +559,12 @@
        lives in the module-level `drawTrendGraph`, shared with the scoped MGA/Broker dashboard's
        own issuance graph. */
     function renderTrendGraph(container, seriesList) {
-      drawTrendGraph(container, seriesList, bucketData(seriesList), periodLabel, windowNote());
+      var data = bucketData(seriesList);
+      drawTrendGraph(container, seriesList, data, periodLabel, windowNote());
+      container.setAttribute("role", "img");
+      container.setAttribute("aria-label", "New policies issued. " + data.map(function (row) {
+        return periodLabel(row.key) + ": " + row[seriesList[0].type];
+      }).join("; "));
     }
 
     function buildChart() {
@@ -562,11 +580,16 @@
 
     /* ---------- snapshot panels: skeletons built once, bodies rebuilt whenever a filter changes.
        Not period-scoped, same reasoning as the KPI header comment. ---------- */
+    var snapshotHead = ui.h("div", { class: "kpi-section-head", style: { marginTop: "26px" } }, [
+      ui.h("span", { class: "kpi-section-label" }, "Current portfolio snapshot"),
+      ui.h("span", { class: "kpi-section-sub" }, "As of " + displayDate(PAS.todayISO()) + " — portfolio filters apply; reporting period does not"),
+    ]);
+    page.appendChild(snapshotHead);
     var twoCol = ui.h("div", { class: "two-col-grid" });
-    var prodPanel = ui.panel({ title: "Written premium by product", what: "In-force premium per product line, largest first.", why: "Concentration in one line is a portfolio risk an underwriting manager watches." }, []);
+    var prodPanel = ui.panel({ title: "In-force premium by line of business" }, []);
     var prodBody = prodPanel.querySelector(".panel-body");
     twoCol.appendChild(prodPanel);
-    var compPanel = ui.panel({ title: "Policy composition", what: "Every record by lifecycle status.", why: "Bound-not-issued and cancelled are the two counts that signal operational drag." }, []);
+    var compPanel = ui.panel({ title: "Policies by lifecycle status" }, []);
     var compBody = compPanel.querySelector(".panel-body");
     twoCol.appendChild(compPanel);
     page.appendChild(twoCol);
@@ -576,11 +599,24 @@
        "which is loss, where profit" is a chart read, not a spreadsheet exercise. Loss ratio =
        incurred claims ÷ earned premium, the standard industry figure underwriting appetite and
        renewal-pricing decisions actually turn on. */
+    var claimsHead = ui.h("div", { class: "kpi-section-head", style: { marginTop: "26px" } }, [
+      ui.h("span", { class: "kpi-section-label" }, "Lifetime claims performance"),
+      ui.h("span", { class: "kpi-section-sub" }, "All on-risk history — internal review threshold: 85%; reporting period does not apply"),
+    ]);
+    page.appendChild(claimsHead);
     var claimsGrid = ui.h("div", { class: "two-col-grid" });
-    var lossByProductPanel = ui.panel({ title: "Loss ratio by product", what: "Incurred claims ÷ earned premium, per product line, across all on-risk business.", why: "Which lines are profitable and which are running hot — the number underwriting appetite decisions actually turn on." }, []);
+    var lossByProductPanel = ui.panel({
+      title: "Lifetime loss ratio by line of business",
+      what: "Incurred claims divided by earned premium for each line of business across all on-risk history.",
+      why: "Above 100% means claims alone exceed earned premium. The 85% alert is a review threshold, not proof of an underwriting loss; use combined ratio for profitability.",
+    }, []);
     var lossByProductBody = lossByProductPanel.querySelector(".panel-body");
     claimsGrid.appendChild(lossByProductPanel);
-    var lossByStatePanel = ui.panel({ title: "Loss ratio by state", what: "Incurred claims ÷ earned premium, per state with claim activity, top 8 worst.", why: "Geographic concentration of loss, separate from geographic concentration of premium." }, []);
+    var lossByStatePanel = ui.panel({
+      title: "Lifetime loss ratio by state",
+      what: "Incurred claims divided by earned premium for the eight states with the highest ratios.",
+      why: "Use claim counts as context: a state with only one claim can show a volatile ratio.",
+    }, []);
     var lossByStateBody = lossByStatePanel.querySelector(".panel-body");
     claimsGrid.appendChild(lossByStatePanel);
     page.appendChild(claimsGrid);
@@ -588,16 +624,13 @@
     var claimsCalloutWrap = ui.h("div", {});
     page.appendChild(claimsCalloutWrap);
 
-    var claimsDetailPanel = ui.panel({ title: "Claims detail", what: "Every claim on file, filtered the same as everything else on this dashboard.", why: "The line-item data behind the loss ratio above — open exposure and closed cost, not just a summary number.", pad: 0 }, []);
+    var claimsDetailPanel = ui.panel({ title: "Claim details", pad: 0 }, []);
     var claimsDetailBody = claimsDetailPanel.querySelector(".panel-body");
     page.appendChild(claimsDetailPanel);
 
     /* Rankings on the left, work queues on the right — side by side so both are readable
        without scrolling one past the other. Appended to the page here so the pair lands in the
        same position the old six cards occupied. */
-    var summaryGrid = ui.h("div", { class: "two-col-grid" });
-    page.appendChild(summaryGrid);
-
     /* ---- Top performers: one panel, switchable dimension ----
        This was three fixed side-by-side cards (brokers / MGAs / insurers). One panel with a
        dropdown asks the same ranking question of any dimension, and makes room for Underwriters —
@@ -606,29 +639,26 @@
        page width rather than a third of it. */
     var TOP_ENTITY_ROWS = 5;
     var TOP_DIMS = [
-      { key: "producer", label: "Top brokers", note: "Premium in force per broker, largest first — which producers the book actually depends on.", href: "brokers.html" },
-      { key: "mga", label: "Top MGAs", note: "Premium in force per MGA facility, largest first — which wholesale facilities carry the most bound risk.", href: "mgas.html" },
-      { key: "carrier", label: "Top Insurers", note: "Premium in force per insurer, largest first — concentration on one insurer's paper is a placement risk.", href: "carriers.html" },
+      { key: "producer", label: "Brokers", note: "In-force premium by broker, largest first — showing distribution concentration, not performance. Direct means business written without a producing broker.", href: "brokers.html" },
+      { key: "mga", label: "MGAs", note: "In-force premium by MGA facility, largest first — showing binding-authority concentration.", href: "mgas.html" },
+      { key: "carrier", label: "Carriers", note: "In-force premium by carrier, largest first — showing concentration on each carrier's paper.", href: "carriers.html" },
       /* Read from each policy's own completed underwriting decision (PAS.underwriterOf), not from
          `producer` — the broker who introduced the risk and the underwriter who accepted it are
          different parties, and conflating them is exactly what the MOM asked us to stop doing. */
-      { key: "underwriter", label: "Top underwriters", note: "Premium in force per underwriter, read from each policy's own completed underwriting decision — who holds the authority on this book, not who introduced it.", href: null },
+      { key: "underwriter", label: "Underwriters", note: "In-force premium by underwriter — showing authority concentration, not individual performance.", href: null },
     ];
     var topDim = TOP_DIMS[0].key;
-    var topSelect = ui.h("select", { class: "register-select", title: "Rank by", "aria-label": "Rank top performers by" });
+    var topSelect = ui.h("select", { class: "register-select", "aria-label": "Group portfolio concentration by" });
     TOP_DIMS.forEach(function (d) { topSelect.appendChild(ui.h("option", { value: d.key }, d.label)); });
     var topLinkWrap = ui.h("span", {});
     var topRight = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
     topRight.appendChild(topSelect);
     topRight.appendChild(topLinkWrap);
     var topPanel = ui.panel({
-      title: "Top performers",
-      what: "Ranked by premium in force. Switch the dimension with the dropdown.",
-      why: "Concentration is the risk this panel exists to surface — whichever party the book leans on hardest is the one whose loss would hurt most.",
+      title: "Portfolio concentration",
       right: topRight,
     }, []);
     var topBody = topPanel.querySelector(".panel-body");
-    summaryGrid.appendChild(topPanel);
     topSelect.addEventListener("change", function () { topDim = topSelect.value; buildTopEntities(); });
 
     /* ---- Open work queues: one panel, switchable queue ----
@@ -639,12 +669,12 @@
     var QUEUE_ROWS = 5;
     var QUEUES = [
       { key: "renewal", label: "Renewal pipeline", href: "renewal.html", note: "In-force policies by closeness to expiry, " + QUEUE_ROWS + " most urgent. Notices must be served " + PAS.RENEWAL_LEAD_DAYS + " days ahead." },
-      { key: "cancellation", label: "Cancelled policy requests", href: "cancellation.html", note: "Open cancellation requests awaiting decision, top " + QUEUE_ROWS + " by refund amount — the biggest refund exposure still undecided." },
+      { key: "cancellation", label: "Cancellation requests", href: "cancellation.html", note: "Open cancellation requests awaiting decision, top " + QUEUE_ROWS + " by refund amount — the biggest refund exposure still undecided." },
       { key: "reinstatement", label: "Reinstatement requests", href: "reinstatement.html", note: "Open reinstatement requests, soonest to fall outside the " + PAS.REINSTATEMENT_WINDOW_DAYS + "-day window first — eligibility expires, so these are time-critical." },
       { key: "endorsement", label: "Endorsement requests", href: "endorsement.html", note: "Open endorsement requests that increase premium, top " + QUEUE_ROWS + " by increase." },
     ];
     var queueKey = QUEUES[0].key;
-    var queueSelect = ui.h("select", { class: "register-select", title: "Queue", "aria-label": "Choose work queue" });
+    var queueSelect = ui.h("select", { class: "register-select", "aria-label": "Choose work queue" });
     QUEUES.forEach(function (q) { queueSelect.appendChild(ui.h("option", { value: q.key }, q.label)); });
     var queueLinkWrap = ui.h("span", {});
     var queueRight = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
@@ -652,12 +682,11 @@
     queueRight.appendChild(queueLinkWrap);
     var queuePanel = ui.panel({
       title: "Open work queues",
-      what: "Requests and pipelines awaiting action, one desk at a time. Switch desks with the dropdown.",
-      why: "Every one of these is work that stops if nobody picks it up — they belong together, not scattered across the page.",
       right: queueRight,
     }, []);
     var queueBody = queuePanel.querySelector(".panel-body");
     summaryGrid.appendChild(queuePanel);
+    summaryGrid.appendChild(topPanel);
     queueSelect.addEventListener("change", function () { queueKey = queueSelect.value; buildQueues(); });
 
     function buildSnapshotPanels() {
@@ -677,9 +706,10 @@
       }).sort(function (a, b) { return b.v - a.v; });
       var maxP = Math.max.apply(null, byProduct.map(function (x) { return x.v; }).concat([1]));
       prodBody.innerHTML = "";
-      byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " pol", tone: x.v === maxP ? "indigo" : "blue", onClick: function () { location.href = "registry.html?product=" + encodeURIComponent(x.pr); } })); });
+      byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " policies", tone: x.v === maxP ? "indigo" : "blue", onClick: function () { location.href = "registry.html?product=" + encodeURIComponent(x.pr); } })); });
 
       compBody.innerHTML = "";
+      compBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Current records by status. Bound policies await automatic issuance; Referred policies require underwriting review."));
       /* Every one of the seven real statuses a policy can carry, not just the five most common —
          the donut's arcs are sized against `total`, so leaving any status out understates every
          slice by however many records the missing status holds. */
@@ -709,7 +739,7 @@
 
       queueSelect.value = spec.key;
       queueLinkWrap.innerHTML = "";
-      queueLinkWrap.appendChild(openLink(spec.href, "Open"));
+      queueLinkWrap.appendChild(openLink(spec.href, "Open desk"));
       queueBody.innerHTML = "";
       queueBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, spec.note));
 
@@ -728,7 +758,7 @@
         var renewalSorted = active.slice().sort(function (a, b) { return PAS.daysBetween(PAS.todayISO(), a.expirationDate) - PAS.daysBetween(PAS.todayISO(), b.expirationDate); });
         renderQueue(renewalSorted.map(function (p) {
           var rc = PAS.renewalCompliance(p);
-          return { label: p.holder, value: Math.max(0, 365 - rc.daysToExpiry), max: 365, note: rc.daysToExpiry + "d left", tone: rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red" };
+          return { label: p.holder, value: Math.max(0, 365 - rc.daysToExpiry), max: 365, note: rc.daysToExpiry + " days left", tone: rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red" };
         }), "No in-force policies approaching expiry.", "in force, closest to expiry first");
 
       } else if (spec.key === "cancellation") {
@@ -761,7 +791,7 @@
             label: x.p.holder,
             value: Math.max(0, Math.min(PAS.REINSTATEMENT_WINDOW_DAYS, x.el.daysSince)),
             max: PAS.REINSTATEMENT_WINDOW_DAYS,
-            note: x.el.fraud ? "Fraud · barred" : (x.el.eligible ? left + "d left to decide" : "Window closed"),
+            note: x.el.fraud ? "Fraud · barred" : (x.el.eligible ? left + " days left to decide" : "Window closed"),
             tone: x.el.eligible ? (left <= 10 ? "amber" : "green") : "red",
           };
         }), "No open reinstatement requests.", "open requests");
@@ -801,49 +831,54 @@
       var bounds = period === "all" ? null : periodBounds(period, periodOffset, customFrom, customTo);
       function financialsFor(policies) { return bounds ? PAS.bookFinancialsInWindow(policies, bounds[0], bounds[1]) : PAS.bookFinancials(policies); }
       var f = financialsFor(onRisk);
+      var previousF = null;
+      if (period === "month" || period === "quarter" || period === "year") {
+        var previousBounds = periodBounds(period, periodOffset - 1, customFrom, customTo);
+        previousF = PAS.bookFinancialsInWindow(onRisk, previousBounds[0], previousBounds[1]);
+      }
+      function valueDelta(current, previous) {
+        if (!previousF || !previous) return null;
+        var change = ((current - previous) / Math.abs(previous)) * 100;
+        return (change >= 0 ? "+" : "") + change.toFixed(1) + "%";
+      }
+      function pointDelta(current, previous) {
+        if (!previousF) return null;
+        var change = (current - previous) * 100;
+        return (change >= 0 ? "+" : "") + change.toFixed(1) + " pts";
+      }
+      var comparisonTitle = previousF ? "Compared with the previous " + period + "." : null;
 
       finKpiContainer.innerHTML = "";
-      finKpiContainer.appendChild(ui.kpiSection({
-        label: "Financial performance",
-        sub: "On-risk business" + filterNote() + " — " + periodNoteText(),
-      }, [
+      finKpiContainer.appendChild(ui.kpiRow([
         {
-          /* Deliberately NOT labelled "Gross written premium" as a blanket claim about the whole
-             book — this is genuinely a period figure now: premium from policies actually issued or
-             renewed within the selected window, read off each transaction's own dated premium
-             (not today's, which a later renewal may have since changed). */
-          label: "Written premium", value: PAS.moneyShort(f.writtenPremium), tone: "gray",
-          tip: period === "all"
-            ? ("Annual premium across all " + f.policies + " on-risk policies" + filterNote() + " — not a period figure.")
-            : ("Premium from policies issued or renewed " + periodNoteText() + filterNote() + "."),
-          why: "Volume placed, not income. The premium belongs to the insurer whose paper the risk sits on, not to Veridex.",
+          label: period === "all" ? "Annual premium" : "Premium written", value: PAS.moneyShort(f.writtenPremium), tone: "gray",
+          delta: valueDelta(f.writtenPremium, previousF && previousF.writtenPremium), deltaTone: "gray", deltaTitle: comparisonTitle,
+          tip: "Total premium from policies issued or renewed in this period.",
         },
         {
           label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue",
-          tip: period === "all"
-            ? ("The portion of that premium the insurer has actually been on risk for, " + pct(f.earnedPremium / (f.writtenPremium || 1)) + " of written.")
-            : ("The slice of premium actually earned " + periodNoteText() + " — day-prorated across each policy's current term."),
-          why: "Every ratio below divides by this, not by written premium. A policy bound mid-period has earned only part of its annual premium so far — dividing claims by written premium would understate the true loss ratio.",
+          delta: valueDelta(f.earnedPremium, previousF && previousF.earnedPremium), deltaTone: "gray", deltaTitle: comparisonTitle,
+          tip: "Premium earned for coverage actually provided so far.",
         },
         {
-          label: "Commission revenue", value: PAS.moneyShort(f.netCommission), tone: "green",
-          tip: PAS.money(f.commission) + " gross commission earned, less " + PAS.money(f.brokerCommission) + " passed to producing brokers.",
-          why: "This is Veridex's actual revenue line — what it keeps after the broker's share. Business written Direct has no broker share, so it retains all of its commission.",
+          label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green",
+          delta: valueDelta(f.netCommission, previousF && previousF.netCommission), deltaTone: "gray", deltaTitle: comparisonTitle,
+          tip: "Veridex revenue after paying the broker's share.",
         },
         {
           label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red",
-          tip: PAS.money(f.paid) + " paid plus " + PAS.money(f.reserved) + " reserved, across " + f.claimCount + " claims (" + f.openClaimCount + " still open).",
-          why: "Incurred, not paid — an open claim's reserve is money already committed, and leaving it out would understate the cost of the business.",
+          delta: valueDelta(f.incurred, previousF && previousF.incurred), deltaTone: previousF ? (f.incurred <= previousF.incurred ? "green" : "red") : null, deltaTitle: comparisonTitle,
+          tip: "Paid claims plus reserves across " + f.claimCount + " claims.",
         },
         {
           label: "Loss ratio", value: pct(f.lossRatio), tone: lossToneFor(f.lossRatio),
-          tip: PAS.money(f.incurred) + " incurred ÷ " + PAS.money(f.earnedPremium) + " earned.",
-          why: "The core measure of whether the risk was priced correctly. Paid-only would read " + pct(f.paidLossRatio) + "; the gap between the two is open reserves.",
+          delta: pointDelta(f.lossRatio, previousF && previousF.lossRatio), deltaTone: previousF ? (f.lossRatio <= previousF.lossRatio ? "green" : "red") : null, deltaTitle: comparisonTitle,
+          tip: "Claims paid per $1 of earned premium.",
         },
         {
           label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedToneFor(f.combinedRatio),
-          tip: pct(f.lossRatio) + " loss ratio + " + pct(f.expenseRatio) + " expense ratio.",
-          why: "The industry's profitability test: under 100% the book makes an underwriting profit, over 100% it loses money. Expense here is acquisition commission only — the insurer's own overhead is not in this system, so the true combined ratio is higher than this figure.",
+          delta: pointDelta(f.combinedRatio, previousF && previousF.combinedRatio), deltaTone: previousF ? (f.combinedRatio <= previousF.combinedRatio ? "green" : "red") : null, deltaTitle: comparisonTitle,
+          tip: "Loss ratio plus expense ratio. Below 100% = carrier profit.",
         },
       ]));
 
@@ -856,11 +891,12 @@
         var profitable = f.combinedRatio < 1;
         var margin = Math.abs(1 - f.combinedRatio);
         finVerdictWrap.appendChild(ui.callout(profitable ? "good" : "bad", [
-          ui.h("strong", {}, profitable ? "This book is making an underwriting profit. " : "This book is losing money on underwriting. "),
+          ui.h("strong", {}, profitable ? "This book produces a positive carrier underwriting result. " : "This book produces a carrier underwriting loss. "),
           document.createTextNode(
-            "Combined ratio " + pct(f.combinedRatio) + " " + periodNoteText() + " — " + pct(margin) + (profitable ? " below" : " above") +
-            " break-even, an underwriting " + (profitable ? "profit" : "loss") + " of " + PAS.money(Math.abs(f.underwritingResult)) +
-            " on " + PAS.money(f.earnedPremium) + " of earned premium. Acquisition commission is the only expense included, so the real margin is thinner than this."
+            "The indicative combined ratio is " + pct(f.combinedRatio) + " " + periodNoteText() + ", meaning $" + (f.combinedRatio * 100).toFixed(2) +
+            " of claims and included acquisition expense for every $100 of earned premium. That is " + pct(margin) + (profitable ? " below" : " above") +
+            " break-even and produces a carrier underwriting " + (profitable ? "profit" : "loss") + " of " + PAS.money(Math.abs(f.underwritingResult)) +
+            ". Other operating costs are not included."
           ),
         ]));
       }
@@ -868,42 +904,46 @@
       /* Waterfall: earned premium is the bar everything else is measured against, so each
          component is drawn to the same scale rather than each to its own maximum. */
       waterfallBody.innerHTML = "";
+      waterfallBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Carrier view: earned premium less claims and commission paid to place the business. Other operating costs are excluded."));
       var scale = f.earnedPremium || 1;
       [
         { label: "Earned premium", value: f.earnedPremium, tone: "blue", note: PAS.money(f.earnedPremium) },
         { label: "Less: incurred claims", value: f.incurred, tone: "red", note: "− " + PAS.money(f.incurred) + " · " + pct(f.lossRatio) },
-        { label: "Less: acquisition commission", value: f.commission, tone: "amber", note: "− " + PAS.money(f.commission) + " · " + pct(f.expenseRatio) },
-        { label: "= Underwriting result", value: Math.abs(f.underwritingResult), tone: f.underwritingResult >= 0 ? "green" : "red", note: (f.underwritingResult >= 0 ? "" : "− ") + PAS.money(Math.abs(f.underwritingResult)) + " · " + pct(Math.abs(1 - f.combinedRatio)) },
+        { label: "Less: commission paid by carrier", value: f.commission, tone: "amber", note: "− " + PAS.money(f.commission) + " · " + pct(f.expenseRatio) },
+        { label: "= Carrier underwriting result", value: Math.abs(f.underwritingResult), tone: f.underwritingResult >= 0 ? "green" : "red", note: (f.underwritingResult >= 0 ? "" : "− ") + PAS.money(Math.abs(f.underwritingResult)) + " · " + pct(Math.abs(1 - f.combinedRatio)) },
       ].forEach(function (row) {
         waterfallBody.appendChild(ui.hbar({ label: row.label, value: row.value, max: scale, note: row.note, tone: row.tone }));
       });
 
       revenueBody.innerHTML = "";
+      revenueBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Veridex view: gross commission earned less the producing broker's share. Premium itself is not Veridex revenue."));
       revenueBody.appendChild(ui.kv({
-        k: "Gross commission earned", v: PAS.money(f.commission),
-        what: "Earned on the same accrual basis as the premium — commission is recognised as the premium earns, not banked in full at inception.",
-        why: "Rates run " + Math.round(PAS.COMMISSION_RATES["Group Health"] * 100) + "–" + Math.round(PAS.COMMISSION_RATES["Term Life"] * 100) + "% depending on the line.",
+        k: "Gross commission earned by Veridex", v: PAS.money(f.commission),
+        what: "Recognized as premium is earned, rather than in full at policy inception.",
       }));
       revenueBody.appendChild(ui.kv({
-        k: "Less: broker commission", v: "− " + PAS.money(f.brokerCommission),
+        k: "Less producing broker share", v: "− " + PAS.money(f.brokerCommission),
         what: "The producing broker's share, " + Math.round(PAS.BROKER_COMMISSION_SHARE * 100) + "% of commission on brokered business.",
         why: "Business written Direct has no broker to pay, so it keeps all of its commission — which is why Direct is materially more profitable per premium dollar.",
       }));
       revenueBody.appendChild(ui.kv({
-        k: "Net revenue to Veridex", v: PAS.money(f.netCommission),
-        what: "What this business actually earns the MGA.",
-        why: "Against " + PAS.money(f.writtenPremium) + " of premium placed — roughly " + pct(f.netCommission / (f.writtenPremium || 1)) + " of the volume it handles.",
+        k: "Net commission retained by Veridex", v: PAS.money(f.netCommission),
+        what: "Gross commission less the producing broker's share.",
       }));
-      revenueBody.appendChild(ui.kv({
-        k: "Unearned premium", v: PAS.money(f.unearnedPremium),
-        what: "Written but not yet earned — the insurer is still on risk for it, and it would be refundable on a pro-rata cancellation today.",
-        why: "This is the part of written premium that has not become revenue yet, and the reason written premium overstates performance.",
-      }));
+      /* Written and earned values in a selected window can represent different cohorts. Only the
+         lifetime view supports a meaningful written-minus-earned unearned-premium balance. */
+      if (period === "all") {
+        revenueBody.appendChild(ui.kv({
+          k: "Unearned premium", v: PAS.money(f.unearnedPremium),
+          what: "Written premium that has not yet been earned because coverage remains to be provided.",
+        }));
+      }
 
       /* ---- profit & loss by segment ---- */
       var dimLabel = SEGMENT_DIMS.filter(function (d) { return d.key === segmentDim; })[0].label;
       segmentPanel.querySelectorAll(".chip").forEach(function (c) {
         c.classList.toggle("active", c.textContent === dimLabel);
+        c.setAttribute("aria-pressed", String(c.textContent === dimLabel));
       });
 
       var keys = Array.from(new Set(onRisk.map(function (p) { return p[segmentDim]; }).filter(Boolean)));
@@ -922,19 +962,19 @@
       var losing = segments.filter(function (s) { return s.f.combinedRatio >= 1; });
       segmentBody.appendChild(ui.h("div", { class: "faint-note", style: { padding: "13px 15px 0" } },
         losing.length === 0
-          ? "Every " + dimLabel.toLowerCase() + " in this filter is running at an underwriting profit."
-          : losing.length + " of " + segments.length + " " + dimLabel.toLowerCase() + " segments are running at a combined ratio of 100% or worse — listed first."));
+          ? "Every " + dimLabel.toLowerCase() + " in this filter has an indicative combined ratio below 100%. Other operating costs are excluded."
+          : losing.length + " of " + segments.length + " " + dimLabel.toLowerCase() + " segments have an indicative combined ratio of 100% or more — listed first. Other operating costs are excluded."));
 
       segmentBody.appendChild(ui.dataTable({
         columns: [
           dimLabel,
-          { label: "Policies", what: "On-risk policies in this segment." },
+          { label: "On-risk policies", what: "Policies that carried coverage risk in this segment." },
           { label: "Earned premium", what: "The exposure base every ratio in this row divides by." },
-          { label: "Incurred", what: "Paid plus reserved claims." },
+          { label: "Incurred claims", what: "Paid plus reserved claims." },
           { label: "Loss ratio", what: "Incurred ÷ earned premium." },
-          { label: "Expense ratio", what: "Acquisition commission ÷ earned premium." },
-          { label: "Combined", what: "Loss ratio + expense ratio.", rule: "Under 100% is an underwriting profit; 100% or over is a loss." },
-          { label: "U/W result", what: "Earned premium less claims less commission — the money answer." },
+          { label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium." },
+          { label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs." },
+          { label: "Carrier underwriting result", what: "Earned premium less claims and commission paid by the carrier; other operating costs are excluded." },
         ],
         rows: segments.map(function (s) {
           return [
@@ -978,7 +1018,9 @@
         byProduct.forEach(function (x) {
           var pct = Math.round(x.ratio * 1000) / 10;
           lossByProductBody.appendChild(ui.hbar({
-            label: x.k, value: pct, max: maxProductRatio, note: pct + "% · " + PAS.moneyShort(x.incurred) + " incurred", tone: lossToneFor(x.ratio),
+            label: x.k, value: pct, max: maxProductRatio, note: pct + "% · $" + (x.ratio * 100).toFixed(2) + " per $100 earned", tone: lossToneFor(x.ratio),
+            tip: x.k + ": " + PAS.money(x.incurred) + " incurred claims divided by " + PAS.money(x.premium) + " earned premium = " + pct + "%.",
+            ariaLabel: x.k + ", " + pct + "% loss ratio, $" + (x.ratio * 100).toFixed(2) + " of incurred claims per $100 earned premium",
             onClick: function () { location.href = "registry.html?product=" + encodeURIComponent(x.k); },
           }));
         });
@@ -991,7 +1033,10 @@
         var maxStateRatio = Math.max.apply(null, byState.map(function (x) { return x.ratio * 100; }).concat([100]));
         byState.forEach(function (x) {
           var pct = Math.round(x.ratio * 1000) / 10;
-          lossByStateBody.appendChild(ui.hbar({ label: x.k, value: pct, max: maxStateRatio, note: pct + "% · " + x.claimN + " claim" + (x.claimN === 1 ? "" : "s"), tone: lossToneFor(x.ratio) }));
+          lossByStateBody.appendChild(ui.hbar({
+            label: x.k, value: pct, max: maxStateRatio, note: pct + "% · " + x.claimN + " claim" + (x.claimN === 1 ? "" : "s"), tone: lossToneFor(x.ratio),
+            ariaLabel: x.k + ", " + pct + "% lifetime loss ratio based on " + x.claimN + " claim" + (x.claimN === 1 ? "" : "s"),
+          }));
         });
       }
 
@@ -999,13 +1044,13 @@
       var lossSegments = byProduct.filter(function (x) { return x.ratio >= 0.85 && x.incurred > 0; });
       if (lossSegments.length > 0) {
         claimsCalloutWrap.appendChild(ui.callout("bad", [
-          ui.h("strong", {}, "Running at a loss: "),
-          document.createTextNode(lossSegments.map(function (x) { return x.k + " (" + Math.round(x.ratio * 100) + "%)"; }).join(", ") + " — incurred claims are at or above 85% of premium in this filter."),
+          ui.h("strong", {}, "High loss ratio — review required: "),
+          document.createTextNode(lossSegments.map(function (x) { return x.k + " (" + Math.round(x.ratio * 100) + "%)"; }).join(", ") + " — incurred claims are at or above 85% of earned premium. Check the combined ratio before concluding whether the segment made an underwriting loss."),
         ]));
       } else if (byProduct.some(function (x) { return x.incurred > 0; })) {
         claimsCalloutWrap.appendChild(ui.callout("good", [
-          ui.h("strong", {}, "No line is running at a loss "),
-          document.createTextNode("in this filter — every product's incurred claims stay under 85% of its premium."),
+          ui.h("strong", {}, "Loss ratios are within the review threshold. "),
+          document.createTextNode("Every product's incurred claims remain below 85% of earned premium in this filter."),
         ]));
       }
 
@@ -1017,9 +1062,11 @@
         var totalIncurred = sortedClaims.reduce(function (s, x) { return s + x.c.incurred; }, 0);
         var cf = PAS.bookFinancials(onRisk);
         var summary = ui.h("div", { style: { display: "flex", gap: "20px", flexWrap: "wrap", padding: "13px 15px 4px" } });
-        summary.appendChild(ui.kv({ k: "Claims (this filter)", v: sortedClaims.length, what: sortedClaims.filter(function (x) { return x.c.status === "Open"; }).length + " open, " + sortedClaims.filter(function (x) { return x.c.status === "Closed"; }).length + " closed." }));
-        summary.appendChild(ui.kv({ k: "Total incurred", v: PAS.money(totalIncurred), what: "Paid plus reserved, across every claim in this filter." }));
-        summary.appendChild(ui.kv({ k: "Open reserves", v: PAS.money(cf.reserved), what: "Held against open claims, this filter." }));
+        var openClaims = sortedClaims.filter(function (x) { return x.c.status === "Open"; }).length;
+        var closedClaims = sortedClaims.filter(function (x) { return x.c.status === "Closed"; }).length;
+        summary.appendChild(ui.kv({ k: "Total claims", v: sortedClaims.length + " · " + openClaims + " open · " + closedClaims + " closed" }));
+        summary.appendChild(ui.kv({ k: "Total incurred", v: PAS.money(totalIncurred), what: "Paid amounts plus reserves across every claim in this filter." }));
+        summary.appendChild(ui.kv({ k: "Open claim reserves", v: PAS.money(cf.reserved), what: "Estimated amounts held for claims that remain open." }));
         summary.appendChild(ui.kv({ k: "Loss ratio", v: pct(cf.lossRatio), what: PAS.money(cf.incurred) + " incurred ÷ " + PAS.money(cf.earnedPremium) + " earned premium, this filter.", why: "Earned, not written — see the Financial performance row at the top of this page." }));
         claimsDetailBody.appendChild(summary);
         var claimsTable = ui.sortableTable({
@@ -1030,10 +1077,10 @@
             { key: "policy", label: "Policy", locked: true, sortValue: function (x) { return x.p.id; }, cell: function (x) { return ui.cellId(x.p.id); } },
             { key: "product", label: "Product", sortValue: function (x) { return x.p.product; }, cell: function (x) { return x.p.product; } },
             { key: "state", label: "State", sortValue: function (x) { return x.p.state; }, cell: function (x) { return x.p.state; } },
-            { key: "type", label: "Type", what: "Peril / claim cause.", sortValue: function (x) { return x.c.type; }, cell: function (x) { return x.c.type; } },
+            { key: "type", label: "Claim type", sortValue: function (x) { return x.c.type; }, cell: function (x) { return x.c.type; } },
             { key: "status", label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid.", sortValue: function (x) { return x.c.status; }, cell: function (x) { return ui.pill(x.c.status === "Open" ? "amber" : "green", x.c.status); } },
-            { key: "incurred", label: "Incurred", what: "Paid plus reserved — the total cost estimate.", sortValue: function (x) { return x.c.incurred; }, cell: function (x) { return PAS.money(x.c.incurred); } },
-            { key: "reserved", label: "Reserved", sortValue: function (x) { return x.c.reserved || 0; }, cell: function (x) { return x.c.reserved ? PAS.money(x.c.reserved) : "—"; } },
+            { key: "incurred", label: "Total incurred", what: "Paid amount plus reserve — the current total cost estimate.", sortValue: function (x) { return x.c.incurred; }, cell: function (x) { return PAS.money(x.c.incurred); } },
+            { key: "reserved", label: "Open reserve", what: "Estimated amount held for an open claim.", sortValue: function (x) { return x.c.reserved || 0; }, cell: function (x) { return x.c.reserved ? PAS.money(x.c.reserved) : "—"; } },
           ],
           rows: function () { return sortedClaims; },
           onRowClick: function (x) { location.href = "policy-detail.html?policy=" + encodeURIComponent(x.p.id); },
@@ -1061,7 +1108,7 @@
 
       topLinkWrap.innerHTML = "";
       /* Underwriters have no directory page to open — no link rather than a dead one. */
-      if (spec.href) topLinkWrap.appendChild(openLink(spec.href, "Open"));
+      if (spec.href) topLinkWrap.appendChild(openLink(spec.href, "View directory"));
 
       var keys = Array.from(new Set(list.map(function (p) { return valueOf(p, spec.key); }).filter(Boolean)));
       var rows = keys.map(function (k) {
@@ -1078,9 +1125,15 @@
       if (rows.length === 0) { topBody.appendChild(ui.h("div", { class: "faint-note" }, "No records in this filter.")); return; }
 
       var max = Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1]));
+      var concentrationTotal = rows.reduce(function (total, r) { return total + r.v; }, 0) || 1;
       var expanded = topExpanded[spec.key];
       (expanded ? rows : rows.slice(0, TOP_ENTITY_ROWS)).forEach(function (r) {
-        topBody.appendChild(ui.hbar({ label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " pol", tone: r.v === max ? "indigo" : "blue" }));
+        topBody.appendChild(ui.hbar({
+          label: r.k, value: r.v, max: max,
+          note: PAS.moneyShort(r.v) + " · " + ((r.v / concentrationTotal) * 100).toFixed(1) + "% · " + r.n + " policies",
+          tone: r.v === max ? "indigo" : "blue",
+          ariaLabel: r.k + ", " + ((r.v / concentrationTotal) * 100).toFixed(1) + "% of filtered in-force premium across " + r.n + " policies",
+        }));
       });
       if (rows.length > TOP_ENTITY_ROWS) {
         var btn = ui.h("button", { class: "btn ghost-link mt-6", type: "button" }, expanded ? "Show top " + TOP_ENTITY_ROWS + " only" : "See " + (rows.length - TOP_ENTITY_ROWS) + " others");
@@ -1089,7 +1142,10 @@
       }
     }
 
-    function buildAll() { renderToggle(); buildFinancials(); buildKpis(); buildChart(); buildSnapshotPanels(); buildQueues(); buildClaims(); buildTopEntities(); }
+    function buildAll() {
+      renderToggle(); buildFinancials(); buildKpis(); buildChart(); buildSnapshotPanels(); buildQueues(); buildClaims(); buildTopEntities();
+      updateStatus.textContent = "Dashboard updated for " + periodNoteText() + filterNote() + ".";
+    }
     buildAll();
   }
 
@@ -1111,12 +1167,15 @@
     var policies = PAS.scopePolicies(allPolicies, role);
     var active = policies.filter(function (p) { return p.status === "Active"; });
     var inForcePremium = sum(active, function (p) { return p.premium; });
+    var scopeSubtitle = spec.scope === "producer"
+      ? "Business placed by " + identity
+      : spec.scope === "carrier"
+        ? "Business written on " + identity + " paper"
+        : "Business placed through " + identity;
 
     page.appendChild(ui.pageHeader({
       icon: spec.icon, tone: spec.tone, title: spec.label + " Dashboard",
-      sub: "The business placed through " + identity + " — premium, loss activity and reserves",
-      what: spec.desc,
-      why: spec.canRequest ? "Scoped to " + identity + "'s own book — can raise a request here, but not decide one." : "Read-only: " + spec.label + " sees its own book; decisions stay with an admin.",
+      sub: scopeSubtitle + " — premium, loss activity and reserves",
     }));
 
     /* Loss ratio and combined ratio go in the headline row for scoped roles too. Those two mean
@@ -1128,27 +1187,29 @@
     var scopedFin = PAS.bookFinancials(PAS.onRiskPolicies(policies));
     function pctOf(x) { return (Math.round(x * 1000) / 10) + "%"; }
     function lossToneForScoped(r) { return r >= 0.85 ? "red" : r >= 0.6 ? "amber" : "green"; }
-    page.appendChild(ui.kpiRow([
-      { label: "In-force premium", value: PAS.moneyShort(inForcePremium), tone: "green", tip: "Sum of annual premium across in-force policies, as of today." },
+    page.appendChild(ui.kpiSection({ label: "Current portfolio", sub: "As of " + displayDate(PAS.todayISO()), rowClass: "scoped-kpi-row" }, [
+      { label: "In-force premium", value: PAS.moneyShort(inForcePremium), tone: "green", tip: "Annual premium across active policies as of " + displayDate(PAS.todayISO()) + "." },
+      { label: "Active policies", value: active.length },
+      { label: "Lines of business", value: Array.from(new Set(policies.map(function (p) { return p.product; }))).length },
+      { label: "States", value: Array.from(new Set(policies.map(function (p) { return p.state; }))).length },
+    ]));
+    page.appendChild(ui.kpiSection({ label: "Lifetime loss performance", sub: "Policies that carried coverage risk", rowClass: "scoped-kpi-row" }, [
       {
         label: "Earned premium", value: PAS.moneyShort(scopedFin.earnedPremium), tone: "blue",
-        tip: "Premium actually earned to date across this book's on-risk policies, including cancelled and expired ones.",
-        why: "The exposure base both ratios below divide by — written premium would flatter them, because a policy part-way through its term has not earned all of it.",
+        tip: "Premium recognized for coverage already provided, including relevant cancelled and expired policies.",
+        why: "The exposure base used by both ratios in this section.",
       },
-      { label: "Active policies", value: active.length, tip: "In force as of today, of " + policies.length + " total records." },
       {
         label: "Loss ratio", value: pctOf(scopedFin.lossRatio), tone: lossToneForScoped(scopedFin.lossRatio),
         tip: PAS.money(scopedFin.incurred) + " incurred ÷ " + PAS.money(scopedFin.earnedPremium) + " earned, across " + scopedFin.claimCount + " claims.",
-        why: "Whether the risk on this book was priced correctly.",
+        why: "$" + (scopedFin.lossRatio * 100).toFixed(2) + " of incurred claims per $100 of earned premium. Expenses are excluded.",
       },
       {
-        label: "Combined ratio", value: pctOf(scopedFin.combinedRatio), tone: scopedFin.combinedRatio >= 1 ? "red" : scopedFin.combinedRatio >= 0.95 ? "amber" : "green",
-        tip: pctOf(scopedFin.lossRatio) + " loss + " + pctOf(scopedFin.expenseRatio) + " acquisition commission.",
-        why: "Under 100% this book made an underwriting profit; over 100% it lost money. Acquisition commission is the only expense included, so the real figure is higher.",
+        label: "Indicative combined ratio", value: pctOf(scopedFin.combinedRatio), tone: scopedFin.combinedRatio >= 1 ? "red" : scopedFin.combinedRatio >= 0.95 ? "amber" : "green",
+        tip: pctOf(scopedFin.lossRatio) + " loss ratio plus " + pctOf(scopedFin.expenseRatio) + " acquisition expense ratio.",
+        why: "Below 100% indicates a carrier underwriting profit before other operating costs, which are excluded.",
       },
-      { label: "Product lines", value: Array.from(new Set(policies.map(function (p) { return p.product; }))).length, tip: "Distinct LOBs written." },
-      { label: "States", value: Array.from(new Set(policies.map(function (p) { return p.state; }))).length, tip: "Distinct states with business on the books." },
-    ], true));
+    ]));
 
     /* Filters: state, LOB, the counterpart distribution entity, and carrier, all multi-select
        (empty selection = "All"), plus a period toggle (Monthly/Quarterly/Yearly/custom range) —
@@ -1159,7 +1220,7 @@
 
     /* The second breakdown panel is whichever distribution-chain dimension this role's own scope
        ISN'T — a Broker (scoped by producer, i.e. themselves) sees premium by MGA facility instead
-       of premium by broker, which would otherwise be one bar, always themselves. A Reinsurer sees
+       of premium by broker, which would otherwise be one bar, always themselves. A Carrier sees
        both layers underneath it (MGA and, per the MOM 2026-08-26 feedback, Broker too) since both
        are "relevant entities" from a carrier's own view — everyone else sees the traditional
        broker breakdown. */
@@ -1171,7 +1232,7 @@
     var secondWhy = spec.scope === "producer" || isCarrierScope ? "Shows which wholesale facilities this book actually depends on." : "Shows which distribution channel the book actually depends on.";
     var thirdDim = "producer", thirdLabel = "Broker", thirdTitle = "Premium by broker",
       thirdWhat = "In-force premium per placing broker, Direct included.",
-      thirdWhy = "Shows which distribution channel ultimately sources this reinsurer's book.";
+      thirdWhy = "Shows which distribution channel ultimately sources this carrier's book.";
 
     /* stateGrid/lobGrid/issuancePanel are built now (their bodies are wired into renderCharts
        below) but not appended to `page` yet — they're added further down, after the period
@@ -1180,24 +1241,24 @@
        control. */
     var stateGrid = ui.h("div", { class: isCarrierScope ? "three-col-grid" : "two-col-grid" });
     var stateTopOnly = spec.scope === "producer";
-    var statePanel = ui.panel({ title: stateTopOnly ? "Premium by state (top 5)" : "Premium by state", what: stateTopOnly ? "Top 5 states by in-force premium, largest first." : "In-force premium per state, largest first.", why: "State-level concentration matters for regulatory exposure and catastrophe accumulation." }, []);
+    var statePanel = ui.panel({ title: stateTopOnly ? "In-force premium by state (top 5)" : "In-force premium by state" }, []);
     var stateBody = statePanel.querySelector(".panel-body");
     stateGrid.appendChild(statePanel);
-    var brokerPanel = ui.panel({ title: secondTitle, what: secondWhat, why: secondWhy }, []);
+    var brokerPanel = ui.panel({ title: secondLabel === "MGA" ? "In-force premium by MGA" : "In-force premium by broker" }, []);
     var brokerBody = brokerPanel.querySelector(".panel-body");
     stateGrid.appendChild(brokerPanel);
     var thirdPanel = null, thirdBody = null;
     if (isCarrierScope) {
-      thirdPanel = ui.panel({ title: thirdTitle, what: thirdWhat, why: thirdWhy }, []);
+      thirdPanel = ui.panel({ title: "In-force premium by broker" }, []);
       thirdBody = thirdPanel.querySelector(".panel-body");
       stateGrid.appendChild(thirdPanel);
     }
 
     var lobGrid = ui.h("div", { class: "two-col-grid" });
-    var lobPanel = ui.panel({ title: "Written premium by product", what: "In-force premium per product line, largest first.", why: "Concentration in one line is a portfolio risk this book's own concentration watches too." }, []);
+    var lobPanel = ui.panel({ title: "In-force premium by line of business" }, []);
     var lobBody = lobPanel.querySelector(".panel-body");
     lobGrid.appendChild(lobPanel);
-    var claimsPanel = ui.panel({ title: "Claims & reserves", what: "Every claim on file, incurred/paid/reserved, filtered the same as the charts above.", why: "The two numbers a carrier partner asks for first — loss ratio and open exposure — computed from real claim records, not asserted." }, []);
+    var claimsPanel = ui.panel({ title: "Claims and reserves", what: "Claims, incurred amounts and open reserves for this filtered book.", why: "Shows loss performance and the exposure still held for open claims." }, []);
     var claimsBody = claimsPanel.querySelector(".panel-body");
     lobGrid.appendChild(claimsPanel);
 
@@ -1205,7 +1266,7 @@
        panels are — left full width, the line graph (drawn to a fixed 640x172 design) reads as
        stretched thin across the whole page. Capped to the same ~640px a two-col-grid's own
        column would give it, so it renders at the size it was actually designed for. */
-    var issuancePanel = ui.panel({ title: "New business issued", what: "Policies formally issued, trailing periods.", why: "What's coming into this book, not just what's already on it." }, []);
+    var issuancePanel = ui.panel({ title: "New policies issued" }, []);
     issuancePanel.style.maxWidth = "660px";
     var issuanceBody = issuancePanel.querySelector(".panel-body");
 
@@ -1246,7 +1307,7 @@
         if (rows.length === 0 || max === 1 && rows.every(function (r) { return r.v === 0; })) { body.appendChild(ui.h("div", { class: "faint-note" }, "No in-force premium in this filter.")); return; }
         rows.forEach(function (r) {
           body.appendChild(ui.hbar({
-            label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " pol", tone: r.v === max ? "indigo" : "blue",
+            label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " policies", tone: r.v === max ? "indigo" : "blue",
             onClick: onClickField ? function () { location.href = "registry.html?" + onClickField + "=" + encodeURIComponent(r.k); } : undefined,
           }));
         });
@@ -1298,10 +1359,10 @@
           what: (Math.round(sfin.lossRatio * 1000) / 10) + "% loss + " + (Math.round(sfin.expenseRatio * 1000) / 10) + "% acquisition commission.",
           why: "Under 100% this book made an underwriting profit; over 100% it lost money.",
         }));
-        summary.appendChild(ui.kv({ k: "Open reserves (this filter)", v: PAS.money(sfin.reserved), what: sfin.openClaimCount + " open of " + sfin.claimCount + " total claims." }));
+        summary.appendChild(ui.kv({ k: "Open claim reserves", v: PAS.money(sfin.reserved), what: sfin.openClaimCount + " open of " + sfin.claimCount + " total claims in this filter." }));
         claimsBody.appendChild(summary);
         claimsBody.appendChild(ui.dataTable({
-          columns: ["Policy", "Type", "State", { label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid." }, { label: "Incurred", what: "Paid plus reserved — the total cost estimate." }, "Reserved"],
+          columns: ["Policy", "Claim type", "State", { label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid." }, { label: "Incurred amount", what: "Paid plus reserved — the total cost estimate." }, { label: "Reserve", what: "Estimated amount held for an open claim." }],
           rows: scopedClaims.map(function (x) {
             return [ui.cellId(x.p.id), x.c.type, x.p.state, ui.pill(x.c.status === "Open" ? "amber" : "green", x.c.status), PAS.money(x.c.incurred), x.c.reserved ? PAS.money(x.c.reserved) : "—"];
           }),
@@ -1322,7 +1383,7 @@
 
     var lobGroup = ui.h("div", {});
     lobGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Line of business"));
-    lobGroup.appendChild(ui.multiSelect({ options: products, selected: filterProduct, allLabel: "All LOBs", onChange: function (sel) { filterProduct = sel; refresh(); } }));
+    lobGroup.appendChild(ui.multiSelect({ options: products, selected: filterProduct, allLabel: "All lines", onChange: function (sel) { filterProduct = sel; refresh(); } }));
     filterBlock.appendChild(lobGroup);
 
     var secondDimGroup = ui.h("div", {});
@@ -1339,8 +1400,8 @@
     }
 
     var carrierGroup = ui.h("div", {});
-    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Reinsurer"));
-    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: filterCarrier, allLabel: "All reinsurers", onChange: function (sel) { filterCarrier = sel; refresh(); } }));
+    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Carrier"));
+    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: filterCarrier, allLabel: "All carriers", onChange: function (sel) { filterCarrier = sel; refresh(); } }));
     filterBlock.appendChild(carrierGroup);
 
     /* Period toggle, driving "New business issued" further down — Monthly/Quarterly/Yearly chips
@@ -1353,9 +1414,9 @@
     var toggle = ui.h("div", { class: "period-toggle" });
     toggleAndNav.appendChild(toggle);
     var navWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
-    var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period" }, "◀");
+    var prevBtn = ui.h("button", { class: "btn ghost-link", title: "Previous period", "aria-label": "Previous reporting period" }, "◀");
     var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--color-ink)", minWidth: "108px", textAlign: "center" } });
-    var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period" }, "▶");
+    var nextBtn = ui.h("button", { class: "btn ghost-link", title: "Next period", "aria-label": "Next reporting period" }, "▶");
     navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
     toggleAndNav.appendChild(navWrap);
     toggleRow.appendChild(toggleAndNav);
@@ -1363,12 +1424,9 @@
     nextBtn.addEventListener("click", function () { if (periodOffset < 0) { periodOffset += 1; refresh(); } });
     page.appendChild(toggleRow);
 
-    var customToggleRow = ui.h("div", { class: "period-toggle-row" });
-    customToggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Or a custom range"));
-    var customBtn = ui.h("button", { class: "chip" }, "Custom range");
-    customToggleRow.appendChild(customBtn);
+    var customBtn = ui.h("button", { class: "chip" }, "Custom");
+    toggle.appendChild(customBtn);
     customBtn.addEventListener("click", function () { period = period === "custom" ? "month" : "custom"; periodOffset = 0; refresh(); });
-    page.appendChild(customToggleRow);
 
     var rangeRow = ui.h("div", { class: "period-toggle-row" });
     rangeRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Date range"));
@@ -1400,6 +1458,7 @@
         btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; periodOffset = 0; refresh(); } });
         toggle.appendChild(btn);
       });
+      toggle.appendChild(customBtn);
       customBtn.className = "chip" + (period === "custom" ? " active" : "");
       navWrap.style.display = period === "custom" ? "none" : "flex";
       rangeRow.style.display = period === "custom" ? "" : "none";

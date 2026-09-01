@@ -203,7 +203,7 @@ console.log("\n  content spot-checks");
   ["api-reference", ["Idempotency-Key", "policyCancelled", "412", "at-least-once"]],
   ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected reinsurers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
-  ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring soon", "Endorsement requests", "Reinstated", "Cancelled", "Pending transactions", "Bound, awaiting issue", "Monthly", "Yearly", "New business issued", "Cancelled policy requests"]],
+  ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring in period", "Endorsement requests", "Reinstated", "Cancelled", "Pending approvals", "Bound — awaiting issuance", "Monthly", "Yearly", "New business issued", "Cancellation requests"]],
   ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason", "Cancellation trend", "Pro-Rata", "Short-Rate"]],
 ].forEach(function (c) {
   var txt = renderText(c[0]);
@@ -256,7 +256,7 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
        on 91%. Banning the label keeps the guard on the fabricated KPI without also outlawing a
        genuine number that happens to round the same way. */
     "Gross written premium", "Retention", "+8.2%", "-1.4%",
-    "In-force premium", "Avg premium", "Product lines",          /* superseded KPI tiles */
+    "Avg premium",                                                /* superseded KPI tile */
     "Underwriting queue", "Ready to issue now", "Pipeline premium",
     "Held transactions", "Avg risk score", "Below refer threshold", "Renewals decided, all-time",
     "Submissions to underwrite", "Renewals in notice window",    /* the 4 removed work-desk boxes */
@@ -288,14 +288,14 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   var pending = PAS.allTxns(policies).map(function (t) { return t.h; }).filter(function (h) { return h.status === "Pending" && h.type !== "Underwriting"; });
   var oldDoubleCountedTotal = referred.length + bound.length + pending.length;
   if (pending.length + bound.length === oldDoubleCountedTotal) { fails++; console.log("  FAIL  split totals coincide with the old double-counted formula — test is not discriminating"); }
-  var mPending = txt.match(/Pending transactions(\d+)/);
-  if (!mPending) { fails++; console.log('  FAIL  could not find rendered "Pending transactions" value'); }
-  else if (Number(mPending[1]) !== pending.length) { fails++; console.log("  FAIL  Pending transactions renders " + mPending[1] + ", expected " + pending.length); }
-  else console.log("  PASS  Pending transactions = " + pending.length + " (excludes Underwriting, matches Pending Approvals exactly)");
-  var mBound = txt.match(/Bound, awaiting issue(\d+)/);
-  if (!mBound) { fails++; console.log('  FAIL  could not find rendered "Bound, awaiting issue" value'); }
-  else if (Number(mBound[1]) !== bound.length) { fails++; console.log("  FAIL  Bound, awaiting issue renders " + mBound[1] + ", expected " + bound.length); }
-  else console.log("  PASS  Bound, awaiting issue = " + bound.length + " — its own queue, not folded into Pending transactions, not the old double-counted " + oldDoubleCountedTotal);
+  var mPending = txt.match(/Pending approvals(\d+)/);
+  if (!mPending) { fails++; console.log('  FAIL  could not find rendered "Pending approvals" value'); }
+  else if (Number(mPending[1]) !== pending.length) { fails++; console.log("  FAIL  Pending approvals renders " + mPending[1] + ", expected " + pending.length); }
+  else console.log("  PASS  Pending approvals = " + pending.length + " (excludes Underwriting, matches Pending Approvals exactly)");
+  var mBound = txt.match(/Bound — awaiting issuance(\d+)/);
+  if (!mBound) { fails++; console.log('  FAIL  could not find rendered "Bound — awaiting issuance" value'); }
+  else if (Number(mBound[1]) !== bound.length) { fails++; console.log("  FAIL  Bound — awaiting issuance renders " + mBound[1] + ", expected " + bound.length); }
+  else console.log("  PASS  Bound — awaiting issuance = " + bound.length + " — its own queue, not folded into Pending approvals, not the old double-counted " + oldDoubleCountedTotal);
 
   /* There are two KPI rows on this page now: the Financial performance row at the top, and the
      Operations row below it. These assertions are about the OPERATIONS row specifically, which is
@@ -338,14 +338,14 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   panels.forEach(function (p) {
     var t = p.querySelector(".panel-title").textContent;
     if (t.indexOf("Open work queues") === 0) queuePanel = p;
-    if (t.indexOf("Top performers") === 0) topPanel = p;
+    if (t.indexOf("Portfolio concentration") === 0) topPanel = p;
   });
   if (!queuePanel) { fails++; console.log('  FAIL  no "Open work queues" panel found — the four desk queues should be consolidated into one'); return; }
-  if (!topPanel) { fails++; console.log('  FAIL  no "Top performers" panel found — the ranking cards should be consolidated into one'); return; }
+  if (!topPanel) { fails++; console.log('  FAIL  no "Portfolio concentration" panel found — the ranking cards should be consolidated into one'); return; }
 
   var queueSelect = queuePanel.querySelector("select");
   var queueOptions = queueSelect ? queueSelect.querySelectorAll("option").map(function (o) { return o.textContent; }) : [];
-  ["Renewal pipeline", "Cancelled policy requests", "Reinstatement requests", "Endorsement requests"].forEach(function (label) {
+  ["Renewal pipeline", "Cancellation requests", "Reinstatement requests", "Endorsement requests"].forEach(function (label) {
     if (queueOptions.indexOf(label) === -1) { fails++; console.log('  FAIL  work-queue dropdown is missing "' + label + '"'); }
   });
   console.log("  PASS  one work-queue panel offering all four desks (" + queueOptions.join(", ") + ") — reinstatement included, which had no card of its own before");
@@ -393,7 +393,7 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
      which is read from the ledger, not from a field on the policy. */
   var topSelect = topPanel.querySelector("select");
   var topOptions = topSelect ? topSelect.querySelectorAll("option").map(function (o) { return o.textContent; }) : [];
-  ["Top brokers", "Top MGAs", "Top Insurers", "Top underwriters"].forEach(function (label) {
+  ["Brokers", "MGAs", "Carriers", "Underwriters"].forEach(function (label) {
     if (topOptions.indexOf(label) === -1) { fails++; console.log('  FAIL  top-performers dropdown is missing "' + label + '"'); }
   });
   console.log("  PASS  one top-performers panel offering all four rankings (" + topOptions.join(", ") + ")");
@@ -521,7 +521,7 @@ console.log("\n  dashboard financial section: renders the engine's own numbers")
   var f = P.bookFinancialsInWindow(P.onRiskPolicies(P.getPolicies()), monthFrom, monthTo);
   var txt = renderText("dashboard");
 
-  ["Financial performance", "Written premium", "Earned premium", "Commission revenue", "Loss ratio", "Combined ratio", "Where the premium went", "Profit & loss by segment"].forEach(function (n) {
+  ["Financial performance", "Written premium", "Earned premium", "Net commission revenue", "Loss ratio", "Combined ratio", "How earned premium becomes the underwriting result", "Underwriting performance by segment"].forEach(function (n) {
     if (txt.indexOf(n) === -1) { fails++; console.log('  FAIL  dashboard financial section missing "' + n + '"'); }
   });
   console.log("  PASS  financial KPIs, the premium waterfall and the segment P&L all render");
@@ -566,16 +566,16 @@ console.log("\n  claims & loss ratio panel: real variance, callout flags the act
   else console.log("  PASS  real variance across products: " + lossLines.length + " line(s) at/above 85% loss ratio (" + lossLines.join(", ") + "), " + healthyLines.length + " healthy line(s) under 60%");
 
   var dashTxt = renderText("dashboard");
-  ["Loss ratio by product", "Loss ratio by state", "Claims detail"].forEach(function (needle) {
+  ["Lifetime loss ratio by product", "Lifetime loss ratio by state", "Claim details"].forEach(function (needle) {
     if (dashTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  operational dashboard missing "' + needle + '"'); }
   });
-  console.log("  PASS  operational dashboard has Loss ratio by product/state charts and a Claims detail table — not just the scoped MGA/Broker/Carrier view");
+  console.log("  PASS  operational dashboard has lifetime loss-ratio product/state charts and a Claim details table — not just the scoped MGA/Broker/Carrier view");
 
-  if (dashTxt.indexOf("Running at a loss") === -1) { fails++; console.log('  FAIL  dashboard missing the "Running at a loss" callout despite real loss-making lines in the seed'); }
+  if (dashTxt.indexOf("High loss ratio — review required") === -1) { fails++; console.log('  FAIL  dashboard missing the high-loss-ratio review callout despite lines above the review threshold'); }
   else {
     var worstLine = lossLines.sort(function (a, b) { return ratioByProduct[b] - ratioByProduct[a]; })[0];
-    if (dashTxt.indexOf(worstLine) === -1) { fails++; console.log('  FAIL  "Running at a loss" callout does not name "' + worstLine + '", the real worst-performing line'); }
-    else console.log('  PASS  "Running at a loss" callout genuinely names ' + worstLine + ' (' + Math.round(ratioByProduct[worstLine] * 100) + '% loss ratio), computed live, not asserted');
+    if (dashTxt.indexOf(worstLine) === -1) { fails++; console.log('  FAIL  high-loss-ratio callout does not name "' + worstLine + '", the real worst-performing line'); }
+    else console.log('  PASS  high-loss-ratio callout genuinely names ' + worstLine + ' (' + Math.round(ratioByProduct[worstLine] * 100) + '% loss ratio), computed live, not asserted');
   }
 
   var claimsDom = renderDom("dashboard");
@@ -630,13 +630,13 @@ console.log("\n  cancellation trend chart: real SVG, split by type, using the sh
 console.log("\n  role-based dashboards (default = Super Admin, no role stored)");
 (function () {
   var underwriterTxt = renderText("dashboard", "", null);
-  ["Portfolio Dashboard", "Renewal pipeline", "Cancelled policy requests"].forEach(function (needle) {
+  ["Portfolio Dashboard", "Renewal pipeline", "Cancellation requests"].forEach(function (needle) {
     if (underwriterTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  default (no role set) dashboard missing "' + needle + '" — should default to Super Admin'); }
   });
   console.log("  PASS  no role stored defaults to the Super Admin operational dashboard");
 
   var mgaTxt = renderText("dashboard", "", "MGA");
-  ["Dashboard", "In-force premium", "Premium by state", "Premium by broker", "Written premium by product", "New business issued", "Claims & reserves", "Loss ratio", "Cornerstone MGA Partners"].forEach(function (needle) {
+  ["Dashboard", "In-force premium", "Premium by state", "Premium by broker", "In-force premium by product", "New business issued", "Claims and reserves", "Loss ratio", "Cornerstone MGA Partners"].forEach(function (needle) {
     if (mgaTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  MGA dashboard missing "' + needle + '"'); }
   });
   /* Conversion rate and Requests pending are gone entirely (not present anywhere on this
@@ -646,7 +646,7 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
     if (mgaTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  MGA dashboard still shows the removed "' + banned + '" KPI'); }
   });
   /* Must NOT contain the operational-only panels — those belong to the Super Admin/Admin view only. */
-  ["Renewal pipeline", "Cancelled policy requests", "Endorsement requests"].forEach(function (banned) {
+  ["Renewal pipeline", "Cancellation requests", "Endorsement requests"].forEach(function (banned) {
     if (mgaTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  MGA dashboard leaked operational panel "' + banned + '"'); }
   });
   console.log("  PASS  MGA dashboard: portfolio KPIs, state/broker/LOB breakdowns, honest Claims & reserves gap, no operational panels, framed around its own book (Cornerstone MGA Partners)");
@@ -656,7 +656,7 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
      facility instead of broker, since "premium by broker" on a broker's own dashboard would
      always be one bar, themselves). */
   var brokerTxt = renderText("dashboard", "", "Broker");
-  ["Apex Insurance Brokers", "Premium by MGA", "Premium by state", "Written premium by product", "New business issued", "Claims & reserves", "Loss ratio"].forEach(function (needle) {
+  ["Apex Insurance Brokers", "Premium by MGA", "Premium by state", "In-force premium by product", "New business issued", "Claims and reserves", "Loss ratio"].forEach(function (needle) {
     if (brokerTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Broker dashboard missing "' + needle + '"'); }
   });
   if (brokerTxt.indexOf("Premium by broker") !== -1) { fails++; console.log('  FAIL  Broker dashboard shows "Premium by broker" — would always be a single bar (themselves), should show "Premium by MGA" instead'); }
@@ -761,7 +761,7 @@ console.log("\n  Carrier role dashboard: genuinely scoped to its own paper, sees
   else console.log("  PASS  Meridian Assurance Co. is genuinely scoped to " + meridianPolicies.length + " of " + allPolicies.length + " policies");
 
   var carrierTxt = renderText("dashboard", "", "Carrier");
-  ["Meridian Assurance Co.", "Premium by MGA", "Premium by broker", "Premium by state", "New business issued", "Claims & reserves", "Loss ratio"].forEach(function (needle) {
+  ["Meridian Assurance Co.", "Premium by MGA", "Premium by broker", "Premium by state", "New business issued", "Claims and reserves", "Loss ratio"].forEach(function (needle) {
     if (carrierTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Carrier dashboard missing "' + needle + '"'); }
   });
   console.log("  PASS  Carrier dashboard shows its own identity, and — unlike MGA/Broker, which only get one — both the Broker and MGA breakdown panels");

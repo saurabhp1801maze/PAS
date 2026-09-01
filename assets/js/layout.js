@@ -329,6 +329,54 @@
     });
   }
 
+  /* Narrow screens use the same navigation as an off-canvas drawer. Keeping this behavior in
+     the shared shell preserves one navigation source while preventing the fixed 240px sidebar
+     from consuming most of a phone viewport. */
+  function wireMobileNav() {
+    var sidebar = document.getElementById("sidebar");
+    var topbar = document.getElementById("topbar");
+    if (!sidebar || !topbar || document.getElementById("mobile-nav-btn")) return;
+    var btn = ui.h("button", { class: "mobile-nav-btn", id: "mobile-nav-btn", type: "button", "aria-label": "Open navigation", "aria-controls": "sidebar", "aria-expanded": "false" }, "☰");
+    topbar.insertBefore(btn, topbar.firstChild);
+    var scrim = ui.h("div", { class: "nav-scrim", "aria-hidden": "true" });
+    document.body.appendChild(scrim);
+    var open = false;
+    var media = window.matchMedia ? window.matchMedia("(max-width: 760px)") : null;
+    function isMobile() { return !!(media && media.matches); }
+    function apply(returnFocus) {
+      var mobile = isMobile();
+      if (!mobile) open = false;
+      sidebar.classList.toggle("mobile-open", mobile && open);
+      scrim.classList.toggle("show", mobile && open);
+      btn.setAttribute("aria-expanded", String(mobile && open));
+      btn.setAttribute("aria-label", mobile && open ? "Close navigation" : "Open navigation");
+      if (mobile && !open) {
+        sidebar.setAttribute("aria-hidden", "true");
+        sidebar.inert = true;
+      } else {
+        sidebar.removeAttribute("aria-hidden");
+        sidebar.inert = false;
+      }
+      if (returnFocus && btn.focus) btn.focus();
+    }
+    btn.addEventListener("click", function () {
+      open = !open;
+      apply(false);
+      if (open) {
+        var target = sidebar.querySelector(".nav-item.active") || sidebar.querySelector(".nav-item");
+        if (target && target.focus) target.focus();
+      }
+    });
+    scrim.addEventListener("click", function () { open = false; apply(true); });
+    sidebar.querySelectorAll(".nav-item").forEach(function (a) { a.addEventListener("click", function () { if (isMobile()) { open = false; apply(false); } }); });
+    document.addEventListener("keydown", function (e) { if (e.key === "Escape" && open) { open = false; apply(true); } });
+    if (media) {
+      if (media.addEventListener) media.addEventListener("change", function () { apply(false); });
+      else if (media.addListener) media.addListener(function () { apply(false); });
+    }
+    apply(false);
+  }
+
   function wireDensityToggle() {
     var topbar = document.getElementById("topbar");
     var bellBtn = document.getElementById("bell-btn");
@@ -373,6 +421,7 @@
     if (flash) ui.renderToast(flash);
     wireReset();
     wireNavCollapse();
+    wireMobileNav();
     wireDensityToggle();
     wireDirtyStateWarning();
     wireSearch();

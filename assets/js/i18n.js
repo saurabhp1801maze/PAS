@@ -15,7 +15,7 @@
       "nav.endorsement-desk": "Endorsements", "nav.cancellation-desk": "Cancellation",
       "nav.reinstatement-desk": "Reinstatement", "nav.renewal-desk": "Renewal",
       "nav.registry": "Policy register", "nav.brokers": "Brokers", "nav.mgas": "MGA",
-      "nav.carriers": "Reinsurers", "nav.customers": "Customers", "nav.workbench": "Transaction workbench",
+      "nav.carriers": "Carriers", "nav.customers": "Customers", "nav.workbench": "Transaction workbench",
       "nav.domain-model": "Domain model", "nav.data-model": "Data model",
       "nav.api-reference": "API reference", "nav.architecture": "Architecture",
       "nav.integration-hub": "PAS integration hub", "nav.admin-config": "Admin Configuration",

@@ -42,13 +42,28 @@
   }
 
   /* ================= tooltip (single shared floating box) ================= */
-  var tipBoxEl = null;
+  var tipBoxEl = null, tipId = 0, activeTipAnchor = null;
+  function tooltipText(opts) {
+    var parts = [];
+    if (opts.tip) parts.push(opts.tip);
+    if (opts.what) parts.push("What: " + opts.what);
+    if (opts.why) parts.push("Why: " + opts.why);
+    if (opts.rule) parts.push("Rule: " + opts.rule);
+    return parts.join(" ");
+  }
   function ensureTipBox() {
-    if (!tipBoxEl) { tipBoxEl = document.createElement("div"); tipBoxEl.className = "tip-box"; document.body.appendChild(tipBoxEl); }
+    if (!tipBoxEl) {
+      tipBoxEl = document.createElement("div");
+      tipBoxEl.className = "tip-box";
+      tipBoxEl.setAttribute("role", "tooltip");
+      tipBoxEl.setAttribute("aria-hidden", "true");
+      document.body.appendChild(tipBoxEl);
+    }
     return tipBoxEl;
   }
   function showTip(anchorEl, opts) {
     var box = ensureTipBox();
+    activeTipAnchor = anchorEl;
     box.innerHTML = "";
     if (opts.tip) box.appendChild(h("span", { class: "tip-line" }, opts.tip));
     if (opts.what) box.appendChild(h("span", { class: "tip-line tip-what" }, [h("b", {}, "What "), document.createTextNode(opts.what)]));
@@ -64,17 +79,42 @@
     if (below) { box.style.top = (r.bottom + 7) + "px"; box.style.bottom = "auto"; }
     else { box.style.bottom = (vh - r.top + 7) + "px"; box.style.top = "auto"; }
     box.classList.add("show");
+    box.setAttribute("aria-hidden", "false");
   }
-  function hideTip() { if (tipBoxEl) tipBoxEl.classList.remove("show"); }
+  function hideTip() {
+    activeTipAnchor = null;
+    if (tipBoxEl) { tipBoxEl.classList.remove("show"); tipBoxEl.setAttribute("aria-hidden", "true"); }
+  }
   function tooltip(opts, child) {
     var hasTip = opts && (opts.tip || opts.what || opts.why || opts.rule);
     var wrap = h("span", { class: "tip-wrap" }, child);
     if (hasTip) {
-      wrap.addEventListener("mouseenter", function () { showTip(wrap, opts); });
+      var descId = "pas-tip-desc-" + (++tipId);
+      var desc = h("span", { class: "sr-only", id: descId }, tooltipText(opts));
+      wrap.appendChild(desc);
+      wrap.setAttribute("aria-describedby", descId);
+      if (opts.focusable !== false) wrap.setAttribute("tabindex", "0");
+      wrap.showTooltip = function () { showTip(wrap, opts); };
+      wrap.hideTooltip = hideTip;
+      wrap.tipDescriptionId = descId;
+      wrap.addEventListener("mouseenter", wrap.showTooltip);
       wrap.addEventListener("mouseleave", hideTip);
+      wrap.addEventListener("focus", wrap.showTooltip);
+      wrap.addEventListener("blur", hideTip);
+      if (opts.focusable !== false) {
+        wrap.addEventListener("click", function (e) {
+          e.stopPropagation();
+          if (activeTipAnchor === wrap && tipBoxEl && tipBoxEl.classList.contains("show")) hideTip();
+          else wrap.showTooltip();
+        });
+        wrap.addEventListener("keydown", function (e) { if (e.key === "Escape") { hideTip(); if (wrap.blur) wrap.blur(); } });
+      }
     }
     return wrap;
   }
+  document.addEventListener("click", function (e) {
+    if (activeTipAnchor && !activeTipAnchor.contains(e.target)) hideTip();
+  });
   function infoDot(size) { return PAS.icon("info", { size: size || 11, color: "var(--color-muted)" }); }
   function tipLabel(opts) {
     var span = h("span", { class: opts.className || "" }, opts.text);
@@ -127,22 +167,37 @@
      new sortState. opts.onSort(colIndex) fires on header click. */
   function dataTable(opts) {
     var wrap = h("div", { class: "table-wrap" });
-    var scroll = h("div", { class: "table-scroll" });
+    var scroll = h("div", {
+      class: "table-scroll", tabindex: "0", role: "region",
+      "aria-label": opts.ariaLabel || "Data table. Scroll horizontally to view additional columns.",
+    });
     var table = h("table", { class: "data-table" });
     var thead = h("thead");
     var headRow = h("tr");
     opts.columns.forEach(function (c, i) {
       var th = h("th");
       var sortable = opts.sortable && opts.sortable[i];
-      if (typeof c === "string") th.appendChild(document.createTextNode(c));
-      else th.appendChild(tooltip({ what: c.what, why: c.why, rule: c.rule, tip: c.tip }, [document.createTextNode(c.label), infoDot(10)]));
+      var labelNode = typeof c === "string"
+        ? document.createTextNode(c)
+        : tooltip({ what: c.what, why: c.why, rule: c.rule, tip: c.tip, focusable: !sortable }, [document.createTextNode(c.label), infoDot(10)]);
       if (sortable) {
         var active = opts.sortState && opts.sortState.col === i;
         th.classList.add("th-sortable");
         if (active) th.classList.add("th-sorted");
-        th.appendChild(h("span", { class: "th-sort-arrow" }, active ? (opts.sortState.dir === "asc" ? "▲" : "▼") : "↕"));
-        th.addEventListener("click", function () { opts.onSort(i); });
-      }
+        th.setAttribute("aria-sort", active ? (opts.sortState.dir === "asc" ? "ascending" : "descending") : "none");
+        var sortBtn = h("button", { class: "table-sort-btn", type: "button", "aria-label": "Sort by " + (typeof c === "string" ? c : c.label) }, [
+          labelNode,
+          h("span", { class: "th-sort-arrow", "aria-hidden": "true" }, active ? (opts.sortState.dir === "asc" ? "▲" : "▼") : "↕"),
+        ]);
+        if (labelNode.tipDescriptionId) {
+          sortBtn.setAttribute("aria-describedby", labelNode.tipDescriptionId);
+          sortBtn.addEventListener("focus", labelNode.showTooltip);
+          sortBtn.addEventListener("blur", labelNode.hideTooltip);
+          sortBtn.addEventListener("keydown", function (e) { if (e.key === "Escape") labelNode.hideTooltip(); });
+        }
+        sortBtn.addEventListener("click", function () { opts.onSort(i); });
+        th.appendChild(sortBtn);
+      } else th.appendChild(labelNode);
       headRow.appendChild(th);
     });
     thead.appendChild(headRow);
@@ -150,7 +205,16 @@
     var tbody = h("tbody");
     opts.rows.forEach(function (r, i) {
       var tr = h("tr");
-      if (opts.onRowClick) { tr.classList.add("has-row-click"); tr.addEventListener("click", function () { opts.onRowClick(i); }); }
+      if (opts.onRowClick) {
+        tr.classList.add("has-row-click");
+        tr.setAttribute("tabindex", "0");
+        tr.setAttribute("role", "link");
+        tr.setAttribute("aria-label", "View record " + (r[0] && r[0].textContent ? r[0].textContent : String(r[0] || i + 1)));
+        tr.addEventListener("click", function () { opts.onRowClick(i); });
+        tr.addEventListener("keydown", function (e) {
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); opts.onRowClick(i); }
+        });
+      }
       r.forEach(function (cell) {
         var td = h("td", { class: opts.wrapCells ? "wrap" : null });
         if (cell instanceof Node) td.appendChild(cell); else td.textContent = cell == null ? "" : String(cell);
@@ -329,14 +393,27 @@
     var row = h("div", { class: "kpi-row" + (wrap ? " wrap" : ""), style: wrap ? {} : { gridTemplateColumns: "repeat(" + items.length + ",minmax(0,1fr))" } });
     items.forEach(function (s) {
       var card = h("div", { class: "kpi-card" + (s.href ? " clickable" : "") });
-      card.appendChild(s.tip || s.why ? tooltip({ tip: s.tip, why: s.why }, [h("span", { class: "label-11 kpi-label" }, s.label), infoDot(10)]) : h("div", { class: "label-11 kpi-label" }, s.label));
+      var labelEl = s.tip || s.why
+        ? tooltip({ tip: s.tip, why: s.why, focusable: !s.href }, [h("span", { class: "label-11 kpi-label" }, s.label), infoDot(10)])
+        : h("div", { class: "label-11 kpi-label" }, s.label);
+      card.appendChild(labelEl);
       var valueRow = h("div", { class: "kpi-value-row" });
       valueRow.appendChild(h("span", { class: "kpi-value" + (s.tone ? " toned" : ""), "data-tone": s.tone || null }, String(s.value)));
-      if (s.delta) valueRow.appendChild(h("span", { class: "kpi-delta " + (s.delta.indexOf("+") === 0 ? "up" : "down") }, s.delta));
+      if (s.delta) valueRow.appendChild(h("span", {
+        class: "kpi-delta " + (s.deltaTone ? "toned" : (s.delta.indexOf("+") === 0 ? "up" : "down")),
+        "data-tone": s.deltaTone || null,
+        title: s.deltaTitle || null,
+      }, s.delta));
       card.appendChild(valueRow);
       if (s.href) {
         card.setAttribute("role", "link");
         card.setAttribute("tabindex", "0");
+        card.setAttribute("aria-label", s.ariaLabel || ("View " + s.label + ": " + s.value));
+        if (labelEl.tipDescriptionId) {
+          card.setAttribute("aria-describedby", labelEl.tipDescriptionId);
+          card.addEventListener("focus", labelEl.showTooltip);
+          card.addEventListener("blur", labelEl.hideTooltip);
+        }
         card.addEventListener("click", function () { location.href = s.href; });
         card.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); location.href = s.href; } });
       }
@@ -352,7 +429,13 @@
     head.appendChild(h("span", { class: "kpi-section-label" }, opts.label));
     if (opts.sub) head.appendChild(h("span", { class: "kpi-section-sub" }, opts.sub));
     wrap.appendChild(head);
-    wrap.appendChild(kpiRow(items));
+    var row = kpiRow(items);
+    if (opts.rowClass) {
+      row.classList.add(opts.rowClass);
+      /* A named responsive class must be allowed to control the columns. */
+      row.style.gridTemplateColumns = "";
+    }
+    wrap.appendChild(row);
     return wrap;
   }
 
@@ -544,7 +627,9 @@
   function panel(opts, body) {
     var p = h("div", { class: "panel" + (opts.pad === 0 ? " no-pad" : "") });
     var head = h("div", { class: "panel-head" });
-    head.appendChild(tipLabel({ text: opts.title, what: opts.what, why: opts.why, className: "panel-title" }));
+    head.appendChild(opts.what || opts.why || opts.tip || opts.rule
+      ? tipLabel({ text: opts.title, what: opts.what, why: opts.why, tip: opts.tip, rule: opts.rule, className: "panel-title" })
+      : h("span", { class: "panel-title" }, opts.title));
     if (opts.right) head.appendChild(opts.right);
     p.appendChild(head);
     var bodyEl = h("div", { class: "panel-body" });
@@ -715,7 +800,7 @@
   /* ================= dashboard visuals ================= */
   function hbar(opts) {
     var pct = opts.max ? Math.max(1.5, (opts.value / opts.max) * 100) : 0;
-    var wrap = h("div", { class: "hbar" });
+    var wrap = h("div", { class: "hbar", title: opts.tip || null, "aria-label": opts.ariaLabel || null });
     var headRow = h("div", { class: "hbar-head" });
     if (opts.onClick) {
       var labelBtn = h("button", { class: "hbar-label hbar-label-link", type: "button" }, opts.label);

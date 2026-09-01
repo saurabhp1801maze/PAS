@@ -124,6 +124,11 @@
    focus ring even where a specific component rule (e.g. a select/input's own :focus) strips the
    browser default without providing its own replacement. */
 :focus-visible { outline: 2px solid var(--color-focus) !important; outline-offset: 2px; }
+.sr-only {
+  position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important;
+  margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important; border: 0 !important;
+}
 .skip-link {
   position: absolute; top: -100px; inset-inline-start: 8px; z-index: var(--z-toast);
   background: var(--color-brand); color: var(--color-on-brand); padding: 10px 16px; border-radius: 8px;
@@ -160,6 +165,8 @@ button { font-family: inherit; }
    §5: topbar 56px fixed / dark shell bg; left nav 240px fixed / dark shell bg, collapsible to
    64px icon-only (toggle at the bottom, state in localStorage). */
 .app-shell { display: flex; height: 100vh; overflow: hidden; }
+.mobile-nav-btn { display: none; width: 34px; height: 34px; padding: 0; border: 1px solid var(--color-border-dark); border-radius: 8px; background: transparent; color: #fff; font-size: 20px; line-height: 1; cursor: pointer; flex-shrink: 0; }
+.nav-scrim { display: none; position: fixed; inset: 0; z-index: calc(var(--z-overlay) - 1); background: rgba(10, 12, 30, .52); }
 
 .sidebar { width: 240px; background: var(--color-shell); padding: 15px 9px; flex-shrink: 0; overflow-y: auto; display: flex; flex-direction: column; transition: width .15s ease; }
 .sidebar.collapsed { width: 64px; }
@@ -209,6 +216,23 @@ button { font-family: inherit; }
 .search-section-label { font-size: 10.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--color-muted); padding: 8px 9px 4px; }
 
 .page-content { flex: 1; padding: 18px 22px 30px; overflow-y: auto; }
+
+@media (max-width: 760px) {
+  .mobile-nav-btn { display: inline-flex; align-items: center; justify-content: center; }
+  .sidebar { position: fixed; inset: 0 auto 0 0; z-index: var(--z-overlay); width: min(300px, 86vw); transform: translateX(-105%); box-shadow: 12px 0 34px rgba(10, 12, 30, .28); }
+  .sidebar.mobile-open { transform: translateX(0); }
+  .sidebar.collapsed { width: min(300px, 86vw); }
+  .sidebar.collapsed .sidebar-brand-text, .sidebar.collapsed .nav-group-label,
+  .sidebar.collapsed .nav-item-label, .sidebar.collapsed .reset-demo-label, .sidebar.collapsed .nav-collapse-label { display: initial; }
+  .sidebar.collapsed .nav-item, .sidebar.collapsed .reset-demo-btn, .sidebar.collapsed .nav-collapse-btn { justify-content: flex-start; padding-inline: 13px; }
+  .nav-scrim.show { display: block; }
+  .main-col { width: 100%; }
+  .topbar { padding: 0 12px; gap: 8px; }
+  .topbar-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar > .pill[data-tone="gray"] { display: none; }
+  .role-pill { max-width: 132px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page-content { padding: 15px 14px 26px; }
+}
 
 /* ================= NOTIFICATIONS ================= */
 .toast-container { position: fixed; top: 14px; inset-inline-end: 16px; z-index: var(--z-toast); display: flex; flex-direction: column; gap: 7px; pointer-events: none; }
@@ -336,6 +360,8 @@ textarea.field-input { min-height: 54px; resize: vertical; }
 .kpi-card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: 12px; padding: 10px 13px; min-width: 0; }
 .kpi-card.clickable { cursor: pointer; transition: border-color .12s, box-shadow .12s; }
 .kpi-card.clickable:hover, .kpi-card.clickable:focus-visible { border-color: var(--color-brand); box-shadow: 0 0 0 1px var(--color-brand); outline: none; }
+.kpi-card.clickable::after { content: "View \2192"; display: block; margin-top: 5px; color: var(--color-link); font-size: 10.5px; font-weight: 700; opacity: 0; }
+.kpi-card.clickable:hover::after, .kpi-card.clickable:focus-visible::after { opacity: 1; }
 .kpi-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kpi-value-row { display: flex; align-items: baseline; gap: 5px; margin-top: 3px; }
 .kpi-value { font-size: 18px; font-weight: 800; color: var(--color-ink); white-space: nowrap; }
@@ -343,6 +369,7 @@ textarea.field-input { min-height: 54px; resize: vertical; }
 .kpi-delta { font-size: 11px; font-weight: 700; }
 .kpi-delta.up { color: var(--color-success); }
 .kpi-delta.down { color: var(--color-danger); }
+.kpi-delta.toned { color: var(--tone-fg); }
 
 /* ================= BUTTONS / ACTION BAR (§10.3) =================
    Default `.btn` (no tone) is the Secondary variant. `.tone-primary` is Primary — 6px radius is
@@ -387,13 +414,14 @@ textarea.field-input { min-height: 54px; resize: vertical; }
 
 /* ================= DATA TABLE ================= */
 .table-wrap { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
-.table-scroll { overflow-x: auto; }
+.table-scroll { overflow-x: auto; scrollbar-gutter: stable; box-shadow: inset -10px 0 10px -12px rgba(16, 17, 36, .45); }
 table.data-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 table.data-table thead tr { background: var(--color-panel-alt); }
 table.data-table th { text-align: start; padding: 9px 13px; font-size: 10px; font-weight: 700; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.5px; white-space: nowrap; border-bottom: 1px solid var(--color-border); }
 table.data-table th.th-sortable { cursor: pointer; user-select: none; }
 table.data-table th.th-sortable:hover { color: var(--color-ink); }
 table.data-table th.th-sorted { color: var(--color-ink); }
+.table-sort-btn { display: inline-flex; align-items: center; gap: 2px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
 .th-sort-arrow { display: inline-block; margin-inline-start: 4px; font-size: 9px; opacity: .55; }
 table.data-table th.th-sorted .th-sort-arrow { opacity: 1; color: var(--color-brand); }
 table.data-table td { padding: 10px 13px; color: var(--color-ink); vertical-align: middle; white-space: nowrap; }
@@ -401,6 +429,7 @@ table.data-table td.wrap { white-space: normal; }
 table.data-table tr.has-row-click { cursor: pointer; }
 table.data-table tr:not(:first-child) { border-top: 1px solid var(--color-border); }
 table.data-table tr.has-row-click:hover { background: var(--color-panel-alt); }
+table.data-table tr.has-row-click:focus-visible { background: var(--color-brand-light); outline-offset: -2px; }
 .table-empty { padding: 20px; color: var(--color-muted); font-size: 12.5px; }
 
 /* §10.14 Diff / version comparison panel: two columns, removed (danger) vs added (success). */
@@ -510,6 +539,9 @@ body[data-density="compact"] .panel-head { margin-bottom: 8px; }
 .period-toggle-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .period-toggle-label { font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--color-muted); }
 .period-toggle { display: flex; gap: 4px; }
+.dashboard-scope-note { margin: 2px 0 14px; padding: 9px 11px; border-inline-start: 3px solid var(--color-info); background: var(--color-info-bg); color: var(--color-ink-secondary); font-size: 11.5px; line-height: 1.5; border-radius: 5px; }
+.dashboard-scope-note strong { color: var(--color-ink); }
+.date-range-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 /* Left panel — activity bar chart. Grouped, direct-labeled bars per period, anchored to a shared
    baseline, for comparing three series against each other within one period. */
@@ -539,6 +571,31 @@ body[data-density="compact"] .panel-head { margin-bottom: 8px; }
 .trend-legend-item { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--color-ink); font-weight: 600; }
 .trend-legend-swatch { width: 9px; height: 9px; border-radius: 2.5px; flex-shrink: 0; }
 .kpi-section-sub { font-size: 11px; color: var(--color-muted); }
+.financial-kpi-row { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.operations-kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.financial-kpi-row .kpi-label, .operations-kpi-row .kpi-label { white-space: normal; line-height: 1.25; }
+.financial-kpi-row .tip-wrap, .operations-kpi-row .tip-wrap { align-items: flex-start; }
+
+@media (max-width: 1200px) {
+  .financial-kpi-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .trend-bar-chart { gap: 5px; }
+  .trend-cluster { min-width: 47px; }
+  .trend-bar-col { width: 13px; }
+}
+
+@media (max-width: 900px) {
+  .two-col-grid, .three-col-grid { grid-template-columns: 1fr; }
+  .panel-head, .period-toggle-row { align-items: flex-start; flex-wrap: wrap; gap: 10px; }
+  .period-toggle { flex-wrap: wrap; }
+}
+
+@media (max-width: 720px) {
+  .financial-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .operations-kpi-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .kpi-card.clickable::after { opacity: 1; }
+  .filter-block > div, .filter-block .multiselect, .filter-block .multiselect-btn { width: 100%; max-width: none; }
+  .date-range-controls, .date-range-controls .select-fixed { width: 100%; max-width: none; flex-basis: 100%; }
+}
 
 /* Segmented stack bar — a single-row composition chart, always paired with a labeled legend list
    underneath (never color-alone: the app's module tones fail CVD separation as pure color). */

@@ -305,10 +305,9 @@
     });
   }
 
-  /* §5: left nav collapses to 64px icon-only via a toggle at the bottom; §10.18: Comfortable/
-     Compact density toggle in the topbar. Both persist per-user in localStorage and apply purely
-     by flipping a class/attribute — no reload, no layout rebuild. */
-  var NAV_COLLAPSE_KEY = "pas.navCollapsed.v1", DENSITY_KEY = "pas.density.v1";
+  /* §5: left nav collapses to 64px icon-only via a toggle at the bottom, persisting per-user in
+     localStorage and applying purely by flipping a class — no reload, no layout rebuild. */
+  var NAV_COLLAPSE_KEY = "pas.navCollapsed.v1";
 
   function wireNavCollapse() {
     var sidebar = document.getElementById("sidebar");
@@ -377,30 +376,6 @@
     apply(false);
   }
 
-  function wireDensityToggle() {
-    var topbar = document.getElementById("topbar");
-    var bellBtn = document.getElementById("bell-btn");
-    if (!topbar || !bellBtn || document.getElementById("density-btn")) return;
-    var density;
-    try { density = localStorage.getItem(DENSITY_KEY) === "compact" ? "compact" : "comfortable"; } catch (e) { density = "comfortable"; }
-    var btn = ui.h("button", { class: "density-btn", id: "density-btn", type: "button" });
-    function apply() {
-      document.body.setAttribute("data-density", density);
-      btn.setAttribute("aria-label", density === "compact" ? "Switch to comfortable density" : "Switch to compact density");
-      btn.setAttribute("aria-pressed", String(density === "compact"));
-      btn.title = density === "compact" ? "Compact density — click for Comfortable" : "Comfortable density — click for Compact";
-      btn.innerHTML = "";
-      btn.appendChild(PAS.icon(density === "compact" ? "layers" : "list-checks", { size: 14 }));
-    }
-    apply();
-    btn.addEventListener("click", function () {
-      density = density === "compact" ? "comfortable" : "compact";
-      try { localStorage.setItem(DENSITY_KEY, density); } catch (e) { /* storage unavailable */ }
-      apply();
-    });
-    topbar.insertBefore(btn, bellBtn);
-  }
-
   /* §10.11 breadcrumb separator. PAS.PAGE_META titles are authored as "Module / Page" — the
      static HTML bakes that literal text so the topbar paints before JS runs (same reasoning as
      the static nav markup), so this only needs to *upgrade* the separator glyph at runtime rather
@@ -422,7 +397,6 @@
     wireReset();
     wireNavCollapse();
     wireMobileNav();
-    wireDensityToggle();
     wireDirtyStateWarning();
     wireSearch();
     wireBell();

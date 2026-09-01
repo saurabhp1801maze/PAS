@@ -26,7 +26,7 @@
     /* Underwriting referrals are excluded — they're decided from the Underwriting desk itself,
        not this general cross-desk queue, so listing them here again has no use. */
     var pending = PAS.allTxns(policies).filter(function (t) { return t.h.status === "Pending" && t.h.type !== "Underwriting"; });
-    var types = ["All"].concat(Array.from(new Set(pending.map(function (t) { return t.h.type; }))).sort());
+    var types = ["All"].concat(Array.from(new Set(pending.map(function (t) { return t.h.type; }))).filter(function (ty) { return ty !== "Transfer"; }).sort());
     var q = "", typeF = "All", slaF = "All";
 
     var page = ui.h("div", {});

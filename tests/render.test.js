@@ -204,7 +204,7 @@ console.log("\n  content spot-checks");
   ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected reinsurers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
   ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring in period", "Endorsement requests", "Reinstated", "Cancelled", "Pending approvals", "Bound — awaiting issuance", "Monthly", "Yearly", "New business issued", "Cancellation requests"]],
-  ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Reason, notice & default type", "Sold Vehicle/Business", "Non-Payment", "Refunds by type", "Refunds by reason", "Cancellation trend", "Pro-Rata", "Short-Rate"]],
+  ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Types of cancellation", "Refunds by type", "Refunds by reason", "Cancellation trend", "Pro-Rata", "Short-Rate", "Monthly", "Quarterly", "Yearly", "Custom range"]],
 ].forEach(function (c) {
   var txt = renderText(c[0]);
   c[1].forEach(function (needle) {
@@ -222,6 +222,32 @@ console.log("\n  cancellation-decision: Type/Reason/Initiated By/Timing + worked
     if (txt.indexOf(needle) === -1) { fails++; console.log('  FAIL  cancellation-decision missing "' + needle + '"'); }
   });
   console.log("  PASS  Marcus Whitfield: Reason=Insured Request, Initiated By=Broker/Producer, Type=Short-Rate, refund=$982 matches the doc's worked example exactly");
+
+  /* The worked per-day refund table must reconcile with real arithmetic, not just contain the
+     right-looking strings: earned + unearned days = policy term, and the table's own basis/
+     penalty/refund figures must be the exact figures cancelQuote itself computed — not a second,
+     independently-rounded version that could quietly drift from the number that goes to Billing. */
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PW = stub.PAS;
+  var wp = PW.getPolicy("POL-2026-02233");
+  var wTxn = wp.history.find(function (h) { return h.type === "Cancellation" && h.status === "Pending"; });
+  var wq = PW.cancelQuote(wp, wTxn.meta.reason, wTxn.meta.initiatedBy, wTxn.date, wTxn.meta);
+  if (wq.earnedDays + wq.remainingDays !== wq.totalDays) { fails++; console.log("  FAIL  earned days (" + wq.earnedDays + ") + unearned days (" + wq.remainingDays + ") != policy term (" + wq.totalDays + ") — the worked table's own day split doesn't add up"); }
+  else console.log("  PASS  earned (" + wq.earnedDays + "d) + unearned (" + wq.remainingDays + "d) days sum exactly to the " + wq.totalDays + "-day policy term");
+
+  var dailyRate = wp.premium / wq.totalDays;
+  ["Daily premium rate", "How it's worked out", PW.money(dailyRate) + "/day", "Refund basis (Short-Rate)", "Short-rate penalty (" + (wq.spec.penaltyPct * 100) + "%)"].forEach(function (needle) {
+    if (txt.indexOf(needle) === -1) { fails++; console.log('  FAIL  worked refund table missing "' + needle + '"'); }
+  });
+  console.log("  PASS  the worked table shows the real daily rate (" + PW.money(dailyRate) + "/day) and names the actual type-specific basis and penalty line, not generic placeholder text");
+
+  if (txt.indexOf(PW.money(wq.gross)) === -1) { fails++; console.log('  FAIL  worked table does not show the real refund basis amount "' + PW.money(wq.gross) + '"'); }
+  else console.log("  PASS  the table's refund-basis amount (" + PW.money(wq.gross) + ") is the exact same figure cancelQuote computed — no second, independently-derived number");
 })();
 
 /* Reinstatement desk: the original cancellation's full attribute set (added this pass) surfaces
@@ -609,18 +635,41 @@ console.log("\n  claims & loss ratio panel: real variance, callout flags the act
 })();
 
 /* Cancellation trend (MOM 2026-08-26): a real SVG chart, split by type, on the Cancellation desk
-   itself — not just buried in the dashboard's generic 3-transaction-type activity chart. */
-console.log("\n  cancellation trend chart: real SVG, split by type, using the shared PAS.charts module");
+   itself — not just buried in the dashboard's generic 3-transaction-type activity chart. Now also
+   carries the same Monthly/Quarterly/Yearly + custom-range reporting control as the dashboard
+   (PAS.charts.periodPicker), not a fixed trailing-6-months window; and the old "Terminology" /
+   "Reason, notice & default type" reference sections are gone from this page — see the per-request
+   worked refund breakdown on cancellation-decision.js instead, tested separately below. */
+console.log("\n  cancellation trend chart: real SVG, split by type, driven by the dashboard's own period picker");
 (function () {
   var cxDom = renderDom("cancellation", "", "Super Admin");
+  var cxTxt = cxDom.textContent;
   var graphs = cxDom.querySelectorAll(".trend-graph");
   var dots = cxDom.querySelectorAll(".trend-dot");
   var legendItems = cxDom.querySelectorAll(".trend-legend-item");
   if (graphs.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 trend graph on the Cancellation desk, found " + graphs.length); }
-  else if (dots.length !== 18) { fails++; console.log("  FAIL  cancellation trend expected 18 dots (3 types × 6 months), found " + dots.length); }
+  else if (dots.length !== 18) { fails++; console.log("  FAIL  cancellation trend expected 18 dots (3 types × 6 months, the Monthly default), found " + dots.length); }
   else console.log("  PASS  Cancellation trend is a real SVG line/area graph — 3 cancellation types × 6 trailing months = 18 marked points");
   if (legendItems.length !== 3) { fails++; console.log("  FAIL  expected 3 legend entries (Flat/Pro-Rata/Short-Rate), found " + legendItems.length); }
   else console.log("  PASS  legend distinguishes all 3 cancellation types — a multi-series chart, not a single blended line");
+
+  /* Switch to Yearly for real and confirm the graph genuinely re-buckets (4 years × 3 types), not
+     just that the chip visually toggles. */
+  var periodChips = cxDom.querySelectorAll(".chip").filter(function (b) { return b.textContent === "Yearly"; });
+  if (periodChips.length === 0) { fails++; console.log("  FAIL  no \"Yearly\" chip found on the Cancellation trend's period picker"); }
+  else {
+    periodChips[0].click();
+    var yearlyDots = cxDom.querySelectorAll(".trend-dot");
+    if (yearlyDots.length !== 12) { fails++; console.log("  FAIL  switching the cancellation trend to Yearly expected 12 dots (3 types × 4 years), got " + yearlyDots.length); }
+    else console.log("  PASS  switching the Cancellation trend's period picker to Yearly genuinely re-renders the chart (3 types × 4 years = 12 points), not a cosmetic toggle");
+  }
+
+  ["Terminology", "Reason, notice & default type"].forEach(function (removed) {
+    if (cxTxt.indexOf(removed) !== -1) { fails++; console.log('  FAIL  Cancellation desk still shows the "' + removed + '" reference section — it should have been removed'); }
+  });
+  console.log("  PASS  the \"Terminology\" and \"Reason, notice & default type\" reference sections are gone from the Cancellation desk");
+  if (cxTxt.indexOf("Types of cancellation") === -1) { fails++; console.log("  FAIL  \"Types of cancellation\" should still be on the page — only the other two reference sections were asked to go"); }
+  else console.log("  PASS  \"Types of cancellation\" is still present — the one reference section that was not asked to be removed");
 })();
 
 /* Role-based dashboard: the same URL, genuinely different renders. Super Admin/Admin get the
@@ -897,10 +946,16 @@ console.log("\n  cancellation desk: LOB and date filters genuinely narrow the pe
   else console.log("  PASS  LOB filter narrows to the " + expectedProduct + " real '" + sampleProduct + "' pending requests");
   setValue(productSelect, "All");
 
-  var dateInputs = out.querySelectorAll("input").filter(function (el) { return el.getAttribute("type") === "date"; });
-  if (dateInputs.length !== 2) { fails++; console.log("  FAIL  expected exactly 2 (from/to) date filter inputs on the Cancellation desk, found " + dateInputs.length); return; }
-  dateInputs[0].value = "2099-01-01";
-  dateInputs[0].dispatchEvent({ type: "change" });
+  /* The page also carries a second, unrelated pair of date inputs now — the cancellation trend
+     panel's own custom-range picker (PAS.charts.periodPicker) — so the request-table's Submitted
+     from/to filter has to be found by its title, not by "whichever date input comes first". */
+  var allDateInputs = out.querySelectorAll("input").filter(function (el) { return el.getAttribute("type") === "date"; });
+  var submittedFrom = allDateInputs.filter(function (el) { return el.getAttribute("title") === "Submitted from"; })[0];
+  var submittedTo = allDateInputs.filter(function (el) { return el.getAttribute("title") === "Submitted to"; })[0];
+  if (!submittedFrom || !submittedTo) { fails++; console.log("  FAIL  expected a Submitted-from and Submitted-to date filter on the Cancellation desk (title-addressed), found " + allDateInputs.length + " date input(s) total"); return; }
+  else console.log("  PASS  the Submitted-date filter pair is still findable by title among " + allDateInputs.length + " date inputs now on the page (the trend panel added its own custom-range pair)");
+  submittedFrom.value = "2099-01-01";
+  submittedFrom.dispatchEvent({ type: "change" });
   /* A 0-row match still renders one <tr> — dataTable's own "nothing here" placeholder row — so
      the real check is that the surviving row is that empty-state row, not a genuine data row. */
   var emptyMsg = "No cancellation requests match the current search or filters.";

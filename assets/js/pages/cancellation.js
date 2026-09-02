@@ -38,26 +38,11 @@
       { label: "Auto-cancelled (non-payment)", value: autoCancelled.length, tone: "red", tip: "Cancelled automatically by the System for Non-Payment after DNOC notice ran.", why: "Billing reports unpaid premium past grace; System serves DNOC, waits notice days, then cancels." },
     ]));
 
-    /* Reference accordion: terminology → types → reasons. Collapsed by default so the
-       decision queue stays the primary surface; each section opens independently. */
-    var termBody = ui.h("div", {});
-    termBody.appendChild(ui.h("p", { class: "term-intro" },
-      "A cancellation is four independent values — not one reason string. Type is derived from the others; it is never hand-picked."));
-    termBody.appendChild(ui.dataTable({
-      columns: [
-        "Attribute",
-        { label: "Answers", what: "The question this attribute owns." },
-        { label: "Values", what: "Allowed values recorded on the request." },
-      ],
-      rows: [
-        ["Type", "What happens financially", "Flat · Pro-Rata · Short-Rate"],
-        ["Reason", "Why cover is ending", Object.keys(PAS.CANCEL_REASONS).join(" · ")],
-        ["Initiated By", "Who raised the request", (PAS.CANCEL_INITIATOR_KEYS || []).join(" · ")],
-        ["Timing", "When it takes effect", "Immediate · Future/Scheduled"],
-      ],
-      wrapCells: true,
-    }));
-
+    /* Types of cancellation: the one reference panel kept on this page — Flat / Pro-Rata /
+       Short-Rate, the refund basis, always derived, never hand-picked. The "Terminology" glossary
+       and the "Reason, notice & default type" lookup table that used to sit either side of it are
+       gone: both were static reference text duplicating what the decision screen's own worked
+       refund breakdown now shows for real, per request, with real numbers. */
     var typeGrid = ui.h("div", { class: "cancel-type-grid" });
     Object.keys(PAS.CANCEL_TYPES).forEach(function (name) {
       var t = PAS.CANCEL_TYPES[name];
@@ -67,47 +52,12 @@
       card.appendChild(ui.h("div", { class: "cancel-type-meta" }, (t.penaltyPct ? (t.penaltyPct * 100 + "% penalty") : "no penalty") + " · " + t.basis + " basis"));
       typeGrid.appendChild(ui.tooltip({ what: t.when, why: t.rate, rule: t.rule, width: 300 }, card));
     });
-
-    var reasonTable = ui.dataTable({
-      columns: ["Reason",
-        { label: "Notice required", what: "Days that must run before the effective date." },
-        { label: "Default type", what: "What Type this reason recommends, before the Initiated By check applies.", rule: "An insurer-side Initiated By (Reinsurer, MGA, System) downgrades a Short-Rate default to Pro-Rata — it can never upgrade a no-penalty reason into one." }],
-      rows: Object.keys(PAS.CANCEL_REASONS).map(function (r) {
-        var spec = PAS.CANCEL_REASONS[r];
-        return [r, spec.noticeDays + " days", ui.pill(PAS.CANCEL_TYPES[spec.defaultType].tone, spec.defaultType)];
-      }),
-      wrapCells: true,
-    });
-
-    page.appendChild(ui.accordion({
-      sections: [
-        {
-          title: "Terminology",
-          sub: "Type, Reason, Initiated By, and Timing — four attributes, one cancellation",
-          what: "How a cancellation is described in this desk.",
-          why: "Splitting them keeps notice periods on Reason and penalty rules on Initiated By, instead of baking everything into one string.",
-          open: false,
-          body: termBody,
-        },
-        {
-          title: "Types of cancellation",
-          sub: "Flat, Pro-Rata, and Short-Rate — the refund basis, derived never chosen",
-          what: "The three refund bases a cancellation can derive to.",
-          why: "Getting Type wrong means refunding money you were entitled to keep, or applying a penalty the insurer side may never charge.",
-          open: false,
-          body: typeGrid,
-        },
-        {
-          title: "Reason, notice & default type",
-          sub: "Every raisable reason, its notice days, and the Type it proposes",
-          what: "Every reason a cancellation can be raised for.",
-          why: "Notice period is a property of Reason, not Type — Non-Payment needs its statutory days regardless of which refund type it derives to.",
-          open: false,
-          pad: 0,
-          body: reasonTable,
-        },
-      ],
-    }));
+    var typesPanel = ui.panel({
+      title: "Types of cancellation",
+      what: "The three refund bases a cancellation can derive to — Flat, Pro-Rata, and Short-Rate.",
+      why: "Getting Type wrong means refunding money you were entitled to keep, or applying a penalty the insurer side may never charge. See any request's own decision screen for the worked-out, per-day refund math.",
+    }, [typeGrid]);
+    page.appendChild(typesPanel);
 
     /* Refund-wise breakdown: every completed cancellation already carries its decided type,
        reason and refund on `meta` — this is that history grouped two ways rather than a new
@@ -151,24 +101,37 @@
     page.appendChild(refundGrid);
 
     /* Cancellation trend (MOM 2026-08-26: "Cancellation data and trends should be clearly visible
-       for analysis") — completed cancellations by month, split by type. A volume spike reads
+       for analysis") — completed cancellations by period, split by type. A volume spike reads
        differently depending on which type is driving it: Short-Rate rising is an insured-request/
        fraud pattern worth a look; Pro-Rata or Flat rising is more likely a process one (DNOC
-       backlog, mass non-renewal) — the split is what makes the trend analyzable, not just visible. */
-    var trendMonths = PAS.charts.trailingMonths(6);
+       backlog, mass non-renewal) — the split is what makes the trend analyzable, not just visible.
+       Same Monthly/Quarterly/Yearly + custom-range reporting control the dashboard uses
+       (PAS.charts.periodPicker), not a fixed trailing-6-months window. */
     var cancelTypeKeys = Object.keys(PAS.CANCEL_TYPES);
     var trendSeries = cancelTypeKeys.map(function (k) { return { type: k, label: k, tone: PAS.CANCEL_TYPES[k].tone }; });
-    var trendData = trendMonths.map(function (mk) {
-      var row = { key: mk };
-      trendSeries.forEach(function (s) {
-        row[s.type] = completed.filter(function (t) { return PAS.charts.inMonth(t.h.date, mk) && (t.h.meta && t.h.meta.cancelType) === s.type; }).length;
-      });
-      return row;
-    });
-    var trendPanel = ui.panel({ title: "Cancellation trend", what: "Completed cancellations by month, split by type.", why: "A spike in Short-Rate reads as an insured-driven pattern; a spike in Flat/Pro-Rata reads as an insurer- or process-driven one — the split is what makes the trend analyzable." }, []);
+    var TREND_BUCKETS = { month: 6, quarter: 6, year: 4, custom: 1 };
+
+    var trendPanel = ui.panel({ title: "Cancellation trend", what: "Completed cancellations by period, split by type.", why: "A spike in Short-Rate reads as an insured-driven pattern; a spike in Flat/Pro-Rata reads as an insurer- or process-driven one — the split is what makes the trend analyzable." }, []);
     var trendBody = trendPanel.querySelector(".panel-body");
+
+    var picker = PAS.charts.periodPicker({ label: "Cancellation trend period", onChange: buildTrend });
+    page.appendChild(picker.toggleRow);
+    page.appendChild(picker.customToggleRow);
+    page.appendChild(picker.rangeRow);
     page.appendChild(trendPanel);
-    PAS.charts.drawTrendGraph(trendBody, trendSeries, trendData, PAS.charts.monthKeyLabel, "Trailing 6 months, completed cancellations by effective date, split by type.");
+
+    function buildTrend() {
+      var keys = picker.bucketKeys(TREND_BUCKETS[picker.getPeriod()] || 6);
+      var data = keys.map(function (key) {
+        var row = { key: key };
+        trendSeries.forEach(function (s) {
+          row[s.type] = completed.filter(function (t) { return picker.matches(t.h.date, key) && (t.h.meta && t.h.meta.cancelType) === s.type; }).length;
+        });
+        return row;
+      });
+      PAS.charts.drawTrendGraph(trendBody, trendSeries, data, picker.bucketLabel, picker.windowNote(keys.length, "completed cancellations by effective date, split by type"));
+    }
+    buildTrend();
 
     page.appendChild(ui.logRequestForm({
       policies: policies.filter(function (p) { return p.status === "Active"; }),

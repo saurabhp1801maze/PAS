@@ -133,14 +133,32 @@
       if (reason === "Fraud") noticeWrap.appendChild(ui.callout("warn", "Fraud-flagged — decide carefully. Approving permanently blocks reinstatement."));
       left.push(noticeWrap);
 
+      /* Worked refund breakdown — a real per-day calculation table, not just the final numbers.
+         The daily rate is the same one line, applied consistently, for every type: what changes
+         between Flat / Pro-Rata / Short-Rate is which days count and whether a penalty is taken
+         off the top, not the underlying arithmetic. */
+      var dailyRate = p.premium / q.totalDays;
+      var earnedAmount = dailyRate * q.earnedDays;
+      var unearnedAmount = dailyRate * q.remainingDays;
+      var basisLabel = q.type === "Flat" ? "Full written premium — the insurer was never on risk" : "Unearned premium — " + q.remainingDays + " unused day(s) × the daily rate";
+      var worked = [
+        ["Policy term", q.totalDays + " days total", "—", PAS.money(p.premium)],
+        ["Daily premium rate", "Annual premium ÷ " + q.totalDays + " term days", "÷ " + q.totalDays + "d", PAS.money(dailyRate) + "/day"],
+        ["Earned (insurer on risk)", q.earnedDays + " day(s) × " + PAS.money(dailyRate) + "/day", q.earnedDays + "d", PAS.money(earnedAmount)],
+        ["Unearned (days returned)", q.remainingDays + " day(s) × " + PAS.money(dailyRate) + "/day", q.remainingDays + "d", PAS.money(unearnedAmount)],
+        ["Refund basis (" + q.type + ")", basisLabel, "—", PAS.money(q.gross)],
+      ];
+      if (q.penalty > 0) {
+        worked.push(["Short-rate penalty (" + (q.spec.penaltyPct * 100) + "%)", PAS.money(q.gross) + " basis × " + (q.spec.penaltyPct * 100) + "%", "—", "− " + PAS.money(q.penalty)]);
+      }
+
       var right = [];
-      right.push(ui.tipLabel({ text: "Refund calculation", what: "Computed from term dates and the derived type.", why: "Never hand-keyed — this is the number that goes to Billing.", className: "label-11 block mb-10" }));
-      right.push(ui.kv({ k: "Policy term", v: q.totalDays + " days", what: "Full length of the term." }));
-      right.push(ui.kv({ k: "Earned", v: q.earnedDays + " days", what: "Days the insurer was on risk." }));
-      right.push(ui.kv({ k: "Unearned", v: q.remainingDays + " days", what: "Days being returned.", why: "Drives the refund." }));
-      right.push(ui.kv({ k: "Basis", v: q.type === "Flat" ? "Full written premium" : "Unearned premium", what: q.type === "Flat" ? "Insurer never went on risk." : "Proportional to unused term." }));
-      right.push(ui.kv({ k: "Gross refund", v: PAS.money(q.gross), what: "Before any penalty." }));
-      if (q.penalty > 0) right.push(ui.kv({ k: "Short-rate penalty (" + (q.spec.penaltyPct * 100) + "%)", v: "− " + PAS.money(q.penalty), what: "Retained for acquisition and admin cost.", rule: "Only ever applied when Initiated By is Insured or Broker/Producer." }));
+      right.push(ui.tipLabel({ text: "Refund calculation — worked, per day", what: "Every step from the daily premium rate to the final refund, computed from term dates and the derived type.", why: "Never hand-keyed — this is the number that goes to Billing, and exactly how it was reached.", className: "label-11 block mb-10" }));
+      right.push(ui.dataTable({
+        columns: ["Step", "How it's worked out", "Days", "Amount"],
+        rows: worked,
+        wrapCells: true,
+      }));
       var totalRow = ui.h("div", { class: "refund-total" });
       totalRow.appendChild(ui.h("span", { class: "refund-total-label" }, "Refund due"));
       totalRow.appendChild(ui.h("span", { class: "refund-total-value" }, PAS.money(q.refund)));

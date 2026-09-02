@@ -27,6 +27,147 @@
     return out;
   }
   function monthKeyLabel(key) { return MONTH_NAMES[Number(key.slice(5, 7)) - 1] + " '" + key.slice(2, 4); }
+  function monthKeyOffset(offset) { return trailingMonths(1, offset)[0]; }
+
+  function trailingYears(n, endOffset) {
+    var curY = Number(PAS.todayISO().slice(0, 4)) + (endOffset || 0);
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) out.push(curY - i);
+    return out;
+  }
+  function yearOffset(offset) { return Number(PAS.todayISO().slice(0, 4)) + (offset || 0); }
+  function inYear(dateStr, y) { return !!dateStr && dateStr.slice(0, 4) === String(y); }
+
+  /* Quarter keys are "YYYY-Qn". Built off the real UTC month so a window that crosses a year
+     boundary (Q4 -> Q1) rolls the year too — same reasoning as trailingMonths. */
+  function quarterKeyOf(y, monthIdx0) { return y + "-Q" + (Math.floor(monthIdx0 / 3) + 1); }
+  function inQuarter(dateStr, qKey) {
+    if (!dateStr) return false;
+    var d = new Date(dateStr + "T00:00:00Z");
+    return quarterKeyOf(d.getUTCFullYear(), d.getUTCMonth()) === qKey;
+  }
+  function quarterIndexOffset(offset) {
+    var today = new Date(PAS.todayISO() + "T00:00:00Z");
+    return today.getUTCFullYear() * 4 + Math.floor(today.getUTCMonth() / 3) + (offset || 0);
+  }
+  function quarterKeyOffset(offset) {
+    var idx = quarterIndexOffset(offset);
+    var y = Math.floor(idx / 4), q = ((idx % 4) + 4) % 4;
+    return y + "-Q" + (q + 1);
+  }
+  function trailingQuarters(n, endOffset) {
+    var qIndex = quarterIndexOffset(endOffset);
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) {
+      var idx = qIndex - i, y = Math.floor(idx / 4), q = ((idx % 4) + 4) % 4;
+      out.push(y + "-Q" + (q + 1));
+    }
+    return out;
+  }
+
+  /* ================= period picker =================
+     The Monthly / Quarterly / Yearly + Prev/Next + custom-date-range control the dashboard
+     already uses, factored out as a genuine second consumer (the Cancellation desk's own trend)
+     rather than left duplicated. Owns its own period/offset/custom-range state; the caller only
+     ever asks it for bucket keys, labels and a match predicate, and gives it an onChange to
+     re-render with. */
+  function periodPicker(opts) {
+    opts = opts || {};
+    var period = opts.defaultPeriod || "month";
+    var offset = 0;
+    var customFrom = PAS.addDays(PAS.todayISO(), -(opts.rangeDays || 30));
+    var customTo = PAS.todayISO();
+    var onChange = opts.onChange || function () {};
+
+    var toggleRow = ui.h("div", { class: "period-toggle-row" });
+    toggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, opts.label || "Reporting period"));
+    var toggleAndNav = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "10px" } });
+    var toggle = ui.h("div", { class: "period-toggle" });
+    toggleAndNav.appendChild(toggle);
+    var navWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
+    var prevBtn = ui.h("button", { class: "btn ghost-link", type: "button", title: "Previous period", "aria-label": "Previous period" }, "◀");
+    var navLabel = ui.h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--color-ink)", minWidth: "108px", textAlign: "center" } });
+    var nextBtn = ui.h("button", { class: "btn ghost-link", type: "button", title: "Next period", "aria-label": "Next period" }, "▶");
+    navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
+    toggleAndNav.appendChild(navWrap);
+    toggleRow.appendChild(toggleAndNav);
+    prevBtn.addEventListener("click", function () { offset -= 1; refresh(); });
+    nextBtn.addEventListener("click", function () { if (offset < 0) { offset += 1; refresh(); } });
+
+    var customToggleRow = ui.h("div", { class: "period-toggle-row" });
+    customToggleRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Or a custom range"));
+    var customBtn = ui.h("button", { class: "chip", type: "button" }, "Custom range");
+    customToggleRow.appendChild(customBtn);
+    customBtn.addEventListener("click", function () { period = period === "custom" ? (opts.defaultPeriod || "month") : "custom"; offset = 0; refresh(); });
+
+    var rangeRow = ui.h("div", { class: "period-toggle-row" });
+    rangeRow.appendChild(ui.h("span", { class: "period-toggle-label" }, "Date range"));
+    var rangeWrap = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
+    var fromInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customFrom, "aria-label": (opts.label || "Reporting period") + " start date" });
+    var toInput = ui.h("input", { type: "date", class: "field-input select-fixed", value: customTo, "aria-label": (opts.label || "Reporting period") + " end date" });
+    rangeWrap.appendChild(fromInput);
+    rangeWrap.appendChild(ui.h("span", { style: { color: "var(--color-ink-tertiary)", fontSize: "12px" } }, "to"));
+    rangeWrap.appendChild(toInput);
+    rangeRow.appendChild(rangeWrap);
+    fromInput.addEventListener("change", function () { if (fromInput.value) customFrom = fromInput.value; refresh(); });
+    toInput.addEventListener("change", function () { if (toInput.value) customTo = toInput.value; refresh(); });
+
+    function periodLabelText() {
+      if (period === "month") { var mk = monthKeyOffset(offset); return MONTH_NAMES[Number(mk.slice(5, 7)) - 1] + " " + mk.slice(0, 4); }
+      if (period === "quarter") return quarterKeyOffset(offset);
+      if (period === "year") return String(yearOffset(offset));
+      return customFrom + " to " + customTo;
+    }
+    function renderToggle() {
+      toggle.innerHTML = "";
+      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"]].forEach(function (opt) {
+        var btn = ui.h("button", { class: "chip" + (period === opt[0] ? " active" : ""), type: "button" }, opt[1]);
+        btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; offset = 0; refresh(); } });
+        toggle.appendChild(btn);
+      });
+      customBtn.className = "chip" + (period === "custom" ? " active" : "");
+      navWrap.style.display = period === "custom" ? "none" : "flex";
+      rangeRow.style.display = period === "custom" ? "" : "none";
+      if (period !== "custom") {
+        navLabel.textContent = periodLabelText();
+        nextBtn.disabled = offset >= 0;
+      }
+    }
+
+    function bucketKeys(n) {
+      return period === "month" ? trailingMonths(n, offset)
+        : period === "quarter" ? trailingQuarters(n, offset)
+        : period === "year" ? trailingYears(n, offset)
+        : ["custom"];
+    }
+    function bucketLabel(key) {
+      if (period === "month") return monthKeyLabel(key);
+      if (period === "quarter") return "Q" + key.slice(6) + " '" + key.slice(2, 4);
+      if (period === "year") return key;
+      return customFrom + " – " + customTo;
+    }
+    function matches(dateStr, key) {
+      if (period === "month") return inMonth(dateStr, key);
+      if (period === "quarter") return inQuarter(dateStr, key);
+      if (period === "year") return inYear(dateStr, key);
+      return !!dateStr && dateStr >= customFrom && dateStr <= customTo;
+    }
+    function windowNote(nUnits, thing) {
+      if (period === "month") return "Trailing " + nUnits + " months, " + thing + ".";
+      if (period === "quarter") return "Trailing " + nUnits + " quarters, " + thing + ".";
+      if (period === "year") return "Trailing " + nUnits + " years, " + thing + ".";
+      return "From " + customFrom + " to " + customTo + ", " + thing + ".";
+    }
+
+    function refresh() { renderToggle(); onChange(); }
+    renderToggle();
+
+    return {
+      toggleRow: toggleRow, customToggleRow: customToggleRow, rangeRow: rangeRow,
+      bucketKeys: bucketKeys, bucketLabel: bucketLabel, matches: matches, windowNote: windowNote,
+      getPeriod: function () { return period; },
+    };
+  }
 
   var SVG_NS = "http://www.w3.org/2000/svg";
   function svgEl(tag, attrs) {
@@ -99,5 +240,9 @@
   PAS.charts = {
     svgEl: svgEl, drawTrendGraph: drawTrendGraph, trailingMonths: trailingMonths, monthKeyLabel: monthKeyLabel,
     txnsOfType: txnsOfType, inMonth: inMonth,
+    trailingQuarters: trailingQuarters, trailingYears: trailingYears,
+    monthKeyOffset: monthKeyOffset, quarterKeyOffset: quarterKeyOffset, yearOffset: yearOffset,
+    inQuarter: inQuarter, inYear: inYear,
+    periodPicker: periodPicker,
   };
 })();

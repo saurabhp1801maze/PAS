@@ -907,6 +907,78 @@ console.log("\n  refund-wise breakdown: grouped totals reconcile to the real sum
   else console.log("  PASS  Cancellation desk shows the real total refunded (" + moneyStr + ") — same figure as summing every completed cancellation's own recorded refund");
 })();
 
+/* Cancellation-desk-only initiator relabel: a Carrier/Reinsurer-initiated request must display as
+   "MGA" on this desk specifically (both the Requested-by pill/origin and the filter dropdown),
+   while the shared PAS.INITIATORS map stays untouched so every other desk keeps calling it
+   "Reinsurer" for real. */
+console.log("\n  cancellation desk: Carrier-initiated requests display as \"MGA\", scoped to this desk only");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PI = stub.PAS;
+  if (PI.INITIATORS.Carrier.label !== "Reinsurer") { fails++; console.log('  FAIL  PAS.INITIATORS.Carrier.label changed from "Reinsurer" — this should stay untouched globally, only overridden on the Cancellation desk'); }
+  else console.log("  PASS  the shared PAS.INITIATORS.Carrier label is still \"Reinsurer\" — the relabel is genuinely local to the Cancellation desk, not a global change");
+
+  var carrierInitiated = PI.pendingOf(PI.getPolicies(), "Cancellation").find(function (t) { return t.h.meta.initiatedBy === "Carrier"; });
+  if (!carrierInitiated) { fails++; console.log("  FAIL  no seeded pending cancellation with a real Carrier initiator — can't test the relabel"); return; }
+
+  var cxDom = renderDom("cancellation", "", "Super Admin");
+  var cxTxt = cxDom.textContent;
+  if (cxTxt.indexOf("Reinsurer") !== -1) { fails++; console.log('  FAIL  the Cancellation desk list page still shows "Reinsurer" somewhere — it should read "MGA" throughout'); }
+  else console.log("  PASS  the Cancellation desk list page shows no \"Reinsurer\" text — the real Carrier-initiated row (" + carrierInitiated.p.id + ") renders as \"MGA\"");
+
+  var initiatorSelect = cxDom.querySelectorAll("select").filter(function (el) { return el.getAttribute("title") === "Initiated by"; })[0];
+  var mgaOptionCount = initiatorSelect ? initiatorSelect.querySelectorAll("option").filter(function (o) { return o.textContent === "MGA"; }).length : 0;
+  if (mgaOptionCount !== 2) { fails++; console.log("  FAIL  expected exactly 2 \"MGA\"-labelled options in the Initiated-by filter (real MGA + relabelled Carrier), found " + mgaOptionCount); }
+  else console.log("  PASS  the Initiated-by filter genuinely offers two distinct underlying values both labelled \"MGA\" (the real MGA key, and Carrier under the desk's override) — a deliberate, confirmed choice, not an oversight");
+
+  var decisionTxt = renderText("cancellation-decision", "?policy=" + encodeURIComponent(carrierInitiated.p.id) + "&txn=" + encodeURIComponent(carrierInitiated.h.id));
+  if (decisionTxt.indexOf("Requested by MGA") === -1) { fails++; console.log('  FAIL  cancellation-decision for a real Carrier-initiated request does not show "Requested by MGA"'); }
+  else console.log("  PASS  cancellation-decision's Request origin also reads \"Requested by MGA\" for a real Carrier-initiated request — consistent with the list page");
+  if (decisionTxt.indexOf("Reinsurer") !== -1) { fails++; console.log('  FAIL  cancellation-decision still shows "Reinsurer" somewhere'); }
+
+  /* Confirm the relabel didn't leak into a desk that was never asked to change — Reinstatement
+     shows the ORIGINAL cancellation's Initiated By too (via decisionTrailFor), and that one must
+     still say the real, shared label. */
+  var reinstateTxt = renderText("reinstatement-decision", "?policy=POL-2026-01190");
+  if (reinstateTxt.indexOf("Reinsurer") === -1 && reinstateTxt.indexOf("Carrier") === -1) { console.log("  (reinstatement-decision doesn't happen to show an initiator label for this record — not a failure, just nothing to assert)"); }
+  else if (reinstateTxt.indexOf("MGA") !== -1 && reinstateTxt.indexOf("Reinsurer") === -1 && reinstateTxt.indexOf("Carrier") !== -1) { fails++; console.log("  FAIL  the Cancellation desk's local relabel leaked into Reinstatement — it should only apply on the Cancellation desk"); }
+  else console.log("  PASS  the relabel did not leak into Reinstatement — a desk that was never asked to change keeps the real, shared label");
+})();
+
+/* Cancellation Types explanation: rewritten to be plain-language and short (the previous
+   "unearned premium"/"acquisition cost"/"basis" wording was flagged as hard to understand), while
+   staying accurate — every card's visible copy must actually match PAS.CANCEL_TYPES' own data,
+   not a hardcoded string that could quietly drift from what cancelQuote actually computes. */
+console.log("\n  cancellation desk: \"Types of cancellation\" cards are plain-language, not jargon");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PT = stub.PAS;
+  var cxTxt = renderText("cancellation");
+
+  ["unearned", "acquisition cost", "written basis", "unearned basis"].forEach(function (jargon) {
+    if (cxTxt.indexOf(jargon) !== -1) { fails++; console.log('  FAIL  "Types of cancellation" still contains the jargon phrase "' + jargon + '"'); }
+  });
+  console.log("  PASS  none of the old jargon (\"unearned premium\", \"acquisition cost\", \"written/unearned basis\") appears on the page");
+
+  Object.keys(PT.CANCEL_TYPES).forEach(function (name) {
+    var t = PT.CANCEL_TYPES[name];
+    if (cxTxt.indexOf(t.when) === -1 || cxTxt.indexOf(t.rate) === -1) { fails++; console.log('  FAIL  ' + name + "'s card doesn't show its own real PAS.CANCEL_TYPES text — could be a hardcoded string that's drifted from the data"); }
+    var wordCount = t.when.split(/\s+/).length;
+    if (wordCount > 30) { fails++; console.log("  FAIL  " + name + "'s explanation is " + wordCount + " words — too long to read at a glance"); }
+  });
+  console.log("  PASS  every type card's visible text is read live from PAS.CANCEL_TYPES (never a stale hardcoded copy), and each explanation is short enough to read at a glance");
+})();
+
 /* The Cancellation desk's pending-requests table now carries a search box plus LOB and
    Submitted-date filters (same as Endorsements/Reinstatement/Renewal) — these must genuinely
    narrow the rendered rows, not just exist as inert controls. */

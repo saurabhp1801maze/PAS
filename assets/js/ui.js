@@ -145,9 +145,15 @@
     return h("span", { class: "status-badge outcome-badge", "data-outcome": key }, outcome);
   }
   function modulePill(type) { return pill(PAS.MODULE_TONE[type], type, PAS.MODULE_ICON[type]); }
-  function initiatorPill(meta) {
-    var init = PAS.INITIATORS[(meta && meta.initiatedBy)] || PAS.INITIATORS.Insured;
-    return pill(init.tone, init.label, init.icon);
+  /* labelOverrides is optional and defaults to none — every existing caller keeps showing
+     PAS.INITIATORS' own shared label unchanged. A desk that needs its own wording for one
+     initiator (without touching the shared map every other desk also reads from) passes e.g.
+     { Carrier: "MGA" } and only that desk's pill/origin text changes. */
+  function initiatorPill(meta, labelOverrides) {
+    var key = meta && meta.initiatedBy;
+    var init = PAS.INITIATORS[key] || PAS.INITIATORS.Insured;
+    var label = (labelOverrides && labelOverrides[key]) || init.label;
+    return pill(init.tone, label, init.icon);
   }
   function cellOpen(label) { return h("span", { class: "cell-open" }, [document.createTextNode(label || "Open"), PAS.icon("arrow-right", { size: 11 })]); }
   function cellId(v) { return h("span", { class: "cell-id" }, v); }
@@ -1136,12 +1142,14 @@
     wrap.appendChild(body);
     return wrap;
   }
-  function requestOrigin(meta) {
-    var init = PAS.INITIATORS[(meta && meta.initiatedBy)] || PAS.INITIATORS.Insured;
+  function requestOrigin(meta, labelOverrides) {
+    var key = meta && meta.initiatedBy;
+    var init = PAS.INITIATORS[key] || PAS.INITIATORS.Insured;
+    var label = (labelOverrides && labelOverrides[key]) || init.label;
     var wrap = h("div", { class: "request-origin", "data-tone": init.tone });
     var head = h("div", { class: "request-origin-head" });
     head.appendChild(PAS.icon(init.icon, { size: 14, color: "var(--tone-fg)" }));
-    head.appendChild(h("span", { class: "request-origin-who" }, "Requested by " + init.label));
+    head.appendChild(h("span", { class: "request-origin-who" }, "Requested by " + label));
     head.appendChild(h("span", { class: "request-origin-channel" }, "via " + ((meta && meta.channel) || "—")));
     head.appendChild(h("span", { style: { flex: "1" } }));
     head.appendChild(h("span", { class: "request-origin-date" }, (meta && meta.submittedOn) || "—"));

@@ -97,24 +97,30 @@
      non-payment cancellations use the Pro-Rata basis like any other insurer-side exit; the
      15-day statutory notice that used to hang off the type now hangs off the Reason it actually
      belongs to (see CANCEL_REASONS). */
+  /* when / rate / rule are the plain-language explanation shown on the Cancellation desk's own
+     "Types of cancellation" cards and the decision screen's derived-type card — kept short (2-3
+     lines) and jargon-free on purpose. "Basis"/"unearned premium"/"acquisition cost" language
+     used to sit here; it was accurate but not easy to read at a glance, so it's gone from the
+     display text even though the underlying `basis` field (used only for that one internal
+     written/unearned distinction, not shown raw anymore) is unchanged. */
   var CANCEL_TYPES = {
     Flat: {
       tone: "blue", penaltyPct: 0, basis: "written",
-      when: "Effective on or before the policy's own inception date — the insurer was never on risk.",
-      rate: "Full written premium returned. No penalty, regardless of reason or who initiated it.",
-      rule: "Only valid when the effective date is on or before the policy inception date.",
+      when: "Cover never actually started. This cancels on or before the policy's own start date.",
+      rate: "You get the full premium back. No deductions, no matter the reason or who asked for it.",
+      rule: "Only allowed when the cancellation date is on or before the policy's start date.",
     },
     "Pro-Rata": {
       tone: "green", penaltyPct: 0, basis: "unearned",
-      when: "The cancellation was initiated by the Carrier, an MGA or the System, or the reason itself carries no penalty by right.",
-      rate: "Full unearned premium returned, in exact proportion to the unused term. No penalty.",
-      rule: "An insurer-side initiator (Reinsurer, MGA, System) may never carry a short-rate penalty — Type downgrades to this even if the Reason's default is Short-Rate.",
+      when: "Cover ran for part of the term. Either the MGA or System is ending it, or the reason itself never carries a penalty.",
+      rate: "You get back exactly the unused portion of your premium, day for day. No penalty.",
+      rule: "An MGA- or System-initiated cancellation never carries a penalty, even if the reason would normally trigger one.",
     },
     "Short-Rate": {
       tone: "amber", penaltyPct: 0.1, basis: "unearned",
-      when: "A voluntary exit initiated by the Insured or a Broker.",
-      rate: "Unearned premium minus a 10% short-rate penalty covering the insurer's acquisition cost.",
-      rule: "Never applied when Initiated By is Carrier, MGA or System — see Pro-Rata's rule.",
+      when: "You (the insured) or your broker are choosing to cancel early, on your own.",
+      rate: "You get back the unused portion of your premium, minus a 10% fee for the cost of setting up the policy.",
+      rule: "Never applies when the MGA or System is the one cancelling — see Pro-Rata.",
     },
   };
 

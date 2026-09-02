@@ -5,6 +5,12 @@
   "use strict";
   var PAS = window.PAS, ui = PAS.ui;
 
+  /* Same local override as cancellation.js — on this desk a Carrier/Reinsurer-initiated request
+     reads "MGA", not the shared "Reinsurer" label PAS.INITIATORS uses everywhere else. Kept local
+     rather than changed on PAS.INITIATORS itself, so every other desk keeps the real distinction. */
+  var CANCEL_INITIATOR_LABEL_OVERRIDE = { Carrier: "MGA" };
+  function cancelInitiatorLabel(key) { return CANCEL_INITIATOR_LABEL_OVERRIDE[key] || (PAS.INITIATORS[key] || PAS.INITIATORS.Insured).label; }
+
   function render() {
     var sp = new URLSearchParams(location.search);
     var root = document.getElementById("page-content");
@@ -43,10 +49,10 @@
       headContainer.appendChild(ui.recordHead(p, ui.pill(q.spec.tone, q.type)));
 
       var left = [];
-      left.push(ui.requestOrigin(h.meta));
+      left.push(ui.requestOrigin(h.meta, CANCEL_INITIATOR_LABEL_OVERRIDE));
       left.push(ui.tipLabel({ text: "What was requested", what: "Reason and Initiated By came in with the request — neither is chosen here.", why: "Type is derived from both of them plus the effective date, never hand-picked.", className: "label-11 block mb-10" }));
       left.push(ui.kv({ k: "Reason", v: reason, what: "What the requester gave.", rule: "Fraud never auto-completes and permanently blocks any later reinstatement." }));
-      left.push(ui.kv({ k: "Initiated by", v: initiatedBy, what: "Who is actually asking for this.", rule: "An insurer-side initiator (Reinsurer, MGA, System) can never end up with a Short-Rate penalty." }));
+      left.push(ui.kv({ k: "Initiated by", v: cancelInitiatorLabel(initiatedBy), what: "Who is actually asking for this.", rule: "An insurer-side initiator (MGA or System) can never end up with a Short-Rate penalty." }));
       left.push(ui.kv({ k: "Timing", v: q.timing, what: "Immediate if the effective date is today or past, Future/Scheduled otherwise." }));
 
       var dateInput = ui.h("input", { class: "field-input", type: "date", value: effDate, disabled: decided || dnoc.required });

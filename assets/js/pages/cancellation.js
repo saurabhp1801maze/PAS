@@ -6,6 +6,15 @@
   "use strict";
   var PAS = window.PAS, ui = PAS.ui;
 
+  /* On the Cancellation desk specifically, a Carrier/Reinsurer-initiated request displays as
+     "MGA" rather than the shared "Reinsurer" label PAS.INITIATORS uses everywhere else — a
+     deliberate choice, so it does read the same as a genuinely MGA-initiated request in this
+     desk's own Requested-by column/filter. Kept as a local override (see ui.initiatorPill /
+     ui.requestOrigin) rather than a change to PAS.INITIATORS itself, so every other desk that
+     shows "Reinsurer" as an initiator keeps its own real distinction. */
+  var CANCEL_INITIATOR_LABEL_OVERRIDE = { Carrier: "MGA" };
+  function cancelInitiatorLabel(key) { return CANCEL_INITIATOR_LABEL_OVERRIDE[key] || (PAS.INITIATORS[key] || PAS.INITIATORS.Insured).label; }
+
   function render() {
     var policies = PAS.getScopedPolicies();
     var pend = PAS.pendingOf(policies, "Cancellation");
@@ -49,7 +58,7 @@
       var card = ui.h("div", { class: "cancel-type-card" });
       card.appendChild(ui.pill(t.tone, name));
       card.appendChild(ui.h("div", { class: "cancel-type-desc" }, t.when));
-      card.appendChild(ui.h("div", { class: "cancel-type-meta" }, (t.penaltyPct ? (t.penaltyPct * 100 + "% penalty") : "no penalty") + " · " + t.basis + " basis"));
+      card.appendChild(ui.h("div", { class: "cancel-type-meta" }, t.rate));
       typeGrid.appendChild(ui.tooltip({ what: t.when, why: t.rate, rule: t.rule, width: 300 }, card));
     });
     var typesPanel = ui.panel({
@@ -224,7 +233,7 @@
     var initiatorSelect = ui.h("select", { class: "register-select", title: "Initiated by" });
     initiatorSelect.appendChild(ui.h("option", { value: "All" }, "All initiators"));
     (PAS.CANCEL_INITIATOR_KEYS || []).forEach(function (k) {
-      initiatorSelect.appendChild(ui.h("option", { value: k }, k));
+      initiatorSelect.appendChild(ui.h("option", { value: k }, cancelInitiatorLabel(k)));
     });
     filters.appendChild(initiatorSelect);
 
@@ -257,7 +266,7 @@
       columns: [
         { key: "policy", label: "Policy", locked: true, sortValue: function (r) { return r.t.p.id; }, cell: function (r) { return ui.cellId(r.t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (r) { return (r.t.p.holder || "").toLowerCase(); }, cell: function (r) { return ui.cellName(r.t.p.holder); } },
-        { key: "requestedBy", label: "Requested by", sortValue: function (r) { return r.meta.initiatedBy || ""; }, cell: function (r) { return ui.initiatorPill(r.meta); } },
+        { key: "requestedBy", label: "Requested by", sortValue: function (r) { return r.meta.initiatedBy || ""; }, cell: function (r) { return ui.initiatorPill(r.meta, CANCEL_INITIATOR_LABEL_OVERRIDE); } },
         { key: "reason", label: "Reason", what: "What the requester gave as their reason.", why: "Drives the default type and the notice period.", sortValue: function (r) { return r.reason; }, cell: function (r) { return r.reason; } },
         { key: "type", label: "Type", what: "The derived refund basis — Reason plus Initiated By, never hand-picked.", sortValue: function (r) { return r.type; }, cell: function (r) { return ui.pill(PAS.CANCEL_TYPES[r.type].tone, r.type); } },
         { key: "dnoc", label: "DNOC", what: "Direct Notice of Cancellation status for insurer-side cancellations.", why: "Pending days must reach zero before cancel can complete.", sortValue: function (r) { return r.dnoc.required ? r.dnoc.pendingDays : -1; }, cell: function (r) {

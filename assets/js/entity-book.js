@@ -27,19 +27,42 @@
 
   PAS.renderEntityBook = function (opts) {
     var ui = PAS.ui;
-    var policies = PAS.getScopedPolicies();
+    var allPolicies = PAS.getScopedPolicies();
     var params = new URLSearchParams(location.search);
     var selected = params.get(opts.paramName);
 
-    var page = ui.h("div", {});
-    if (selected) renderDetail(page, selected);
-    else renderList(page);
-
     var root = document.getElementById("page-content");
     root.innerHTML = "";
-    root.appendChild(ui.screen(opts.pageKey, page));
+    var outer = ui.h("div", {});
+    root.appendChild(outer);
+
+    /* Same Monthly/Quarterly/Yearly/All-history/Custom control as the Dashboard and the Policy
+       register (PAS.ui.periodToggle, see store.js for the shared date math). Scopes by
+       `submittedOn`, falling back to `effectiveDate` when missing (most of this seed book never had
+       submittedOn recorded — see the matching comment in registry.js). A period change re-renders
+       the whole list/detail body below it — rows, KPIs and financials all derive from which
+       policies are in scope, so there's no narrower place to patch than rebuilding the body
+       wholesale, same as any of this page's other filters changing. */
+    var pt = ui.periodToggle({ defaultPeriod: "all", onChange: function () { buildBody(); } });
+    outer.appendChild(pt.el);
+
+    var bodyWrap = ui.h("div", {});
+    outer.appendChild(bodyWrap);
+    outer.appendChild(ui.apiLifecycle(opts.pageKey).el);
+
+    function scopedPolicies() {
+      return pt.period === "all" ? allPolicies : allPolicies.filter(function (p) { return pt.matches(p.submittedOn || p.effectiveDate); });
+    }
+
+    function buildBody() {
+      bodyWrap.innerHTML = "";
+      if (selected) renderDetail(bodyWrap, selected);
+      else renderList(bodyWrap);
+    }
+    buildBody();
 
     function entityRows() {
+      var policies = scopedPolicies();
       var names = Array.from(new Set(policies.map(function (p) { return p[opts.fieldName]; }).filter(Boolean)));
       return names.map(function (name) {
         var mine = policies.filter(function (p) { return p[opts.fieldName] === name; });
@@ -56,6 +79,8 @@
         if (opts.showFinancials) {
           var f = PAS.bookFinancials(PAS.onRiskPolicies(mine));
           row.lossRatio = f.lossRatio;
+          row.claimsIncurred = f.incurred;
+          row.claimCount = f.claimCount;
           if (opts.showCommission) row.commissionPaid = f.brokerCommission;
         }
         return row;
@@ -63,6 +88,7 @@
     }
 
     function renderList(page) {
+      var policies = scopedPolicies();
       var rows = entityRows();
       var totalPremium = rows.reduce(function (s, r) { return s + r.premium; }, 0);
       page.appendChild(ui.pageHeader({
@@ -95,6 +121,7 @@
       );
       if (opts.showFinancials) {
         columns.push({ key: "lossRatio", label: "Loss ratio", what: "Incurred claims ÷ earned premium, on this " + opts.singularLower + "'s on-risk book — same earned basis as the dashboard.", sortValue: function (r) { return r.lossRatio; }, cell: function (r) { return ui.pill(lossTone(r.lossRatio), pct(r.lossRatio)); } });
+        columns.push({ key: "claimsIncurred", label: "Claims incurred", what: "Total incurred claims (paid + reserved) across every policy this " + opts.singularLower + " placed — same on-risk basis as loss ratio.", sortValue: function (r) { return r.claimsIncurred; }, cell: function (r) { return r.claimCount ? PAS.money(r.claimsIncurred) : "—"; } });
         if (opts.showCommission) columns.push({ key: "commissionPaid", label: "Commission paid", what: "This " + opts.singularLower + "'s actual revenue for placing the business — their share of gross commission earned.", sortValue: function (r) { return r.commissionPaid; }, cell: function (r) { return PAS.money(r.commissionPaid); } });
       }
       columns.push(
@@ -102,7 +129,7 @@
         { key: "states", label: "States", what: "Distinct states this " + opts.singularLower + " has business in.", sortValue: function (r) { return r.states; }, cell: function (r) { return String(r.states); } }
       );
       var listDefaultVisible = (opts.typeMap ? ["type"] : []).concat(["total", "active", "premium", "pending"])
-        .concat(opts.showFinancials ? ["lossRatio"] : [])
+        .concat(opts.showFinancials ? ["lossRatio", "claimsIncurred"] : [])
         .concat(opts.showCommission ? ["commissionPaid"] : []);
 
       page.appendChild(ui.tipLabel({ text: opts.titleUpper + " (" + rows.length + ")", what: "Click any " + opts.singularLower + " to see every policy placed through them.", className: "label-11 block mb-9" }));
@@ -161,7 +188,7 @@
       var onRisk = PAS.onRiskPolicies(mine);
       var f = PAS.bookFinancials(onRisk);
       if (f.policies === 0) return;
-      var bookAvg = PAS.bookFinancials(PAS.onRiskPolicies(policies)).lossRatio;
+      var bookAvg = PAS.bookFinancials(PAS.onRiskPolicies(scopedPolicies())).lossRatio;
 
       page.appendChild(ui.h("div", { class: "kpi-section-head", style: { marginTop: "18px" } }, [
         ui.h("span", { class: "kpi-section-label" }, "Financial performance"),
@@ -188,7 +215,7 @@
     }
 
     function renderDetail(page, name) {
-      var mine = policies.filter(function (p) { return p[opts.fieldName] === name; });
+      var mine = scopedPolicies().filter(function (p) { return p[opts.fieldName] === name; });
       var active = mine.filter(function (p) { return p.status === "Active"; });
       var premium = active.reduce(function (s, p) { return s + (p.premium || 0); }, 0);
       var type = opts.typeMap ? (opts.typeMap[name] || "") : "";

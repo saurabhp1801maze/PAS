@@ -38,9 +38,15 @@
     right.push(ui.kv({ k: "Window remaining", v: Math.max(0, PAS.REINSTATEMENT_WINDOW_DAYS - e.daysSince) + " days", what: "Time left to reinstate." }));
     right.push(ui.kv({ k: "Gap disclosure", v: "Required", what: "Written notice explaining the uninsured period." }));
 
-    var outstandingInput = ui.h("input", { class: "field-input", type: "number", value: String((h.meta && h.meta.outstandingClaimed) || 0) });
+    /* Not an editable field: the figure billing actually collects is reconciled in Billing, not
+       typed in here by whoever is deciding this reinstatement. Shown as a highlighted read-only
+       callout instead of an input so it can't be quietly changed on this screen. */
+    var outstandingAmt = (h.meta && h.meta.outstandingClaimed) || 0;
     var outWrap = ui.h("div", { class: "mt-13" });
-    outWrap.appendChild(ui.field({ label: "Outstanding premium to collect", hint: "The requester's claimed figure — confirm against Billing before approving." }, outstandingInput));
+    outWrap.appendChild(ui.callout("warn", [
+      ui.h("strong", {}, "Outstanding premium to collect: " + PAS.money(outstandingAmt) + ". "),
+      document.createTextNode("The requester's claimed figure — read-only here; confirm the actual amount against Billing before approving."),
+    ]));
     right.push(outWrap);
 
     right.push(ui.decisionTrailSide(PAS.decisionTrailFor(p, h.id)));
@@ -49,7 +55,7 @@
       return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };
     }
     function decide(approve, comment) {
-      var outstanding = Number(outstandingInput.value) || 0;
+      var outstanding = outstandingAmt;
       var audit = PAS.makeAudit(approve ? "Approve" : "Decline", comment);
       return PAS.api.call("POST", "/api/v1/transactions/" + h.id + "/" + (approve ? "approve" : "reject"),
         { decision: approve ? "approved" : "rejected", outstandingPremium: { amount: outstanding, currency: "USD" }, note: comment },

@@ -62,6 +62,8 @@
 
     var left = [];
     left.push(ui.requestOrigin(h.meta));
+    left.push(ui.kv({ k: "Broker", v: p.producer || "—", what: "The producing broker on this policy — who placed it, not necessarily who submitted this request." }));
+    left.push(ui.kv({ k: "MGA", v: p.mga || "—", what: "The MGA facility this policy is bound through." }));
     left.push(ui.tipLabel({ text: "Requested change", what: "What was asked for, mid-term.", className: "label-11 block mb-10" }));
     left.push(ui.kv({ k: "Change type", v: h.meta.changeType, what: "What is being altered." }));
     left.push(ui.kv({ k: "Materiality", v: h.meta.materiality, what: "Material changes alter the risk and need sign-off.", rule: "Material endorsements are never auto-applied." }));

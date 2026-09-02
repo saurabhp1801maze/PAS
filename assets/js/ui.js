@@ -1378,6 +1378,91 @@
     return wrap;
   }
 
+  /* Reusable Monthly/Quarterly/Yearly/All-history/Custom reporting-period control — the same
+     widget the Dashboard built first, factored out so the Policy register, Brokers, MGA, Carriers
+     and Customers pages can drop in an identical toggle without re-deriving the date math (that
+     math itself lives once, in PAS.periodBounds/periodMatches/periodLabelOf — this only owns the
+     DOM and the period/offset/custom-range state machine on top of it).
+     opts.onChange fires after every state change (chip click, prev/next, custom date edit) so the
+     caller can re-filter its list and recompute its KPIs; the returned handle's bounds()/matches()/
+     noteText() are what a caller reads to do that filtering. opts.defaultPeriod (default "month")
+     sets which chip is active on first render — directory-style pages (Policy register, Brokers,
+     MGA, Carriers, Customers) pass "all" so they still open showing the whole book, matching what
+     those pages already promise ("every record") rather than narrowing to the current month
+     before the viewer has touched anything. */
+  function periodToggle(opts) {
+    opts = opts || {};
+    var period = opts.defaultPeriod || "month", periodOffset = 0;
+    var customFrom = PAS.addDays(PAS.todayISO(), -30), customTo = PAS.todayISO();
+
+    var wrap = h("div", {});
+    var toggleRow = h("div", { class: "period-toggle-row" });
+    toggleRow.appendChild(h("span", { class: "period-toggle-label" }, "Reporting period"));
+    var toggleAndNav = h("div", { style: { display: "flex", alignItems: "center", gap: "10px" }, role: "group", "aria-label": "Reporting period" });
+    var toggle = h("div", { class: "period-toggle", role: "group", "aria-label": "Period type" });
+    toggleAndNav.appendChild(toggle);
+    var navWrap = h("div", { style: { display: "flex", alignItems: "center", gap: "6px" } });
+    var prevBtn = h("button", { class: "btn ghost-link", type: "button", title: "Previous period", "aria-label": "Previous reporting period" }, "◀");
+    var navLabel = h("span", { style: { fontSize: "12.5px", fontWeight: "700", color: "var(--color-ink)", minWidth: "108px", textAlign: "center" } });
+    var nextBtn = h("button", { class: "btn ghost-link", type: "button", title: "Next period", "aria-label": "Next reporting period" }, "▶");
+    navWrap.appendChild(prevBtn); navWrap.appendChild(navLabel); navWrap.appendChild(nextBtn);
+    toggleAndNav.appendChild(navWrap);
+    toggleRow.appendChild(toggleAndNav);
+    wrap.appendChild(toggleRow);
+
+    var customBtn = h("button", { class: "chip", type: "button", "aria-pressed": "false" }, "Custom dates");
+    customBtn.addEventListener("click", function () { period = period === "custom" ? "month" : "custom"; periodOffset = 0; update(); });
+
+    var rangeRow = h("div", { class: "period-toggle-row" });
+    rangeRow.appendChild(h("span", { class: "period-toggle-label" }, "Date range"));
+    var rangeWrap = h("div", { class: "date-range-controls" });
+    var fromInput = h("input", { type: "date", class: "field-input select-fixed", value: customFrom, "aria-label": "Reporting period start date" });
+    var toInput = h("input", { type: "date", class: "field-input select-fixed", value: customTo, "aria-label": "Reporting period end date" });
+    rangeWrap.appendChild(fromInput);
+    rangeWrap.appendChild(h("span", { style: { color: "var(--color-muted)", fontSize: "12px" } }, "to"));
+    rangeWrap.appendChild(toInput);
+    rangeRow.appendChild(rangeWrap);
+    wrap.appendChild(rangeRow);
+    fromInput.addEventListener("change", function () { if (fromInput.value) customFrom = fromInput.value; update(); });
+    toInput.addEventListener("change", function () { if (toInput.value) customTo = toInput.value; update(); });
+
+    prevBtn.addEventListener("click", function () { periodOffset -= 1; update(); });
+    nextBtn.addEventListener("click", function () { if (periodOffset < 0) { periodOffset += 1; update(); } });
+
+    function renderChips() {
+      toggle.innerHTML = "";
+      [["month", "Monthly"], ["quarter", "Quarterly"], ["year", "Yearly"], ["all", "All history"]].forEach(function (opt) {
+        var btn = h("button", { class: "chip" + (period === opt[0] ? " active" : ""), type: "button", "aria-pressed": String(period === opt[0]) }, opt[1]);
+        btn.addEventListener("click", function () { if (period !== opt[0]) { period = opt[0]; periodOffset = 0; update(); } });
+        toggle.appendChild(btn);
+      });
+      toggle.appendChild(customBtn);
+      customBtn.className = "chip" + (period === "custom" ? " active" : "");
+      customBtn.setAttribute("aria-pressed", String(period === "custom"));
+      navWrap.style.display = (period === "custom" || period === "all") ? "none" : "flex";
+      rangeRow.style.display = period === "custom" ? "" : "none";
+      if (period !== "custom" && period !== "all") {
+        navLabel.textContent = PAS.periodLabelOf(period, periodOffset);
+        nextBtn.disabled = periodOffset >= 0;
+      }
+    }
+    function update() { renderChips(); if (opts.onChange) opts.onChange(); }
+    renderChips();
+
+    return {
+      el: wrap,
+      get period() { return period; },
+      get periodOffset() { return periodOffset; },
+      bounds: function () { return PAS.periodBounds(period, periodOffset, customFrom, customTo); },
+      matches: function (dateStr) { return PAS.periodMatches(dateStr, period, periodOffset, customFrom, customTo); },
+      noteText: function () {
+        if (period === "all") return "across the whole book";
+        if (period === "custom") return "from " + customFrom + " to " + customTo;
+        return "in " + PAS.periodLabelOf(period, periodOffset);
+      },
+    };
+  }
+
   PAS.ui = {
     h: h, append: appendKids, tooltip: tooltip, tipLabel: tipLabel, infoDot: infoDot,
     pill: pill, statusBadge: statusBadge, badge: badge, txnStatusBadge: txnStatusBadge, outcomeBadge: outcomeBadge, modulePill: modulePill, initiatorPill: initiatorPill, tabs: tabs, emptyState: emptyState, diffPanel: diffPanel, stepper: stepper, drawer: drawer,
@@ -1387,6 +1472,6 @@
     callout: callout, hbar: hbar, donut: donut, stackBar: stackBar, workCard: workCard, recordHead: recordHead,
     decisionLayout: decisionLayout, confirmDecision: confirmDecision, confirmable: confirmable, decisionTrail: decisionTrail, decisionTrailSide: decisionTrailSide, flashThenGo: flashThenGo, scoreDial: scoreDial, requestOrigin: requestOrigin, logRequestForm: logRequestForm,
     renderToast: renderToast, notifRow: notifRow, lifecycleStage: lifecycleStage,
-    apiLifecycle: apiLifecycle, screen: screen, TONE_HEX: TONE_HEX,
+    apiLifecycle: apiLifecycle, screen: screen, TONE_HEX: TONE_HEX, periodToggle: periodToggle,
   };
 })(window);

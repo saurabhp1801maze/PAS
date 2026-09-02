@@ -20,12 +20,28 @@
       icon: "list-checks", tone: "indigo", title: "Policy Register", sub: "Every record in the book, in every lifecycle state",
       what: "Submissions and policies alike.", why: "The single source of truth each decision desk reads from.",
     }));
-    page.appendChild(ui.kpiRow([
-      { label: "Total records", value: policies.length, tip: "Submissions plus policies." },
-      { label: "In force", value: policies.filter(function (p) { return p.status === "Active"; }).length, tone: "green", tip: "Issued, not cancelled or expired." },
-      { label: "Pre-issue", value: policies.filter(function (p) { return ["Referred", "Bound"].indexOf(p.status) !== -1; }).length, tone: "amber", tip: "Submissions and bound-not-issued." },
-      { label: "Closed", value: policies.filter(function (p) { return ["Cancelled", "Expired", "Non-renewed", "Declined"].indexOf(p.status) !== -1; }).length, tip: "No longer on risk." },
-    ]));
+
+    /* Same Monthly/Quarterly/Yearly/All-history/Custom control as the Dashboard (PAS.ui.periodToggle
+       — see store.js for the shared date math it's built on). Scopes by `submittedOn`, falling back
+       to `effectiveDate` when it's missing — the same fallback policy-detail.js's own "Submitted"
+       row already uses, since most of this seed book never had submittedOn recorded and would
+       otherwise fall out of every real period, leaving only "All history" showing anything. */
+    var pt = ui.periodToggle({ defaultPeriod: "all", onChange: function () { refresh(); } });
+    page.appendChild(pt.el);
+    function inPeriod(p) { return pt.period === "all" || pt.matches(p.submittedOn || p.effectiveDate); }
+
+    var kpiRowWrap = ui.h("div", {});
+    page.appendChild(kpiRowWrap);
+    function buildKpis() {
+      var periodPolicies = policies.filter(inPeriod);
+      kpiRowWrap.innerHTML = "";
+      kpiRowWrap.appendChild(ui.kpiRow([
+        { label: "Total records", value: periodPolicies.length, tip: "Submissions plus policies, " + pt.noteText() + "." },
+        { label: "In force", value: periodPolicies.filter(function (p) { return p.status === "Active"; }).length, tone: "green", tip: "Issued, not cancelled or expired." },
+        { label: "Pre-issue", value: periodPolicies.filter(function (p) { return ["Referred", "Bound"].indexOf(p.status) !== -1; }).length, tone: "amber", tip: "Submissions and bound-not-issued." },
+        { label: "Closed", value: periodPolicies.filter(function (p) { return ["Cancelled", "Expired", "Non-renewed", "Declined"].indexOf(p.status) !== -1; }).length, tip: "No longer on risk." },
+      ]));
+    }
 
     var toolbar = ui.h("div", { class: "register-toolbar" });
 
@@ -59,7 +75,8 @@
     toolbar.appendChild(filters);
 
     function match(p) {
-      return (sf === "All" || statusBucket(p.status) === sf)
+      return inPeriod(p)
+        && (sf === "All" || statusBucket(p.status) === sf)
         && (pf === "All" || p.product === pf)
         && (stf === "All" || p.state === stf)
         && (p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
@@ -115,9 +132,15 @@
     page.appendChild(registryTable.tableWrap);
 
     function refresh() {
+      buildKpis();
       var filtered = policies.filter(match);
-      noteEl.textContent = (sf !== "All" || pf !== "All" || stf !== "All" || q)
-        ? "Showing " + filtered.length + " of " + policies.length + " records." : "";
+      var extra = [];
+      if (sf !== "All") extra.push(sf);
+      if (pf !== "All") extra.push(pf);
+      if (stf !== "All") extra.push(stf);
+      if (q) extra.push("\"" + q + "\"");
+      noteEl.textContent = "Showing " + filtered.length + " of " + policies.length + " records, " + pt.noteText() +
+        (extra.length ? " — filtered by " + extra.join(", ") : "") + ".";
       registryTable.rebuild();
     }
     searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });

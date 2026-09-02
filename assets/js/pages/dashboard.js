@@ -228,7 +228,7 @@
       if (stateFilter.length) parts.push(stateFilter.join("/"));
       if (brokerFilter.length) parts.push("broker " + brokerFilter.join("/"));
       if (mgaFilter.length) parts.push("MGA " + mgaFilter.join("/"));
-      if (carrierFilter.length) parts.push("carrier " + carrierFilter.join("/"));
+      if (carrierFilter.length) parts.push("reinsurer " + carrierFilter.join("/"));
       return parts.length ? " (" + parts.join("; ") + ")" : "";
     }
     /* Every filter here — product, state, broker, MGA, carrier — is a real attribute already on
@@ -258,7 +258,7 @@
 
     page.appendChild(ui.pageHeader({
       icon: "layout-dashboard", tone: "indigo", title: "Portfolio Dashboard",
-      sub: "Portfolio performance and operational workload by line of business, state, broker, MGA and carrier",
+      sub: "Portfolio performance and operational workload by line of business, state, broker, MGA and reinsurer",
     }));
 
     /* One wrapping row, every filter a same-shaped group (label above control) — the pattern
@@ -289,8 +289,8 @@
     filterBlock.appendChild(mgaGroup);
 
     var carrierGroup = ui.h("div", {});
-    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Carrier"));
-    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All carriers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
+    carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Reinsurer"));
+    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All reinsurers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
     filterBlock.appendChild(carrierGroup);
 
     var toggleRow = ui.h("div", { class: "period-toggle-row" });
@@ -344,19 +344,6 @@
     var finVerdictWrap = ui.h("div", {});
     page.appendChild(finVerdictWrap);
 
-    var finGrid = ui.h("div", { class: "two-col-grid" });
-    var waterfallPanel = ui.panel({
-      title: "Carrier underwriting result",
-    }, []);
-    var waterfallBody = waterfallPanel.querySelector(".panel-body");
-    finGrid.appendChild(waterfallPanel);
-    var revenuePanel = ui.panel({
-      title: "Veridex commission revenue",
-    }, []);
-    var revenueBody = revenuePanel.querySelector(".panel-body");
-    finGrid.appendChild(revenuePanel);
-    page.appendChild(finGrid);
-
     /* The panel that answers "which is loss, where profit" directly. Ranked worst-first by
        combined ratio, because the loss-making segments are the ones anyone actually needs to act
        on — a table sorted alphabetically buries them. */
@@ -364,11 +351,11 @@
       { key: "product", label: "Line of business" },
       { key: "state", label: "State" },
       { key: "producer", label: "Broker" },
-      { key: "carrier", label: "Carrier" },
+      { key: "mga", label: "MGA" },
     ];
     var segmentDim = "product";
     var segmentPanel = ui.panel({
-      title: "Underwriting performance by segment",
+      title: "Performance by segment",
       right: (function () {
         var chipRow = ui.h("div", { class: "chip-row" });
         SEGMENT_DIMS.forEach(function (d) {
@@ -378,7 +365,6 @@
         });
         return chipRow;
       })(),
-      pad: 0,
     }, []);
     var segmentBody = segmentPanel.querySelector(".panel-body");
     page.appendChild(segmentPanel);
@@ -624,9 +610,32 @@
     var claimsCalloutWrap = ui.h("div", {});
     page.appendChild(claimsCalloutWrap);
 
-    var claimsDetailPanel = ui.panel({ title: "Claim details", pad: 0 }, []);
-    var claimsDetailBody = claimsDetailPanel.querySelector(".panel-body");
-    page.appendChild(claimsDetailPanel);
+    /* Top claim segments: the two "lifetime loss ratio" panels above rank by RATIO (claims per
+       earned-premium dollar); this ranks by raw claim COUNT instead — "where is claim volume
+       actually piling up", a different question a fixed-dimension ratio bar can't answer once you
+       want to look at it by Broker or MGA instead of just product/state. */
+    var CLAIM_TOP_DIMS = [
+      { key: "product", label: "Line of business" },
+      { key: "state", label: "State" },
+      { key: "producer", label: "Broker" },
+      { key: "mga", label: "MGA" },
+    ];
+    var claimTopDim = "product";
+    var claimTopPanel = ui.panel({
+      title: "Top claim segments",
+      what: "The 5 segments with the most claims for the selected dimension, in this filter.",
+      right: (function () {
+        var chipRow = ui.h("div", { class: "chip-row" });
+        CLAIM_TOP_DIMS.forEach(function (d) {
+          var chip = ui.h("button", { class: "chip" + (claimTopDim === d.key ? " active" : ""), type: "button", "aria-pressed": String(claimTopDim === d.key) }, d.label);
+          chip.addEventListener("click", function () { claimTopDim = d.key; buildClaims(); });
+          chipRow.appendChild(chip);
+        });
+        return chipRow;
+      })(),
+    }, []);
+    var claimTopBody = claimTopPanel.querySelector(".panel-body");
+    page.appendChild(claimTopPanel);
 
     /* Rankings on the left, work queues on the right — side by side so both are readable
        without scrolling one past the other. Appended to the page here so the pair lands in the
@@ -832,21 +841,55 @@
       function financialsFor(policies) { return bounds ? PAS.bookFinancialsInWindow(policies, bounds[0], bounds[1]) : PAS.bookFinancials(policies); }
       var f = financialsFor(onRisk);
       var previousF = null;
+      /* True while the CURRENT period hasn't finished yet (today falls inside it — always true for
+         offset 0 since this book has no data past today). Comparing a still-running period's
+         figures against a FULL previous period manufactures a decline out of nothing: "month" at
+         2026-08-20 only has 20 of August's 31 days of activity to show, so stacking it against all
+         31 days of July made Written premium look like it fell 60%+ when the real story was just
+         "11 fewer days have happened so far". Clip the previous period's end to the same elapsed
+         day count instead — MTD vs MTD, QTD vs QTD, YTD vs YTD — so the delta reflects an actual
+         trend rather than an artifact of where "today" sits inside the period. A fully-elapsed past
+         period (periodOffset < 0) needs no clipping: both sides are already complete. */
+      var inProgress = false;
+      /* This seed book is weighted heavily toward recent inceptions — as of today only a small
+         fraction of the currently on-risk book existed a year ago, since most policies were
+         written in the last several months. Comparing today's full book against a "previous
+         period" that's mostly empty produces a real but meaningless delta (+400%, +1000%+) that
+         has nothing to do with an actual trend — it's just "the book didn't exist yet back then".
+         Treat the comparison as unreliable whenever fewer than half of the current on-risk
+         policies were even in force as of the previous period's own end date, and suppress the
+         delta rather than show a manufactured swing. */
+      var deltasReliable = true;
       if (period === "month" || period === "quarter" || period === "year") {
         var previousBounds = periodBounds(period, periodOffset - 1, customFrom, customTo);
-        previousF = PAS.bookFinancialsInWindow(onRisk, previousBounds[0], previousBounds[1]);
+        var today = PAS.todayISO();
+        var previousTo = previousBounds[1];
+        if (bounds && today >= bounds[0] && today < bounds[1]) {
+          inProgress = true;
+          var elapsedDays = PAS.daysBetween(bounds[0], today);
+          var clipped = PAS.addDays(previousBounds[0], elapsedDays);
+          previousTo = clipped < previousBounds[1] ? clipped : previousBounds[1];
+        }
+        previousF = PAS.bookFinancialsInWindow(onRisk, previousBounds[0], previousTo);
+        var priorPopulation = onRisk.filter(function (p) { return p.effectiveDate <= previousTo; }).length;
+        deltasReliable = onRisk.length === 0 || (priorPopulation / onRisk.length) >= 0.5;
       }
       function valueDelta(current, previous) {
-        if (!previousF || !previous) return null;
+        if (!previousF) return null;
+        if (!deltasReliable) return "n/a";
+        if (!previous) return null;
         var change = ((current - previous) / Math.abs(previous)) * 100;
         return (change >= 0 ? "+" : "") + change.toFixed(1) + "%";
       }
       function pointDelta(current, previous) {
         if (!previousF) return null;
+        if (!deltasReliable) return "n/a";
         var change = (current - previous) * 100;
         return (change >= 0 ? "+" : "") + change.toFixed(1) + " pts";
       }
-      var comparisonTitle = previousF ? "Compared with the previous " + period + "." : null;
+      var comparisonTitle = !previousF ? null
+        : !deltasReliable ? "Not enough of this book existed " + (period === "month" ? "last month" : period === "quarter" ? "last quarter" : "a year ago") + " for a reliable comparison."
+        : (inProgress ? "Compared with the same point in the previous " + period + "." : "Compared with the previous " + period + ".");
 
       finKpiContainer.innerHTML = "";
       finKpiContainer.appendChild(ui.kpiRow([
@@ -859,6 +902,14 @@
           label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue",
           delta: valueDelta(f.earnedPremium, previousF && previousF.earnedPremium), deltaTone: "gray", deltaTitle: comparisonTitle,
           tip: "Premium earned for coverage actually provided so far.",
+          /* Standard insurance accounting: Written >= Earned is a cumulative/balance-sheet identity
+             (the unearned premium reserve can never go negative) — see the "All history" view, where
+             it holds ($57.91M written vs $37.78M earned). It is NOT a per-period constraint: Earned
+             draws ratably from the WHOLE in-force book every day, while Written only counts the
+             handful of policies that happened to issue or renew inside this narrower window, so a
+             below-average month/quarter for new business can legitimately show Earned > Written —
+             the same dynamic insurers describe in their own 10-Q filings during slow write periods. */
+          why: period === "all" ? undefined : "Can exceed Premium written in a single period — Earned draws from the whole in-force book's daily accrual, Written only from policies that issued or renewed in this window. The lifetime (All history) view always has Written ≥ Earned.",
         },
         {
           label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green",
@@ -867,17 +918,17 @@
         },
         {
           label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red",
-          delta: valueDelta(f.incurred, previousF && previousF.incurred), deltaTone: previousF ? (f.incurred <= previousF.incurred ? "green" : "red") : null, deltaTitle: comparisonTitle,
+          delta: valueDelta(f.incurred, previousF && previousF.incurred), deltaTone: !previousF ? null : !deltasReliable ? "gray" : (f.incurred <= previousF.incurred ? "green" : "red"), deltaTitle: comparisonTitle,
           tip: "Paid claims plus reserves across " + f.claimCount + " claims.",
         },
         {
           label: "Loss ratio", value: pct(f.lossRatio), tone: lossToneFor(f.lossRatio),
-          delta: pointDelta(f.lossRatio, previousF && previousF.lossRatio), deltaTone: previousF ? (f.lossRatio <= previousF.lossRatio ? "green" : "red") : null, deltaTitle: comparisonTitle,
+          delta: pointDelta(f.lossRatio, previousF && previousF.lossRatio), deltaTone: !previousF ? null : !deltasReliable ? "gray" : (f.lossRatio <= previousF.lossRatio ? "green" : "red"), deltaTitle: comparisonTitle,
           tip: "Claims paid per $1 of earned premium.",
         },
         {
           label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedToneFor(f.combinedRatio),
-          delta: pointDelta(f.combinedRatio, previousF && previousF.combinedRatio), deltaTone: previousF ? (f.combinedRatio <= previousF.combinedRatio ? "green" : "red") : null, deltaTitle: comparisonTitle,
+          delta: pointDelta(f.combinedRatio, previousF && previousF.combinedRatio), deltaTone: !previousF ? null : !deltasReliable ? "gray" : (f.combinedRatio <= previousF.combinedRatio ? "green" : "red"), deltaTitle: comparisonTitle,
           tip: "Loss ratio plus expense ratio. Below 100% = carrier profit.",
         },
       ]));
@@ -901,44 +952,6 @@
         ]));
       }
 
-      /* Waterfall: earned premium is the bar everything else is measured against, so each
-         component is drawn to the same scale rather than each to its own maximum. */
-      waterfallBody.innerHTML = "";
-      waterfallBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Carrier view: earned premium less claims and commission paid to place the business. Other operating costs are excluded."));
-      var scale = f.earnedPremium || 1;
-      [
-        { label: "Earned premium", value: f.earnedPremium, tone: "blue", note: PAS.money(f.earnedPremium) },
-        { label: "Less: incurred claims", value: f.incurred, tone: "red", note: "− " + PAS.money(f.incurred) + " · " + pct(f.lossRatio) },
-        { label: "Less: commission paid by carrier", value: f.commission, tone: "amber", note: "− " + PAS.money(f.commission) + " · " + pct(f.expenseRatio) },
-        { label: "= Carrier underwriting result", value: Math.abs(f.underwritingResult), tone: f.underwritingResult >= 0 ? "green" : "red", note: (f.underwritingResult >= 0 ? "" : "− ") + PAS.money(Math.abs(f.underwritingResult)) + " · " + pct(Math.abs(1 - f.combinedRatio)) },
-      ].forEach(function (row) {
-        waterfallBody.appendChild(ui.hbar({ label: row.label, value: row.value, max: scale, note: row.note, tone: row.tone }));
-      });
-
-      revenueBody.innerHTML = "";
-      revenueBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Veridex view: gross commission earned less the producing broker's share. Premium itself is not Veridex revenue."));
-      revenueBody.appendChild(ui.kv({
-        k: "Gross commission earned by Veridex", v: PAS.money(f.commission),
-        what: "Recognized as premium is earned, rather than in full at policy inception.",
-      }));
-      revenueBody.appendChild(ui.kv({
-        k: "Less producing broker share", v: "− " + PAS.money(f.brokerCommission),
-        what: "The producing broker's share, " + Math.round(PAS.BROKER_COMMISSION_SHARE * 100) + "% of commission on brokered business.",
-        why: "Business written Direct has no broker to pay, so it keeps all of its commission — which is why Direct is materially more profitable per premium dollar.",
-      }));
-      revenueBody.appendChild(ui.kv({
-        k: "Net commission retained by Veridex", v: PAS.money(f.netCommission),
-        what: "Gross commission less the producing broker's share.",
-      }));
-      /* Written and earned values in a selected window can represent different cohorts. Only the
-         lifetime view supports a meaningful written-minus-earned unearned-premium balance. */
-      if (period === "all") {
-        revenueBody.appendChild(ui.kv({
-          k: "Unearned premium", v: PAS.money(f.unearnedPremium),
-          what: "Written premium that has not yet been earned because coverage remains to be provided.",
-        }));
-      }
-
       /* ---- profit & loss by segment ---- */
       var dimLabel = SEGMENT_DIMS.filter(function (d) { return d.key === segmentDim; })[0].label;
       segmentPanel.querySelectorAll(".chip").forEach(function (c) {
@@ -956,11 +969,11 @@
 
       segmentBody.innerHTML = "";
       if (segments.length === 0) {
-        segmentBody.appendChild(ui.h("div", { class: "faint-note", style: { padding: "14px 15px" } }, "No on-risk business in this filter."));
+        segmentBody.appendChild(ui.h("div", { class: "faint-note" }, "No on-risk business in this filter."));
         return;
       }
       var losing = segments.filter(function (s) { return s.f.combinedRatio >= 1; });
-      segmentBody.appendChild(ui.h("div", { class: "faint-note", style: { padding: "13px 15px 0" } },
+      segmentBody.appendChild(ui.h("div", { class: "faint-note mb-9" },
         losing.length === 0
           ? "Every " + dimLabel.toLowerCase() + " in this filter has an indicative combined ratio below 100%. Other operating costs are excluded."
           : losing.length + " of " + segments.length + " " + dimLabel.toLowerCase() + " segments have an indicative combined ratio of 100% or more — listed first. Other operating costs are excluded."));
@@ -974,7 +987,7 @@
           { label: "Loss ratio", what: "Incurred ÷ earned premium." },
           { label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium." },
           { label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs." },
-          { label: "Carrier underwriting result", what: "Earned premium less claims and commission paid by the carrier; other operating costs are excluded." },
+          { label: "Net commission", what: "Veridex's own revenue for this segment — gross commission earned less the producing broker's share. Not shown anywhere else broken out by segment." },
         ],
         rows: segments.map(function (s) {
           return [
@@ -985,7 +998,7 @@
             ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)),
             pct(s.f.expenseRatio),
             ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)),
-            (s.f.underwritingResult >= 0 ? "" : "− ") + PAS.moneyShort(Math.abs(s.f.underwritingResult)),
+            PAS.moneyShort(s.f.netCommission),
           ];
         }),
         wrapCells: true,
@@ -1054,40 +1067,40 @@
         ]));
       }
 
-      var sortedClaims = claims.slice().sort(function (a, b) { return b.c.incurred - a.c.incurred; });
-      claimsDetailBody.innerHTML = "";
-      if (sortedClaims.length === 0) {
-        claimsDetailBody.appendChild(ui.h("div", { class: "faint-note", style: { padding: "14px 15px" } }, "No claims on file in this filter."));
+      /* ---- top claim segments ---- */
+      var topDimLabel = CLAIM_TOP_DIMS.filter(function (d) { return d.key === claimTopDim; })[0].label;
+      claimTopPanel.querySelectorAll(".chip").forEach(function (c) {
+        c.classList.toggle("active", c.textContent === topDimLabel);
+        c.setAttribute("aria-pressed", String(c.textContent === topDimLabel));
+      });
+
+      var claimAgg = {};
+      claims.forEach(function (x) {
+        var k = x.p[claimTopDim];
+        if (!k) return;
+        if (!claimAgg[k]) claimAgg[k] = { n: 0, incurred: 0 };
+        claimAgg[k].n += 1;
+        claimAgg[k].incurred += Number(x.c.incurred) || 0;
+      });
+      var topSegments = Object.keys(claimAgg).map(function (k) { return { k: k, n: claimAgg[k].n, incurred: claimAgg[k].incurred }; })
+        .sort(function (a, b) { return b.n - a.n; })
+        .slice(0, 5);
+
+      claimTopBody.innerHTML = "";
+      if (topSegments.length === 0) {
+        claimTopBody.appendChild(ui.h("div", { class: "faint-note" }, "No claims on file in this filter."));
       } else {
-        var totalIncurred = sortedClaims.reduce(function (s, x) { return s + x.c.incurred; }, 0);
-        var cf = PAS.bookFinancials(onRisk);
-        var summary = ui.h("div", { style: { display: "flex", gap: "20px", flexWrap: "wrap", padding: "13px 15px 4px" } });
-        var openClaims = sortedClaims.filter(function (x) { return x.c.status === "Open"; }).length;
-        var closedClaims = sortedClaims.filter(function (x) { return x.c.status === "Closed"; }).length;
-        summary.appendChild(ui.kv({ k: "Total claims", v: sortedClaims.length + " · " + openClaims + " open · " + closedClaims + " closed" }));
-        summary.appendChild(ui.kv({ k: "Total incurred", v: PAS.money(totalIncurred), what: "Paid amounts plus reserves across every claim in this filter." }));
-        summary.appendChild(ui.kv({ k: "Open claim reserves", v: PAS.money(cf.reserved), what: "Estimated amounts held for claims that remain open." }));
-        summary.appendChild(ui.kv({ k: "Loss ratio", v: pct(cf.lossRatio), what: PAS.money(cf.incurred) + " incurred ÷ " + PAS.money(cf.earnedPremium) + " earned premium, this filter.", why: "Earned, not written — see the Financial performance row at the top of this page." }));
-        claimsDetailBody.appendChild(summary);
-        var claimsTable = ui.sortableTable({
-          storageKey: "pas.dashboard.claims.columns.v1",
-          pageSize: 10,
-          wrapCells: true,
-          columns: [
-            { key: "policy", label: "Policy", locked: true, sortValue: function (x) { return x.p.id; }, cell: function (x) { return ui.cellId(x.p.id); } },
-            { key: "product", label: "Product", sortValue: function (x) { return x.p.product; }, cell: function (x) { return x.p.product; } },
-            { key: "state", label: "State", sortValue: function (x) { return x.p.state; }, cell: function (x) { return x.p.state; } },
-            { key: "type", label: "Claim type", sortValue: function (x) { return x.c.type; }, cell: function (x) { return x.c.type; } },
-            { key: "status", label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid.", sortValue: function (x) { return x.c.status; }, cell: function (x) { return ui.pill(x.c.status === "Open" ? "amber" : "green", x.c.status); } },
-            { key: "incurred", label: "Total incurred", what: "Paid amount plus reserve — the current total cost estimate.", sortValue: function (x) { return x.c.incurred; }, cell: function (x) { return PAS.money(x.c.incurred); } },
-            { key: "reserved", label: "Open reserve", what: "Estimated amount held for an open claim.", sortValue: function (x) { return x.c.reserved || 0; }, cell: function (x) { return x.c.reserved ? PAS.money(x.c.reserved) : "—"; } },
-          ],
-          rows: function () { return sortedClaims; },
-          onRowClick: function (x) { location.href = "policy-detail.html?policy=" + encodeURIComponent(x.p.id); },
-          emptyText: "No claims on file in this filter.",
+        var maxClaimN = topSegments[0].n;
+        topSegments.forEach(function (s) {
+          claimTopBody.appendChild(ui.hbar({
+            label: s.k, value: s.n, max: maxClaimN,
+            note: s.n + " claim" + (s.n === 1 ? "" : "s") + " · " + PAS.money(s.incurred) + " incurred",
+            tone: "red",
+            ariaLabel: s.k + ", " + s.n + " claim" + (s.n === 1 ? "" : "s") + ", " + PAS.money(s.incurred) + " incurred",
+          }));
         });
-        claimsDetailBody.appendChild(claimsTable.tableWrap);
       }
+
     }
 
     /* Expand/collapse state is kept per dimension, outside buildTopEntities, so switching from

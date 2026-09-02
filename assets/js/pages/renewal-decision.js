@@ -46,24 +46,23 @@
     right.push(ui.kv({ k: "New term", v: PAS.fmtDate(p.expirationDate) + " → " + PAS.fmtDate(PAS.addYears(p.expirationDate, 1)), what: "Dates of the term being created.", why: "Advanced by calendar year, so a term starting in a leap year does not renew a day early." }));
     right.push(ui.kv({ k: "Becomes term", v: p.termNumber + 1, what: "Incremented on renewal." }));
 
+    /* Not an editable field: the renewal premium is what the re-underwriting score produced, not
+       a figure typed in on this screen — same reasoning as the reinstatement desk's outstanding-
+       premium fix. Highlighted as a callout instead of an input, with an explicit before/after
+       (expiring vs renewal) table underneath so the change is visible as a comparison, not just a
+       single new number. */
     var premBlock = ui.h("div", { class: "mt-12" });
-    var premInput = ui.h("input", { class: "field-input", type: "number", placeholder: String(suggested) });
-    premBlock.appendChild(ui.field({ label: "Renewal premium", hint: "System suggests " + PAS.money(suggested) + " from the re-underwritten score. Override if you have a reason." }, premInput));
-    var changeRow = ui.h("div", { class: "change-pct" }, "Change vs expiring: ");
-    var changeVal = ui.h("span", { class: "change-pct-val" });
-    changeRow.appendChild(changeVal);
-    premBlock.appendChild(changeRow);
-    function currentPrem() { var v = premInput.value; return v === "" ? suggested : (Number(v) || 0); }
-    function updateChange() {
-      var prem = currentPrem();
-      var pct = ((prem / p.premium - 1) * 100).toFixed(1);
-      changeVal.innerHTML = "";
-      changeVal.className = "change-pct-val " + (prem >= p.premium ? "up" : "down");
-      changeVal.appendChild(PAS.icon(prem >= p.premium ? "trending-up" : "trending-down", { size: 13 }));
-      changeVal.appendChild(document.createTextNode(pct + "%"));
-    }
-    premInput.addEventListener("input", updateChange);
-    updateChange();
+    premBlock.appendChild(ui.callout("warn", [
+      ui.h("strong", {}, "Renewal premium: " + PAS.money(suggested) + ". "),
+      document.createTextNode("System-suggested from the re-underwritten risk score — read-only here, not editable on this screen."),
+    ]));
+    var premDelta = suggested - p.premium;
+    var premDeltaSpan = ui.h("span", { style: { color: premDelta >= 0 ? "var(--color-success)" : "var(--color-danger)", fontWeight: "700" } },
+      (premDelta >= 0 ? "+" : "") + PAS.money(premDelta) + " (" + (premDelta >= 0 ? "+" : "") + ((suggested / p.premium - 1) * 100).toFixed(1) + "%)");
+    premBlock.appendChild(ui.dataTable({
+      columns: ["", "Expiring (past)", "Renewal (new)", "Change"],
+      rows: [["Premium", PAS.money(p.premium), PAS.money(suggested), premDeltaSpan]],
+    }));
     right.push(premBlock);
 
     right.push(ui.decisionTrailSide(PAS.decisionTrailFor(p, h.id)));
@@ -72,7 +71,7 @@
       return { title: action + " recorded", detail: p.id + " · " + h.id, tone: action === "Decline" ? "red" : action === "Approve" ? "green" : "blue" };
     }
     function decide(approve, comment) {
-      var prem = currentPrem();
+      var prem = suggested;
       var audit = PAS.makeAudit(approve ? "Approve" : "Decline", comment);
       var response = approve
         ? { txnId: h.id, newTermNumber: p.termNumber + 1, effectiveDate: p.expirationDate, expirationDate: PAS.addYears(p.expirationDate, 1), events: ["policyRenewed"] }

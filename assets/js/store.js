@@ -50,6 +50,105 @@
   PAS.uid = uid; PAS.todayISO = todayISO; PAS.addDays = addDays; PAS.addYears = addYears; PAS.daysBetween = daysBetween;
   PAS.money = money; PAS.moneyShort = moneyShort; PAS.fmtTime = fmtTime; PAS.fmtDate = fmtDate; PAS.CURRENCY = CURRENCY_CODE;
 
+  /* ---------- reporting-period bucketing ----------
+     Shared Monthly/Quarterly/Yearly/All-history/Custom reporting-period math — one implementation
+     so the Dashboard, Policy register, Brokers, MGA, Carriers and Customers pages can never mean
+     something different by "September" or "Q3". Ported verbatim from the Dashboard's own
+     period logic (the first page this shipped on) rather than reimplemented, so results match
+     exactly. See PAS.ui.periodToggle for the reusable control built on top of this. */
+  function inMonth(dateStr, ym) { return !!dateStr && dateStr.slice(0, 7) === ym; }
+  function inYear(dateStr, y) { return !!dateStr && dateStr.slice(0, 4) === String(y); }
+  /* Trailing N month keys ("YYYY-MM"), oldest first, ending at the given month offset from today
+     (0 = current month, -1 = last month, ...). Built off a real Date object (not string math) so
+     a window that crosses a year boundary rolls correctly. */
+  function trailingMonths(n, endOffset) {
+    var off = endOffset || 0;
+    var today = new Date(todayISO() + "T00:00:00Z");
+    var y = today.getUTCFullYear(), m = today.getUTCMonth() + off;
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) {
+      var d = new Date(Date.UTC(y, m - i, 1));
+      out.push(d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0"));
+    }
+    return out;
+  }
+  function monthKeyOffset(offset) { return trailingMonths(1, offset)[0]; }
+  function trailingYears(n, endOffset) {
+    var curY = Number(todayISO().slice(0, 4)) + (endOffset || 0);
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) out.push(curY - i);
+    return out;
+  }
+  function yearOffset(offset) { return Number(todayISO().slice(0, 4)) + (offset || 0); }
+  /* Quarter keys are "YYYY-Qn". Built off the real UTC month, same reasoning as trailingMonths —
+     a window that crosses a year boundary (Q4 -> Q1) has to roll the year too. */
+  function quarterKeyOf(y, monthIdx0) { return y + "-Q" + (Math.floor(monthIdx0 / 3) + 1); }
+  function inQuarter(dateStr, qKey) {
+    if (!dateStr) return false;
+    var d = new Date(dateStr + "T00:00:00Z");
+    return quarterKeyOf(d.getUTCFullYear(), d.getUTCMonth()) === qKey;
+  }
+  /* Quarter index arithmetic (year*4 + quarter0) so offsets roll cleanly across year boundaries
+     in both directions, including negative modulo when stepping back past Q1. */
+  function quarterIndexOffset(offset) {
+    var today = new Date(todayISO() + "T00:00:00Z");
+    return today.getUTCFullYear() * 4 + Math.floor(today.getUTCMonth() / 3) + (offset || 0);
+  }
+  function quarterKeyOffset(offset) {
+    var idx = quarterIndexOffset(offset);
+    var y = Math.floor(idx / 4), q = ((idx % 4) + 4) % 4;
+    return y + "-Q" + (q + 1);
+  }
+  function trailingQuarters(n, endOffset) {
+    var qIndex = quarterIndexOffset(endOffset);
+    var out = [];
+    for (var i = n - 1; i >= 0; i--) {
+      var idx = qIndex - i, y = Math.floor(idx / 4), q = ((idx % 4) + 4) % 4;
+      out.push(y + "-Q" + (q + 1));
+    }
+    return out;
+  }
+  /* [fromISO, toISO] — the real calendar bounds of whichever period/offset (or custom range) is
+     selected. "all" has no bounds (the caller treats null as "the whole book"). */
+  function periodBounds(period, offset, customFrom, customTo) {
+    if (period === "all") return null;
+    if (period === "custom") return [customFrom, customTo];
+    if (period === "year") { var y = yearOffset(offset); return [y + "-01-01", y + "-12-31"]; }
+    if (period === "quarter") {
+      var qKey = quarterKeyOffset(offset), qy = Number(qKey.slice(0, 4)), q = Number(qKey.slice(6));
+      var firstMonth0 = (q - 1) * 3;
+      var from = qy + "-" + pad2(firstMonth0 + 1) + "-01";
+      var lastDay = new Date(Date.UTC(qy, firstMonth0 + 3, 0));
+      var to = lastDay.getUTCFullYear() + "-" + pad2(lastDay.getUTCMonth() + 1) + "-" + pad2(lastDay.getUTCDate());
+      return [from, to];
+    }
+    var mk = monthKeyOffset(offset), my = Number(mk.slice(0, 4)), mm0 = Number(mk.slice(5, 7)) - 1;
+    var mLast = new Date(Date.UTC(my, mm0 + 1, 0));
+    return [mk + "-01", mLast.getUTCFullYear() + "-" + pad2(mLast.getUTCMonth() + 1) + "-" + pad2(mLast.getUTCDate())];
+  }
+  /* True if dateStr falls inside the given period/offset (or custom range) — the single predicate
+     every list-filtering caller uses, so "does this row belong in the selected period" is answered
+     once. "all" matches anything with a date at all. */
+  function periodMatches(dateStr, period, offset, customFrom, customTo) {
+    if (period === "all") return !!dateStr;
+    var bounds = periodBounds(period, offset, customFrom, customTo);
+    return !!dateStr && dateStr >= bounds[0] && dateStr <= bounds[1];
+  }
+  var MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  /* Human label for the currently selected period/offset — "Aug 2026", "Q3 2026", "2026". Custom
+     range and "All" are handled by the caller (there's no single offset to name). */
+  function periodLabelOf(period, offset) {
+    if (period === "year") return String(yearOffset(offset));
+    if (period === "quarter") return quarterKeyOffset(offset).replace("-", " ");
+    var mk = monthKeyOffset(offset);
+    return MONTH_NAMES[Number(mk.slice(5, 7)) - 1] + " " + mk.slice(0, 4);
+  }
+  PAS.inMonth = inMonth; PAS.inYear = inYear; PAS.inQuarter = inQuarter;
+  PAS.trailingMonths = trailingMonths; PAS.trailingQuarters = trailingQuarters; PAS.trailingYears = trailingYears;
+  PAS.monthKeyOffset = monthKeyOffset; PAS.quarterKeyOffset = quarterKeyOffset; PAS.yearOffset = yearOffset;
+  PAS.periodBounds = periodBounds; PAS.periodMatches = periodMatches; PAS.periodLabelOf = periodLabelOf;
+  PAS.MONTH_NAMES = MONTH_NAMES;
+
   var REINSTATEMENT_WINDOW_DAYS = 45;
   /* 45 days matches the NAIC model act's nonrenewal-notice convention (most states require at
      least 45 days before expiration; a minority require 30, a few go to 60-75 for specific
@@ -1578,7 +1677,7 @@ var CLAIMS_BY_ID = {
       ["registry", "Policy register", "list-checks", "registry.html"],
       ["brokers", "Brokers", "users", "brokers.html"],
       ["mgas", "MGA", "building-2", "mgas.html"],
-      ["carriers", "Carriers", "shield-check", "carriers.html"],
+      ["carriers", "Reinsurer", "shield-check", "carriers.html"],
       ["customers", "Customers", "user", "customers.html"],
       ["workbench", "Transaction workbench", "git-branch", "workbench.html"],
       // ["documents", "Documents", "file-check-2", "documents.html"],
@@ -1621,7 +1720,7 @@ var CLAIMS_BY_ID = {
     detail: { nav: "registry", title: "Records / Policy detail" },
     brokers: { nav: "brokers", title: "Records / Brokers" },
     mgas: { nav: "mgas", title: "Records / MGA" },
-    carriers: { nav: "carriers", title: "Records / Carriers" },
+    carriers: { nav: "carriers", title: "Records / Reinsurer" },
     customers: { nav: "customers", title: "Records / Customers" },
     workbench: { nav: "workbench", title: "Records / Transaction workbench" },
     documents: { nav: "documents", title: "Records / Documents" },

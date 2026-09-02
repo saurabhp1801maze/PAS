@@ -54349,14 +54349,14 @@ window.PAS_SEED_POLICIES = [
         "recordedAt": "2026-08-16T09:30:00.000Z",
         "type": "Reinstatement",
         "title": "Reinstatement requested — awaiting decision",
-        "detail": "Insured paid the outstanding premium and is requesting reinstatement of the commercial trucking fleet policy.",
-        "user": "Self-service portal",
+        "detail": "Broker confirmed the outstanding premium was paid and is requesting reinstatement of the commercial trucking fleet policy on the insured's behalf.",
+        "user": "Broker portal",
         "status": "Pending",
         "meta": {
-          "initiatedBy": "Insured",
-          "channel": "Self-service portal",
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
           "submittedOn": "2026-08-16",
-          "requestNote": "Payment has cleared — please reinstate our fleet policy.",
+          "requestNote": "Client's payment has cleared — please reinstate the fleet policy.",
           "outstandingClaimed": 3100
         }
       }
@@ -54573,14 +54573,14 @@ window.PAS_SEED_POLICIES = [
         "recordedAt": "2026-08-18T09:30:00.000Z",
         "type": "Reinstatement",
         "title": "Reinstatement requested — awaiting decision",
-        "detail": "Insured paid the outstanding premium and is requesting reinstatement of the commercial trucking fleet policy.",
-        "user": "Self-service portal",
+        "detail": "Broker confirmed the outstanding premium was paid and is requesting reinstatement of the commercial trucking fleet policy on the insured's behalf.",
+        "user": "Broker portal",
         "status": "Pending",
         "meta": {
-          "initiatedBy": "Insured",
-          "channel": "Self-service portal",
+          "initiatedBy": "Broker/Producer",
+          "channel": "Broker portal",
           "submittedOn": "2026-08-18",
-          "requestNote": "Payment has cleared — please reinstate our fleet policy.",
+          "requestNote": "Client's payment has cleared — please reinstate the fleet policy.",
           "outstandingClaimed": 6750
         }
       }

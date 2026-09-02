@@ -100,11 +100,12 @@
 
     var endorsementTable = ui.sortableTable({
       storageKey: "pas.endorsement.columns.v1",
-      defaultVisible: ["requestedBy", "change", "effective", "flags", "materiality", "premiumImpact"],
+      defaultVisible: ["requestedBy", "submitted", "change", "effective", "flags", "materiality", "premiumImpact"],
       columns: [
         { key: "policy", label: "Policy", locked: true, sortValue: function (t) { return t.p.id; }, cell: function (t) { return ui.cellId(t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (t) { return (t.p.holder || "").toLowerCase(); }, cell: function (t) { return ui.cellName(t.p.holder); } },
         { key: "requestedBy", label: "Requested by", sortValue: function (t) { return (t.h.meta && t.h.meta.initiatedBy) || ""; }, cell: function (t) { return ui.initiatorPill(t.h.meta); } },
+        { key: "submitted", label: "Submitted", what: "When the request was logged.", sortValue: function (t) { return (t.h.meta && t.h.meta.submittedOn) || t.h.date || ""; }, cell: function (t) { var v = (t.h.meta && t.h.meta.submittedOn) || t.h.date; return v ? PAS.fmtDate(v) : "—"; } },
         { key: "change", label: "Change", what: "Category of mid-term change.", sortValue: function (t) { return t.h.meta.changeType || ""; }, cell: function (t) { return t.h.meta.changeType; } },
         { key: "effective", label: "Effective", what: "Business date the change applies from.", sortValue: function (t) { return t.h.meta.effectiveDate || t.h.date; }, cell: function (t) { return PAS.fmtDate(t.h.meta.effectiveDate || t.h.date); } },
         { key: "flags", label: "Flags", what: "Future-dated or out-of-sequence.", sortValue: function (t) { return (t.h.meta && t.h.meta.futureDated ? "Future" : "") + (t.h.meta && t.h.meta.outOfSequence ? "OOS" : ""); }, cell: endorseFlags },
@@ -118,7 +119,6 @@
         { key: "carrier", label: "Reinsurer", sortValue: function (t) { return t.p.carrier || ""; }, cell: function (t) { return t.p.carrier || "—"; } },
         { key: "state", label: "State", sortValue: function (t) { return t.p.state || ""; }, cell: function (t) { return t.p.state || "—"; } },
         { key: "channel", label: "Channel", what: "How the request came in.", sortValue: function (t) { return (t.h.meta && t.h.meta.channel) || ""; }, cell: function (t) { return (t.h.meta && t.h.meta.channel) || "—"; } },
-        { key: "submitted", label: "Submitted", what: "When the request was logged.", sortValue: function (t) { return (t.h.meta && t.h.meta.submittedOn) || t.h.date || ""; }, cell: function (t) { var v = (t.h.meta && t.h.meta.submittedOn) || t.h.date; return v ? PAS.fmtDate(v) : "—"; } },
       ],
       trailingColumn: { cell: function () { return ui.cellOpen("Review"); } },
       rows: function () { return pend.filter(matchSearch); },

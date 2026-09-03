@@ -1162,10 +1162,11 @@ console.log("\n  i18n: PAS.t() is a real seam — adding a locale genuinely chan
   else console.log("  PASS  a key missing from the active locale falls back to English (not the raw key)");
 })();
 
-/* Cancellation type override "where permitted" (MOM 2026-08-26): a decision-maker can override
-   the derived type, but never into a combination the domain rule itself forbids — an override
-   that would violate that rule must be refused outright, not silently clamped. */
-console.log("\n  cancellation type override: valid overrides apply, forbidden ones are refused");
+/* Cancellation type override "where permitted" (MOM 2026-08-26, later widened to full discretion
+   per user request): a decision-maker can override the derived type freely, including into a
+   combination the normal domain rule wouldn't derive on its own — that's now a flagged exception
+   (overrideOutsideRule), not a refusal. isValidCancelType still exists to compute the flag. */
+console.log("\n  cancellation type override: on-rule overrides apply cleanly, off-rule overrides apply flagged");
 (function () {
   var stub = {
     sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })(),
@@ -1202,17 +1203,23 @@ console.log("\n  cancellation type override: valid overrides apply, forbidden on
   if (quoteCleared.type !== "Short-Rate" || quoteCleared.overridden) { fails++; console.log("  FAIL  clearCancelTypeOverride did not genuinely revert to the derived type — got " + quoteCleared.type + " overridden=" + quoteCleared.overridden); }
   else console.log("  PASS  clearing the override genuinely reverts to the real derived type (Short-Rate)");
 
-  /* POL-2026-00988: Underwriting / Carrier — insurer-side. Short-Rate must be refused outright,
-     never silently downgraded to something else without saying so. */
+  /* POL-2026-00988: Underwriting / Carrier — insurer-side. Short-Rate is not the normal type here
+     (isValidCancelType would refuse it as a default), but Super Admin/Admin now has full
+     discretion — it must genuinely apply, flagged outsideRule, not be refused. */
   var carrierPolicy = PAS14.getPolicy("POL-2026-00988");
   var carrierTxn = carrierPolicy.history.find(function (h) { return h.type === "Cancellation" && h.status === "Pending"; });
-  var refused = PAS14.setCancelTypeOverride("POL-2026-00988", carrierTxn.id, "Short-Rate", "Trying to force a penalty onto an insurer-side cancellation.");
-  if (refused.allowed) { fails++; console.log("  FAIL  Short-Rate on an insurer-side (Carrier-initiated) cancellation was allowed — this is the exact combination the domain rule forbids"); }
-  else console.log("  PASS  Short-Rate on an insurer-side cancellation is refused outright: \"" + refused.reason + "\"");
-  var afterRefused = PAS14.getPolicy("POL-2026-00988");
-  var carrierTxn2 = afterRefused.history.find(function (h) { return h.id === carrierTxn.id; });
-  if (carrierTxn2.meta.typeOverride) { fails++; console.log("  FAIL  the refused override was applied anyway — meta.typeOverride=" + carrierTxn2.meta.typeOverride); }
-  else console.log("  PASS  the refused override left the transaction genuinely untouched — not applied, not partially applied");
+  if (PAS14.isValidCancelType("Short-Rate", carrierTxn.meta.initiatedBy, false)) { fails++; console.log("  FAIL  isValidCancelType should still flag Short-Rate as not the normal rule for an insurer-side initiator"); }
+  var forced = PAS14.setCancelTypeOverride("POL-2026-00988", carrierTxn.id, "Short-Rate", "Forcing a penalty onto an insurer-side cancellation as a deliberate exception.");
+  if (!forced.allowed) { fails++; console.log("  FAIL  Super Admin/Admin should be able to force Short-Rate on an insurer-side cancellation as a flagged exception, but it was refused: " + forced.reason); }
+  else if (!forced.outsideRule) { fails++; console.log("  FAIL  the forced override applied but wasn't flagged as outsideRule"); }
+  else console.log("  PASS  Short-Rate on an insurer-side cancellation is applied as a flagged exception, not refused: outsideRule=" + forced.outsideRule);
+  var afterForced = PAS14.getPolicy("POL-2026-00988");
+  var carrierTxn2 = afterForced.history.find(function (h) { return h.id === carrierTxn.id; });
+  if (carrierTxn2.meta.typeOverride !== "Short-Rate") { fails++; console.log("  FAIL  the forced override did not genuinely persist — meta.typeOverride=" + carrierTxn2.meta.typeOverride); }
+  else console.log("  PASS  the forced override genuinely persisted on the transaction — meta.typeOverride=Short-Rate");
+  var carrierQuote = PAS14.cancelQuote(afterForced, carrierTxn2.meta.reason, carrierTxn2.meta.initiatedBy, carrierTxn2.date, carrierTxn2.meta);
+  if (!carrierQuote.overrideOutsideRule) { fails++; console.log("  FAIL  cancelQuote should flag overrideOutsideRule=true for this forced, off-rule override"); }
+  else console.log("  PASS  cancelQuote flags overrideOutsideRule=true so the UI can show it as a manual exception");
 })();
 
 /* Seeded override-demo requests (user request: "add more types override data so I can override").
@@ -1246,20 +1253,23 @@ console.log("\n  seeded override-demo requests: cover every outcome the Override
     return { p: p, h: h, q: PD.cancelQuote(p, h.meta.reason, h.meta.initiatedBy, h.date, h.meta) };
   }
 
-  /* POL-2026-0442: cancellation effective date = the policy's own inception date -> derives FLAT,
-     a hard rule that holds regardless of who's deciding — even a valid Super Admin/Admin override
-     attempt to Pro-Rata or Short-Rate must still be refused. */
+  /* POL-2026-0442: cancellation effective date = the policy's own inception date -> derives FLAT.
+     Pro-Rata/Short-Rate are not the normal rule here (isValidCancelType still says so), but full
+     discretion means Super Admin/Admin can force either anyway, flagged as an off-rule exception
+     rather than refused. */
   var flatCase = pendingQuoteFor("POL-2026-0442");
   if (!flatCase) { fails++; console.log("  FAIL  no seeded pending cancellation on POL-2026-0442 (the Flat demo)"); }
   else if (flatCase.q.type !== "Flat") { fails++; console.log("  FAIL  POL-2026-0442 was meant to derive Flat, got " + flatCase.q.type); }
   else {
-    console.log("  PASS  POL-2026-0442 (" + flatCase.p.holder + ") derives Flat — a real record for the \"override refused, no exceptions\" case");
+    console.log("  PASS  POL-2026-0442 (" + flatCase.p.holder + ") derives Flat — a real record for the \"force an off-rule exception\" case");
     ["Pro-Rata", "Short-Rate"].forEach(function (t) {
-      if (PD.isValidCancelType(t, flatCase.h.meta.initiatedBy, flatCase.q.atInception)) { fails++; console.log("  FAIL  " + t + " should never be a valid override on an at-inception (Flat) cancellation, but isValidCancelType allowed it"); }
+      if (PD.isValidCancelType(t, flatCase.h.meta.initiatedBy, flatCase.q.atInception)) { fails++; console.log("  FAIL  " + t + " should still not be the normal rule on an at-inception (Flat) cancellation, but isValidCancelType allowed it"); }
     });
-    var flatRefused = PD.setCancelTypeOverride("POL-2026-0442", flatCase.h.id, "Pro-Rata", "Testing whether Flat can be overridden.");
-    if (flatRefused.allowed) { fails++; console.log("  FAIL  overriding a Flat (at-inception) cancellation to Pro-Rata was allowed — Flat is supposed to be non-negotiable"); }
-    else console.log("  PASS  even a well-formed override attempt on the Flat demo is refused: \"" + flatRefused.reason + "\" — proves the rule is enforced, not merely UI-hidden");
+    var flatForced = PD.setCancelTypeOverride("POL-2026-0442", flatCase.h.id, "Pro-Rata", "Forcing Pro-Rata on a Flat (at-inception) cancellation as a deliberate exception.");
+    if (!flatForced.allowed) { fails++; console.log("  FAIL  Super Admin/Admin should be able to force Pro-Rata over Flat as a flagged exception, but it was refused: " + flatForced.reason); }
+    else if (!flatForced.outsideRule) { fails++; console.log("  FAIL  forcing Pro-Rata over Flat applied but wasn't flagged as outsideRule"); }
+    else console.log("  PASS  forcing Pro-Rata over a Flat (at-inception) cancellation applies as a flagged exception (outsideRule=" + flatForced.outsideRule + "), not refused");
+    PD.clearCancelTypeOverride("POL-2026-0442", flatCase.h.id, "Reverting after the exception test.");
   }
 
   /* POL-2025-09112 and POL-2026-0424: an Insured- and a Broker-initiated request, neither
@@ -1283,12 +1293,11 @@ console.log("\n  seeded override-demo requests: cover every outcome the Override
 })();
 
 /* The Override control itself, driven through real clicks (not PAS.setCancelTypeOverride called
-   directly) — this is the actual gap a real user hit: on a Flat-derived request (POL-2026-0442,
-   see above) there is only one legal type, so the "Override type…" button never renders at all,
-   and with nothing on screen explaining why, it reads as a missing feature rather than a correct
-   one. Two things must hold: the button/form genuinely exists and works on a request that CAN be
-   overridden, and a clear explanation — not silence — appears on one that can't. */
-console.log("\n  cancellation-decision: Override control clicked through for real, and explained when absent");
+   directly). Two things must hold: the toggle -> select -> reason -> Apply chain genuinely works
+   end to end, and picking a type that breaks the normal rule (e.g. any non-Flat type on an
+   at-inception cancellation) surfaces a live warning before Apply and a persistent one after —
+   full discretion, not silent rule-breaking. */
+console.log("\n  cancellation-decision: Override control clicked through for real, on-rule and off-rule");
 (function () {
   /* Melissa Shaw (POL-2025-09112): Pro-Rata, Insured-initiated — a real case where Short-Rate is
      a genuinely valid override, so the whole toggle -> select -> reason -> Apply chain should work
@@ -1322,13 +1331,30 @@ console.log("\n  cancellation-decision: Override control clicked through for rea
   if (!refundBefore || !refundAfter || refundBefore[1] === refundAfter[1]) { fails++; console.log("  FAIL  the refund total shown on screen did not change after the click-driven override (before=" + (refundBefore && refundBefore[1]) + ", after=" + (refundAfter && refundAfter[1]) + ") — looks cosmetic, not a real recalculation"); }
   else console.log("  PASS  the on-screen refund genuinely changed (" + refundBefore[1] + " → " + refundAfter[1] + ") as a real consequence of the click, not just a relabelled pill");
 
-  /* Kimberly Garcia (POL-2026-0442): Flat, nothing to override to. Must show a clear reason, not
-     nothing — silence is exactly what a real user read as "this is broken". */
+  /* Kimberly Garcia (POL-2026-0442): Flat, at inception. Full discretion means the Override
+     control still renders and offers all three types — selecting an off-rule one (Pro-Rata) shows
+     a live warning before Apply, and the applied override stays visibly flagged afterward. */
   var flatDom = renderDom("cancellation-decision", "?policy=POL-2026-0442", "Super Admin");
-  var flatTxt = flatDom.textContent;
-  if (flatTxt.indexOf("Override type…") !== -1) { fails++; console.log("  FAIL  the Flat demo unexpectedly shows an \"Override type…\" button — there should be nothing valid to switch to"); }
-  if (flatTxt.indexOf("No override available") === -1) { fails++; console.log("  FAIL  the Flat demo shows neither an override control nor an explanation for why one isn't offered — this is the exact silence that read as a bug"); }
-  else console.log("  PASS  the Flat demo explains why no override is offered (\"No override available — Flat is the only type this request could legally become\") instead of showing nothing");
+  var flatToggle = flatDom.querySelectorAll("button").filter(function (b) { return b.textContent === "Override type…"; })[0];
+  if (!flatToggle) { fails++; console.log("  FAIL  the Flat demo does not show an \"Override type…\" button — full discretion means every request should offer one"); return; }
+  console.log("  PASS  the Flat demo still shows a working \"Override type…\" button, not nothing");
+
+  flatToggle.click();
+  var flatSelect = flatDom.querySelectorAll("select").filter(function (s) { return s.querySelectorAll("option").some(function (o) { return o.value === "Pro-Rata"; }); })[0];
+  if (!flatSelect) { fails++; console.log("  FAIL  the Flat demo's override select is missing Pro-Rata as an option — full discretion means all three types must be offered"); return; }
+  setValue(flatSelect, "Pro-Rata");
+  var beforeApplyTxt = flatDom.textContent;
+  if (beforeApplyTxt.indexOf("is not the normal type for this cancellation") === -1) { fails++; console.log("  FAIL  selecting an off-rule type (Pro-Rata on a Flat/at-inception case) did not show a live warning before Apply"); }
+  else console.log("  PASS  selecting an off-rule type shows a live warning before Apply, instead of silently allowing it");
+
+  var flatReasonInput = flatDom.querySelectorAll("input").filter(function (i) { return (i.getAttribute("placeholder") || "").indexOf("override the derived type") !== -1; })[0];
+  var flatApplyBtn = flatDom.querySelectorAll("button").filter(function (b) { return b.textContent === "Apply override"; })[0];
+  flatReasonInput.value = "Forcing Pro-Rata on an at-inception cancellation as a deliberate exception.";
+  flatReasonInput.dispatchEvent({ type: "input" });
+  flatApplyBtn.click();
+  var flatAfterTxt = flatDom.textContent;
+  if (flatAfterTxt.indexOf("force-applied outside the normal rule") === -1) { fails++; console.log("  FAIL  after applying an off-rule override, the page does not show the persistent \"force-applied outside the normal rule\" warning"); }
+  else console.log("  PASS  after applying, the page keeps a persistent warning that this type was force-applied outside the normal rule — a logged exception, not the standard outcome");
 })();
 
 /* Loyalty: every active customer's tier must match what re-running loyaltyScore against their

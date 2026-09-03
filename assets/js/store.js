@@ -264,12 +264,13 @@
   }
   PAS.deriveCancelType = deriveCancelType;
 
-  /* "Where permitted" (MOM 2026-08-26): Type stays derived by default, but a decision-maker can
-     override it — never into a combination the domain rule itself forbids. Flat is only ever
-     valid when the effective date lands at/before inception (the insurer was never on risk); an
-     insurer-side initiator (Reinsurer/MGA/System) can never carry a Short-Rate penalty. An
-     override that would violate either rule is simply not valid — the UI never offers it, and
-     cancelQuote silently falls back to the real derived type if one ever slipped through. */
+  /* "Where permitted" (MOM 2026-08-26): Type stays derived by default. isValidCancelType is the
+     *normal* rule — Flat only when the effective date lands at/before inception (the insurer was
+     never on risk); an insurer-side initiator (Reinsurer/MGA/System) never carries a Short-Rate
+     penalty. It still drives the UI's default suggestion and the "outside the normal rule"
+     warning, but it no longer blocks an override outright: a Super Admin/Admin is allowed to force
+     any of the three types as a deliberate, logged exception (see setCancelTypeOverride / the
+     overrideOutsideRule flag on cancelQuote's result). */
   function isValidCancelType(type, initiatedBy, atInception) {
     if (!CANCEL_TYPES[type]) return false;
     if (atInception) return type === "Flat";
@@ -279,18 +280,20 @@
   }
   PAS.isValidCancelType = isValidCancelType;
 
-  /* Everything about a cancellation follows from these four attributes plus dates. Nothing is
-     hand-keyed, unless a decision-maker has explicitly overridden Type (meta.typeOverride) — and
-     even then, only within what isValidCancelType allows. */
+  /* Everything about a cancellation follows from these four attributes plus dates, unless a
+     decision-maker has explicitly overridden Type (meta.typeOverride) — any of the three types is
+     honored; overrideOutsideRule flags when that choice breaks the normal isValidCancelType rule,
+     so the UI can show it as a logged exception rather than pretend it's the ordinary case. */
   function cancelQuote(policy, reason, initiatedBy, effectiveDate, meta) {
     meta = meta || {};
     var reasonSpec = CANCEL_REASONS[reason] || CANCEL_REASONS.Other;
     var totalDays = Math.max(1, daysBetween(policy.effectiveDate, policy.expirationDate));
     var atInception = effectiveDate <= policy.effectiveDate;
     var derivedType = deriveCancelType(reason, initiatedBy, atInception);
-    var overrideValid = !!meta.typeOverride && isValidCancelType(meta.typeOverride, initiatedBy, atInception);
+    var overrideValid = !!meta.typeOverride && !!CANCEL_TYPES[meta.typeOverride];
     var type = overrideValid ? meta.typeOverride : derivedType;
     var overridden = overrideValid && type !== derivedType;
+    var overrideOutsideRule = overridden && !isValidCancelType(type, initiatedBy, atInception);
     var spec = CANCEL_TYPES[type];
     var remainingDays = Math.max(0, daysBetween(effectiveDate, policy.expirationDate));
     var unearned = policy.premium * (remainingDays / totalDays);
@@ -310,7 +313,7 @@
       ? Math.max(0, noticeRequired - daysBetween(meta.dnocServedOn, todayISO()))
       : noticeRequired;
     return {
-      type: type, derivedType: derivedType, overridden: overridden, atInception: atInception,
+      type: type, derivedType: derivedType, overridden: overridden, overrideOutsideRule: overrideOutsideRule, atInception: atInception,
       spec: spec, reason: reason, initiatedBy: initiatedBy, timing: cancelTiming(effectiveDate),
       totalDays: totalDays, remainingDays: remainingDays,
       earnedDays: totalDays - remainingDays, gross: gross, penalty: penalty, refund: refund,
@@ -356,26 +359,27 @@
   PAS.dnocState = dnocState;
 
   /* Manual Type override (MOM 2026-08-26: "Users should be able to change the policy type...
-     where permitted"). "Where permitted" means two things at once: only a role that can already
-     decide this desk may call it (a UI-layer gate — see cancellation-decision.js), and even then
-     only into a type isValidCancelType still allows for this reason/initiator/date. Refused
-     outright rather than silently clamped, so a caller can't mistake a no-op for success. */
+     where permitted" — Super Admin/Admin want full discretion, e.g. to force Short-Rate on an
+     insurer-initiated cancellation, even though that's not the normal rule). "Where permitted"
+     is enforced as a role gate only (see cancellation-decision.js's canOverride check) — the only
+     thing refused here is an unrecognized type. isValidCancelType still runs, but purely to flag
+     when this choice departs from the normal rule (surfaced to the caller as outsideRule, and to
+     the UI via cancelQuote's overrideOutsideRule), not to block it. */
   PAS.setCancelTypeOverride = function (policyId, txnId, type, comment) {
     var p = PAS.getPolicy(policyId);
     var held = p && p.history.find(function (h) { return h.id === txnId; });
     if (!held) return { allowed: false, reason: "Transaction not found." };
+    if (!CANCEL_TYPES[type]) return { allowed: false, reason: "\"" + type + "\" is not a cancellation type." };
     var meta = held.meta || {};
     var atInception = (held.date || todayISO()) <= p.effectiveDate;
-    if (!isValidCancelType(type, meta.initiatedBy, atInception)) {
-      return { allowed: false, reason: type + " is not a valid type for this cancellation — the override was not applied." };
-    }
-    var audit = PAS.makeAudit("Override Type", comment || ("Type manually set to " + type + "."));
+    var outsideRule = !isValidCancelType(type, meta.initiatedBy, atInception);
+    var audit = PAS.makeAudit("Override Type", comment || ("Type manually set to " + type + (outsideRule ? " (outside the normal rule)." : ".")));
     patch(policyId, function (pp) {
       return Object.assign({}, pp, {
         history: pp.history.map(function (h) { return h.id === txnId ? withAudit(h, audit, { meta: { typeOverride: type } }) : h; }),
       });
     });
-    return { allowed: true };
+    return { allowed: true, outsideRule: outsideRule };
   };
   PAS.clearCancelTypeOverride = function (policyId, txnId, comment) {
     var audit = PAS.makeAudit("Clear Type Override", comment || "Reverted to the derived type.");
@@ -1528,9 +1532,10 @@ var CLAIMS_BY_ID = {
      combinations the original seed happened not to have any of — specifically so the "Override
      type" control on the Cancellation desk (setCancelTypeOverride, "where permitted") has real
      records to demonstrate every outcome against, not just Short-Rate:
-       - POL-2026-0442: effective date = the policy's own inception date -> derives FLAT. A hard
-         rule, not a role-gated one — even Super Admin overriding to Pro-Rata/Short-Rate here must
-         be refused by isValidCancelType, since Flat is only ever valid at/before inception.
+       - POL-2026-0442: effective date = the policy's own inception date -> derives FLAT. Pro-Rata
+         or Short-Rate is not the normal rule here (Flat is the only type isValidCancelType allows
+         at/before inception) — Super Admin/Admin can still force either as a logged exception
+         (overrideOutsideRule), demonstrating the "outside the normal rule" warning path.
        - POL-2025-09112 / POL-2026-0424: an INSURED- or BROKER-initiated request whose reason
          (Non-Payment / Underwriting) defaults to Pro-Rata on its own, with no insurer-side
          initiator forcing that downgrade. Because the initiator isn't insurer-side, Short-Rate

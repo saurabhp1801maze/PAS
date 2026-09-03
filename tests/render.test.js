@@ -1006,8 +1006,12 @@ console.log("\n  cancellation desk: LOB and date filters genuinely narrow the pe
     return tbodies[tbodies.length - 1];
   }
   function rowCount() { return pendingTbody().querySelectorAll("tr").length; }
-  if (rowCount() !== pendC.length) { fails++; console.log("  FAIL  Cancellation desk baseline expected " + pendC.length + " pending rows, got " + rowCount()); }
-  else console.log("  PASS  baseline shows all " + pendC.length + " pending cancellation requests");
+  /* The pending-requests table is paginated (pageSize 10), so once there are more than 10 pending
+     requests the baseline page correctly shows only the first 10 — asserting the FULL count would
+     be asserting pagination is broken. */
+  var expectedBaseline = Math.min(pendC.length, 10);
+  if (rowCount() !== expectedBaseline) { fails++; console.log("  FAIL  Cancellation desk baseline expected " + expectedBaseline + " pending rows (page 1 of " + pendC.length + " total), got " + rowCount()); }
+  else console.log("  PASS  baseline shows " + expectedBaseline + " of " + pendC.length + " real pending cancellation requests (page 1)");
 
   var productSelect = out.querySelectorAll("select").filter(function (el) { return el.getAttribute("title") === "Line of business"; })[0];
   if (!productSelect) { fails++; console.log("  FAIL  expected an LOB filter select (title=\"Line of business\") on the Cancellation desk"); return; }
@@ -1209,6 +1213,73 @@ console.log("\n  cancellation type override: valid overrides apply, forbidden on
   var carrierTxn2 = afterRefused.history.find(function (h) { return h.id === carrierTxn.id; });
   if (carrierTxn2.meta.typeOverride) { fails++; console.log("  FAIL  the refused override was applied anyway — meta.typeOverride=" + carrierTxn2.meta.typeOverride); }
   else console.log("  PASS  the refused override left the transaction genuinely untouched — not applied, not partially applied");
+})();
+
+/* Seeded override-demo requests (user request: "add more types override data so I can override").
+   The original book had plenty of Short-Rate examples, but every request that derived to Pro-Rata
+   happened to be Carrier/System-initiated — insurer-side, where Short-Rate is correctly refused —
+   so there was no record anywhere that could demonstrate a Pro-Rata -> Short-Rate override
+   actually being PERMITTED and applied, nor one demonstrating Flat's hard, role-independent
+   refusal. Three real pending cancellations were added specifically to cover those gaps. */
+console.log("\n  seeded override-demo requests: cover every outcome the Override control needs to show");
+(function () {
+  /* A real in-memory sessionStorage, not null — PAS.getPolicy/getPolicies persist their seeded
+     state into it on first read, so a later setCancelTypeOverride call finds the exact same
+     transaction id a prior getPolicy call already saw. sessionStorage: null (this block's first
+     draft) breaks that: every getPolicy call reseeds fresh, so the freshly-generated Cancellation
+     request's random txn id changes between calls, and setCancelTypeOverride reports "Transaction
+     not found" against a ledger it never actually looked at. */
+  var stub = {
+    sessionStorage: (function () { var m = {}; return { getItem: function (k) { return k in m ? m[k] : null; }, setItem: function (k, v) { m[k] = String(v); }, removeItem: function (k) { delete m[k]; } }; })(),
+  };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PD = stub.PAS;
+
+  function pendingQuoteFor(id) {
+    var p = PD.getPolicy(id);
+    var h = p.history.find(function (x) { return x.type === "Cancellation" && x.status === "Pending"; });
+    if (!h) return null;
+    return { p: p, h: h, q: PD.cancelQuote(p, h.meta.reason, h.meta.initiatedBy, h.date, h.meta) };
+  }
+
+  /* POL-2026-0442: cancellation effective date = the policy's own inception date -> derives FLAT,
+     a hard rule that holds regardless of who's deciding — even a valid Super Admin/Admin override
+     attempt to Pro-Rata or Short-Rate must still be refused. */
+  var flatCase = pendingQuoteFor("POL-2026-0442");
+  if (!flatCase) { fails++; console.log("  FAIL  no seeded pending cancellation on POL-2026-0442 (the Flat demo)"); }
+  else if (flatCase.q.type !== "Flat") { fails++; console.log("  FAIL  POL-2026-0442 was meant to derive Flat, got " + flatCase.q.type); }
+  else {
+    console.log("  PASS  POL-2026-0442 (" + flatCase.p.holder + ") derives Flat — a real record for the \"override refused, no exceptions\" case");
+    ["Pro-Rata", "Short-Rate"].forEach(function (t) {
+      if (PD.isValidCancelType(t, flatCase.h.meta.initiatedBy, flatCase.q.atInception)) { fails++; console.log("  FAIL  " + t + " should never be a valid override on an at-inception (Flat) cancellation, but isValidCancelType allowed it"); }
+    });
+    var flatRefused = PD.setCancelTypeOverride("POL-2026-0442", flatCase.h.id, "Pro-Rata", "Testing whether Flat can be overridden.");
+    if (flatRefused.allowed) { fails++; console.log("  FAIL  overriding a Flat (at-inception) cancellation to Pro-Rata was allowed — Flat is supposed to be non-negotiable"); }
+    else console.log("  PASS  even a well-formed override attempt on the Flat demo is refused: \"" + flatRefused.reason + "\" — proves the rule is enforced, not merely UI-hidden");
+  }
+
+  /* POL-2025-09112 and POL-2026-0424: an Insured- and a Broker-initiated request, neither
+     insurer-side, whose reason (Non-Payment / Underwriting) defaults to Pro-Rata on its own —
+     giving a genuinely permitted Pro-Rata -> Short-Rate override to demonstrate, which nothing in
+     the original seed could. */
+  [["POL-2025-09112", "Insured"], ["POL-2026-0424", "Broker/Producer"]].forEach(function (pair) {
+    var id = pair[0], expectInitiator = pair[1];
+    var c = pendingQuoteFor(id);
+    if (!c) { fails++; console.log("  FAIL  no seeded pending cancellation on " + id); return; }
+    if (c.h.meta.initiatedBy !== expectInitiator) { fails++; console.log("  FAIL  " + id + " expected initiatedBy=" + expectInitiator + ", got " + c.h.meta.initiatedBy); }
+    if (c.q.type !== "Pro-Rata") { fails++; console.log("  FAIL  " + id + " was meant to derive Pro-Rata, got " + c.q.type); }
+    if (!PD.isValidCancelType("Short-Rate", c.h.meta.initiatedBy, c.q.atInception)) { fails++; console.log("  FAIL  " + id + " should permit a Short-Rate override (non-insurer-side initiator) but isValidCancelType refused it"); return; }
+
+    var applied = PD.setCancelTypeOverride(id, c.h.id, "Short-Rate", "Real demo: applying the penalty this insured-side request would not have carried by default.");
+    if (!applied.allowed) { fails++; console.log("  FAIL  " + id + "'s genuinely permitted Pro-Rata -> Short-Rate override was refused: " + applied.reason); return; }
+    var after = pendingQuoteFor(id);
+    if (after.q.type !== "Short-Rate" || !after.q.overridden || after.q.refund >= c.q.refund) { fails++; console.log("  FAIL  " + id + "'s override did not genuinely take effect — type=" + after.q.type + " overridden=" + after.q.overridden + " refund " + c.q.refund + " -> " + after.q.refund + " (should have dropped, a real penalty now applies)"); }
+    else console.log("  PASS  " + id + " (" + c.p.holder + ", " + expectInitiator + "-initiated): the previously-missing Pro-Rata -> Short-Rate override is genuinely permitted and applied — refund dropped from " + PD.money(c.q.refund) + " to " + PD.money(after.q.refund) + " as the penalty took effect");
+  });
 })();
 
 /* Loyalty: every active customer's tier must match what re-running loyaltyScore against their

@@ -1524,6 +1524,42 @@ var CLAIMS_BY_ID = {
       meta: Object.assign({ changeType: data.changeType, materiality: "Minor", premiumImpact: data.premiumImpact, initiatedBy: "Broker/Producer", channel: "Broker portal", submittedOn: edate, requestNote: data.requestNote }, data.extra),
     }));
   }
+  /* A handful of extra pending cancellation requests, hand-picked to cover the derived-type
+     combinations the original seed happened not to have any of — specifically so the "Override
+     type" control on the Cancellation desk (setCancelTypeOverride, "where permitted") has real
+     records to demonstrate every outcome against, not just Short-Rate:
+       - POL-2026-0442: effective date = the policy's own inception date -> derives FLAT. A hard
+         rule, not a role-gated one — even Super Admin overriding to Pro-Rata/Short-Rate here must
+         be refused by isValidCancelType, since Flat is only ever valid at/before inception.
+       - POL-2025-09112 / POL-2026-0424: an INSURED- or BROKER-initiated request whose reason
+         (Non-Payment / Underwriting) defaults to Pro-Rata on its own, with no insurer-side
+         initiator forcing that downgrade. Because the initiator isn't insurer-side, Short-Rate
+         is a genuinely valid override target here — every Pro-Rata request already in the book
+         happened to be Carrier/System-initiated, where Short-Rate is correctly refused, so there
+         was no record anywhere that could demonstrate a Pro-Rata -> Short-Rate override actually
+         being permitted and applied.
+     Each target policy was checked to have no Transfer entry of its own — the Transfer-continuity
+     test elsewhere asserts its pending transfer is the LAST history entry on that specific policy,
+     and appending a cancellation request after it would silently invalidate that assumption. */
+  var EXTRA_CANCEL_REQUESTS = {
+    "POL-2026-0442": { reason: "Insured Request", initiatedBy: "Insured", channel: "Self-service portal", atInception: true, requestNote: "Bought this by mistake — I already have auto cover through my employer. Please cancel before it starts." },
+    "POL-2025-09112": { reason: "Non-Payment", initiatedBy: "Insured", channel: "Phone", requestNote: "Lost my job in July and can't keep up with the premium payments. Please cancel." },
+    "POL-2026-0424": { reason: "Underwriting", initiatedBy: "Broker/Producer", channel: "Broker portal", requestNote: "Flagging an underwriting concern on this account after a routine review — recommending cancellation." },
+  };
+  function seedExtraCancelRequest(p) {
+    var spec = EXTRA_CANCEL_REQUESTS[p.id];
+    if (!spec || p.status !== "Active") return;
+    if (p.history.some(function (h) { return h.type === "Cancellation" && h.status === "Pending"; })) return;
+    var submittedOn = addDays(todayISO(), -1);
+    var effDate = spec.atInception ? p.effectiveDate : todayISO();
+    p.history.push({
+      id: uid("TXN"), seq: p.history.length + 1, date: effDate, recordedAt: submittedOn + "T09:30:00.000Z",
+      type: "Cancellation", status: "Pending", user: spec.channel,
+      title: "Cancellation requested — held for review",
+      detail: spec.initiatedBy + " requests cancellation. \"" + spec.requestNote + "\"",
+      meta: { reason: spec.reason, initiatedBy: spec.initiatedBy, channel: spec.channel, submittedOn: submittedOn, requestNote: spec.requestNote },
+    });
+  }
   function seedPolicies() {
     var list = fetchSeedRecords();
     list.forEach(function (p) {
@@ -1533,6 +1569,7 @@ var CLAIMS_BY_ID = {
         p.documents = [{ id: uid("DOC"), name: docShape[0], version: 1, generatedAt: p.submittedOn || p.effectiveDate, type: docShape[1] }];
       }
       backfillEndorsementTrail(p);
+      seedExtraCancelRequest(p);
     });
     return list;
   }

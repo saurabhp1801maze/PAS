@@ -757,14 +757,17 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
   /* Role scoping isn't just a dashboard cosmetic — PAS.getScopedPolicies() feeds the Policy
      Register and every desk list page too, so a Broker/MGA never sees another role's business in
      those tables either, not just on their own dashboard. */
+  /* The Register is now paginated (25/page — see the pagination test below), so the DOM row count
+     no longer reflects the true scoped total; read it from the table's own "Showing X of Y" note
+     instead, same as the pagination test does. */
   var brokerRegistryDom = renderDom("registry", "", "Broker");
-  var brokerRegistryRows = brokerRegistryDom.querySelectorAll("tr").length - 1;
-  if (brokerRegistryRows !== apexCount) { fails++; console.log("  FAIL  Policy Register shows " + brokerRegistryRows + " rows for Broker, expected exactly " + apexCount + " (scoped by producer, not the whole book)"); }
+  var brokerShown = (brokerRegistryDom.textContent.match(/Showing (\d+) of/) || [])[1];
+  if (Number(brokerShown) !== apexCount) { fails++; console.log("  FAIL  Policy Register's own count shows " + brokerShown + " for Broker, expected exactly " + apexCount + " (scoped by producer, not the whole book)"); }
   else console.log("  PASS  Policy Register is genuinely scoped for Broker too (" + apexCount + " rows) — not just the dashboard");
 
   var mgaRegistryDom = renderDom("registry", "", "MGA");
-  var mgaRegistryRows = mgaRegistryDom.querySelectorAll("tr").length - 1;
-  if (mgaRegistryRows !== cornerstonePolicies.length) { fails++; console.log("  FAIL  Policy Register shows " + mgaRegistryRows + " rows for MGA, expected exactly " + cornerstonePolicies.length + " (scoped by mga, not the whole book)"); }
+  var mgaShown = (mgaRegistryDom.textContent.match(/Showing (\d+) of/) || [])[1];
+  if (Number(mgaShown) !== cornerstonePolicies.length) { fails++; console.log("  FAIL  Policy Register's own count shows " + mgaShown + " for MGA, expected exactly " + cornerstonePolicies.length + " (scoped by mga, not the whole book)"); }
   else console.log("  PASS  Policy Register is genuinely scoped for MGA too (" + cornerstonePolicies.length + " rows)");
 
   /* Entity directories (Brokers/MGA/Carriers/Customers) are scoped too — a role only sees the
@@ -824,8 +827,8 @@ console.log("\n  Carrier role dashboard: genuinely scoped to its own paper, sees
   if (!carrierPremiumShown) { fails++; console.log("  FAIL  Carrier dashboard's In-force premium KPI does not match " + PAS3.moneyShort(meridianPremium) + ", the real figure scoped to Meridian Assurance Co.'s own book"); }
   else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS3.moneyShort(meridianPremium) + ") is genuinely scoped to its own paper — this is what makes \"New business issued\" below it the carrier's own trend, not Veridex's whole book");
 
-  var carrierRegistryRows = renderDom("registry", "", "Carrier").querySelectorAll("tr").length - 1;
-  if (carrierRegistryRows !== meridianPolicies.length) { fails++; console.log("  FAIL  Policy Register shows " + carrierRegistryRows + " rows for Carrier, expected exactly " + meridianPolicies.length); }
+  var carrierShown = (renderDom("registry", "", "Carrier").textContent.match(/Showing (\d+) of/) || [])[1];
+  if (Number(carrierShown) !== meridianPolicies.length) { fails++; console.log("  FAIL  Policy Register's own count shows " + carrierShown + " for Carrier, expected exactly " + meridianPolicies.length); }
   else console.log("  PASS  Policy Register is genuinely scoped for Carrier too (" + meridianPolicies.length + " rows) — not just the dashboard");
 })();
 
@@ -1639,8 +1642,33 @@ console.log("\n  registry: product + state filters genuinely narrow the table");
 
   var out = renderDom("registry");
   var rowCount = function () { return out.querySelector("tbody").querySelectorAll("tr").length; };
-  if (rowCount() !== bookR.length) { fails++; console.log("  FAIL  registry baseline expected " + bookR.length + " rows, got " + rowCount()); }
-  else console.log("  PASS  baseline shows all " + bookR.length + " records");
+  var shownOf = function () { return (out.textContent.match(/Showing (\d+) of (\d+) records/) || []).slice(1).map(Number); };
+  var expectPageSize = 25;
+
+  /* Pagination (the Register was missing it entirely — 1087 rows rendered on one page). The real
+     scoped total still comes from the "Showing X of Y" note, not the DOM row count, which is now
+     capped at pageSize. */
+  var totalPages = Math.ceil(bookR.length / expectPageSize);
+  if (rowCount() !== expectPageSize) { fails++; console.log("  FAIL  registry baseline should render exactly " + expectPageSize + " rows on page 1 (paginated), got " + rowCount()); }
+  else console.log("  PASS  baseline page 1 shows exactly " + expectPageSize + " of " + bookR.length + " records — paginated, not one giant unpaginated table");
+  var shown = shownOf();
+  if (shown[0] !== bookR.length || shown[1] !== bookR.length) { fails++; console.log("  FAIL  the 'Showing X of Y' note does not reflect the real total (" + bookR.length + ") — got " + JSON.stringify(shown)); }
+  else console.log("  PASS  the 'Showing X of Y' note still states the real total (" + bookR.length + ") even though only a page's worth of rows are in the DOM");
+  var pageText = out.textContent.match(/Page \d+ of \d+/);
+  if (!pageText || pageText[0] !== "Page 1 of " + totalPages) { fails++; console.log("  FAIL  expected 'Page 1 of " + totalPages + "', got " + (pageText && pageText[0])); }
+  else console.log("  PASS  pager states the real page count: " + pageText[0]);
+
+  var nextBtn = out.querySelectorAll("button").filter(function (b) { return b.textContent === "Next →"; })[0];
+  if (!nextBtn) { fails++; console.log("  FAIL  no real 'Next →' pager button found"); }
+  else {
+    var firstPageFirstId = out.querySelector("tbody").querySelectorAll("tr")[0].textContent;
+    nextBtn.click();
+    var secondPageFirstId = out.querySelector("tbody").querySelectorAll("tr")[0].textContent;
+    if (firstPageFirstId === secondPageFirstId) { fails++; console.log("  FAIL  clicking Next → did not actually change which rows are shown"); }
+    else console.log("  PASS  clicking Next → genuinely advances to a different, real page of rows");
+    var prevBtn = out.querySelectorAll("button").filter(function (b) { return b.textContent === "← Prev"; })[0];
+    prevBtn.click();
+  }
 
   var selects = out.querySelectorAll("select");
   if (selects.length !== 3) { fails++; console.log("  FAIL  expected 3 filter selects (status/product/state), found " + selects.length); return; }
@@ -1648,8 +1676,13 @@ console.log("\n  registry: product + state filters genuinely narrow the table");
 
   var expectedProduct = bookR.filter(function (p) { return p.product === "Comprehensive Auto"; }).length;
   setValue(productSelect, "Comprehensive Auto");
-  if (rowCount() !== expectedProduct) { fails++; console.log("  FAIL  product filter 'Comprehensive Auto' expected " + expectedProduct + " rows, got " + rowCount()); }
-  else console.log("  PASS  product filter narrows to the " + expectedProduct + " real Comprehensive Auto records");
+  var expectedProductRows = Math.min(expectedProduct, expectPageSize);
+  if (rowCount() !== expectedProductRows) { fails++; console.log("  FAIL  product filter 'Comprehensive Auto' expected " + expectedProductRows + " rows on page 1, got " + rowCount()); }
+  else if (shownOf()[0] !== expectedProduct) { fails++; console.log("  FAIL  product filter 'Comprehensive Auto' note should state the real total " + expectedProduct + ", got " + shownOf()[0]); }
+  else console.log("  PASS  product filter narrows to the " + expectedProduct + " real Comprehensive Auto records (page 1 of " + Math.ceil(expectedProduct / expectPageSize) + " shown, " + expectedProductRows + " rows)");
+  if (out.querySelectorAll("button").some(function (b) { return b.textContent === "Next →" && !b.disabled; }) === false && expectedProduct > expectPageSize) {
+    fails++; console.log("  FAIL  filtering to a still-large result set should reset back to page 1 with an enabled Next → button, not strand the view on an emptied later page");
+  } else console.log("  PASS  changing a filter resets the page back to 1, not stranded on a now-out-of-range page");
 
   var probeState = bookR.filter(function (p) { return p.product === "Comprehensive Auto"; })[0].state;
   var expectedBoth = bookR.filter(function (p) { return p.product === "Comprehensive Auto" && p.state === probeState; }).length;
@@ -1721,12 +1754,59 @@ console.log("\n  policy status: real terms are shown everywhere status is displa
     fails++; console.log("  FAIL  Registry's rendered page still shows a raw bucket key (Active / On Hold / Canceled) somewhere");
   } else console.log("  PASS  no raw bucket key (Active / On Hold / Canceled) leaks into the rendered Registry page");
 
+  /* The Register is paginated (25/page), so the real filtered total is read from its own
+     "Showing X of Y" note, not the DOM row count, which is now capped per page. */
   var bookR = PS.seedPolicies();
   var expectedIssued = bookR.filter(function (p) { return PS.statusBucket(p.status) === "Active"; }).length;
   setValue(statusSelect, "Active");
-  var rowCount = out.querySelector("tbody").querySelectorAll("tr").length;
-  if (rowCount !== expectedIssued) { fails++; console.log("  FAIL  selecting \"Policy Issued\" (value=Active) should narrow to " + expectedIssued + " rows, got " + rowCount); }
-  else console.log("  PASS  the status filter still genuinely narrows the table (" + expectedIssued + " rows) even though its option text was relabeled — filtering is keyed on the untouched value, not the visible label");
+  var shownIssued = Number((out.textContent.match(/Showing (\d+) of/) || [])[1]);
+  if (shownIssued !== expectedIssued) { fails++; console.log("  FAIL  selecting \"Policy Issued\" (value=Active) should narrow to " + expectedIssued + " records, got " + shownIssued); }
+  else console.log("  PASS  the status filter still genuinely narrows the table (" + expectedIssued + " real records) even though its option text was relabeled — filtering is keyed on the untouched value, not the visible label");
+})();
+
+/* Transaction ledger badges: a handful more real terms from the same reference table, applied to
+   the module-agnostic Completed/Pending/Rejected/Reversed badge wherever a (module, status) pair
+   maps unambiguously. Verified against the exact code paths that produce each pair — in
+   particular, an "Underwriting" transaction's own status is genuinely "Completed" for BOTH Approve
+   and Decline (the outcome lives in the title, PAS.decide's audit/title text, not the status
+   field), so it must never be relabeled — that would misrepresent a declined submission as
+   approved. */
+console.log("\n  transaction ledger: real module-specific terms (Bound / Policy Issued / Cancelled Policy / Reinstated / DNOC), never on the wrong pair");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PT = stub.PAS;
+
+  var cases = [
+    ["Bind", "Completed", null, "Bound"],
+    ["Issuance", "Completed", null, "Policy Issued"],
+    ["Cancellation", "Completed", null, "Cancelled Policy"],
+    ["Reinstatement", "Completed", null, "Reinstated"],
+    ["Cancellation", "Pending", { dnocServedOn: "2026-08-01" }, "DNOC/Pending Cancellation"],
+  ];
+  var wrong = cases.filter(function (c) { return PT.txnStatusLabel(c[0], c[1], c[2]) !== c[3]; });
+  if (wrong.length) { fails++; console.log("  FAIL  wrong txnStatusLabel for: " + wrong.map(function (c) { return c[0] + "/" + c[1]; }).join(", ")); }
+  else console.log("  PASS  all 5 module-specific transaction terms map correctly (Bound, Policy Issued, Cancelled Policy, Reinstated, DNOC/Pending Cancellation)");
+
+  /* The critical negative case: Underwriting's own status stays "Completed" for both outcomes, so
+     it must never pick up a curated label that would make a Decline read as an Approve. */
+  if (PT.txnStatusLabel("Underwriting", "Completed", null) !== "Completed") { fails++; console.log("  FAIL  an Underwriting transaction's status was relabeled away from \"Completed\" — this is the exact case that would misrepresent a declined submission as approved, since both Approve and Decline leave status=\"Completed\""); }
+  else console.log("  PASS  Underwriting/Completed is deliberately left as plain \"Completed\" — Approve and Decline are distinguished by the transaction's title, not its status, so no label could safely tell them apart here");
+  if (PT.txnStatusLabel("Cancellation", "Rejected", null) !== "Rejected") { fails++; console.log("  FAIL  a Rejected (declined) cancellation request should never show \"Cancelled Policy\" — it was refused, the policy is untouched"); }
+  else console.log("  PASS  a Rejected cancellation request correctly stays \"Rejected\", not mislabeled \"Cancelled Policy\"");
+  if (PT.txnStatusLabel(undefined, "Completed", null) !== "Completed") { fails++; console.log("  FAIL  a transaction with no module type on record should fail safe to the raw status, not crash or blank out"); }
+  else console.log("  PASS  an unrecognized/missing module type fails safe to the raw status");
+
+  /* End to end: a real Active policy's own Issuance transaction, rendered on its actual ledger. */
+  var seeded = PT.seedPolicies();
+  var issuedPolicy = seeded.filter(function (p) { return p.status === "Active"; })[0];
+  var ledgerTxt = renderText("policy-detail", "?policy=" + issuedPolicy.id);
+  if (ledgerTxt.indexOf("Policy Issued") === -1) { fails++; console.log("  FAIL  " + issuedPolicy.id + "'s own transaction ledger does not show \"Policy Issued\" for its real Issuance/Completed entry"); }
+  else console.log("  PASS  " + issuedPolicy.id + "'s real transaction ledger shows \"Policy Issued\" on its Issuance entry, not a generic \"Completed\"");
 })();
 
 console.log("\n  documents: search + type filter genuinely narrow the table, and compose together");

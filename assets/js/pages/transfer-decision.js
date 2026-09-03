@@ -16,7 +16,7 @@
     var meta = h.meta || {};
     var page = ui.h("div", {});
     page.appendChild(ui.backLink("Transfer desk", function () { location.href = "transfer.html"; }));
-    page.appendChild(ui.recordHead(p, ui.txnStatusBadge(h.status)));
+    page.appendChild(ui.recordHead(p, ui.txnStatusBadge(h.status, h.type, h.meta)));
 
     var left = [];
     left.push(ui.requestOrigin(meta));

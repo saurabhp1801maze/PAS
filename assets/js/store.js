@@ -1715,6 +1715,23 @@ var CLAIMS_BY_ID = {
     Cancelled: "Cancelled Policy", Expired: "Expired", "Non-renewed": "Non-Renewed",
   };
   PAS.statusLabel = function (status) { return PAS.STATUS_LABELS[status] || status; };
+  /* Same idea, one level down: the *transaction* ledger's own status badge (Completed/Pending/
+     Rejected/Reversed — module-agnostic, PAS.TXN_TONE) also gets real terms where a (module,
+     status) pair maps unambiguously to one — pulled from the same reference table. Deliberately
+     narrow: only pairs verified against the actual code paths that produce them (e.g. an
+     "Underwriting" transaction's own status is always "Completed" for both Approve and Decline —
+     the outcome lives in its title, not its status — so it's never in this map, to avoid ever
+     mislabeling a declined submission as approved). A Cancellation left Pending with a DNOC served
+     gets its own real term regardless of status text, matching PAS.dnocState's own trigger. */
+  var TXN_STATUS_LABELS = {
+    Bind: { Completed: "Bound" }, Issuance: { Completed: "Policy Issued" },
+    Cancellation: { Completed: "Cancelled Policy" }, Reinstatement: { Completed: "Reinstated" },
+  };
+  PAS.txnStatusLabel = function (txnType, status, meta) {
+    if (txnType === "Cancellation" && status === "Pending" && meta && meta.dnocServedOn) return "DNOC/Pending Cancellation";
+    var m = TXN_STATUS_LABELS[txnType];
+    return (m && m[status]) || status || "Completed";
+  };
   PAS.TXN_TONE = { Completed: "green", Pending: "amber", Rejected: "red", Reversed: "violet" };
   PAS.MODULE_TONE = { Submission: "blue", Underwriting: "violet", Bind: "amber", Issuance: "indigo", Endorsement: "amber", Cancellation: "red", Reinstatement: "green", Renewal: "blue", Servicing: "violet", Transfer: "indigo" };
   PAS.MODULE_ICON = { Submission: "inbox", Underwriting: "clipboard-check", Bind: "shield-check", Issuance: "stamp", Endorsement: "edit-3", Cancellation: "x-circle", Reinstatement: "rotate-ccw", Renewal: "refresh-cw", Servicing: "headphones", Transfer: "send" };

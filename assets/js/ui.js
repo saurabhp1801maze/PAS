@@ -135,7 +135,7 @@
      they don't get folded into the narrower badge spec. */
   function statusBadge(tone, text) { return h("span", { class: "status-badge", "data-tone": tone || "gray" }, text); }
   function badge(status) { return statusBadge(PAS.STATUS_TONE[status] || "gray", PAS.statusLabel ? PAS.statusLabel(status) : status); }
-  function txnStatusBadge(status) { return statusBadge(PAS.TXN_TONE[status] || "gray", status || "Completed"); }
+  function txnStatusBadge(status, txnType, meta) { return statusBadge(PAS.TXN_TONE[status] || "gray", PAS.txnStatusLabel ? PAS.txnStatusLabel(txnType, status, meta) : (status || "Completed")); }
   /* §10.2 Outcome Badge — decisioning-module outcomes (Accept/Decline/Refer/Load/Restrict/
      Evidence) get the `--outcome-*` tokens directly rather than the general tone system, per the
      framework's own token table; same shape as the status badge. */

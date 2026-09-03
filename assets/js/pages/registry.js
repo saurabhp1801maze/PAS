@@ -105,6 +105,7 @@
       rows: function () { return policies.filter(match); },
       onRowClick: function (p) { location.href = "policy-detail.html?policy=" + encodeURIComponent(p.id); },
       emptyText: "No matching records.",
+      pageSize: 25,
     });
     toolbar.appendChild(registryTable.columnsControl);
 
@@ -143,10 +144,11 @@
         (extra.length ? " — filtered by " + extra.join(", ") : "") + ".";
       registryTable.rebuild();
     }
-    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
-    statusSelect.addEventListener("change", function () { sf = statusSelect.value; refresh(); });
-    productSelect.addEventListener("change", function () { pf = productSelect.value; refresh(); });
-    stateSelect.addEventListener("change", function () { stf = stateSelect.value; refresh(); });
+    function onFilterChange() { registryTable.resetPage(); refresh(); }
+    searchInput.addEventListener("input", function () { q = searchInput.value; onFilterChange(); });
+    statusSelect.addEventListener("change", function () { sf = statusSelect.value; onFilterChange(); });
+    productSelect.addEventListener("change", function () { pf = productSelect.value; onFilterChange(); });
+    stateSelect.addEventListener("change", function () { stf = stateSelect.value; onFilterChange(); });
     refresh();
 
     var root = document.getElementById("page-content");

@@ -18,7 +18,7 @@
 
     var page = ui.h("div", {});
     page.appendChild(ui.backLink("Advanced PAS", function () { location.href = "advanced-admin.html"; }));
-    page.appendChild(ui.recordHead(p, ui.txnStatusBadge(h.status)));
+    page.appendChild(ui.recordHead(p, ui.txnStatusBadge(h.status, h.type, h.meta)));
 
     var left = [];
     left.push(ui.kv({ k: "Transaction", v: h.type }));

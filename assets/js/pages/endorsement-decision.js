@@ -58,7 +58,7 @@
 
     var page = ui.h("div", {});
     page.appendChild(ui.backLink("Endorsement desk", function () { location.href = "endorsement.html"; }));
-    page.appendChild(ui.recordHead(p, [viewPolicyBtn, ui.txnStatusBadge(h.status)]));
+    page.appendChild(ui.recordHead(p, [viewPolicyBtn, ui.txnStatusBadge(h.status, h.type, h.meta)]));
 
     var left = [];
     left.push(ui.requestOrigin(h.meta));

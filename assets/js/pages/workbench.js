@@ -86,7 +86,7 @@
           } else {
             actionCell = ui.h("span", { style: { fontSize: "11px", color: "var(--color-muted)" } }, "—");
           }
-          return [seqSpan, policyBtn, ui.modulePill(t.h.type), ui.txnStatusBadge(t.h.status), PAS.fmtDate(t.h.date), recordedSpan, t.h.user, actionCell];
+          return [seqSpan, policyBtn, ui.modulePill(t.h.type), ui.txnStatusBadge(t.h.status, t.h.type, t.h.meta), PAS.fmtDate(t.h.date), recordedSpan, t.h.user, actionCell];
         }),
         emptyText: "No transactions match these filters.",
       }));

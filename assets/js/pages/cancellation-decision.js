@@ -72,51 +72,59 @@
       derivedCard.appendChild(ui.h("div", { style: { fontSize: "12px", color: "var(--color-ink)", marginTop: "8px", lineHeight: "1.5" } }, q.spec.when));
       derivedCard.appendChild(ui.h("div", { style: { fontSize: "11.5px", color: "var(--color-ink-secondary)", marginTop: "6px", lineHeight: "1.5" } }, q.spec.rate));
       derivedWrap.appendChild(derivedCard);
+      if (q.overridden && q.overrideOutsideRule) {
+        derivedWrap.appendChild(ui.callout("warn", "This type was force-applied outside the normal rule for this cancellation — logged in the decision trail as a manual exception, not the standard outcome."));
+      }
 
       /* "Where permitted" (MOM 2026-08-26): only a role that can already decide this desk sees the
-         override control at all, and even then it only ever offers types isValidCancelType allows
-         for this reason/initiator/date — never a combination the domain rule forbids outright. */
+         override control at all. Super Admin/Admin get full discretion — every one of the three
+         types is always offered, even one isValidCancelType wouldn't normally allow (e.g. Short-
+         Rate on an insurer-initiated cancellation) — that rule is now a default suggestion, not a
+         hard block. Picking an off-rule type shows a live warning before Apply, and cancelQuote's
+         overrideOutsideRule flag keeps it visible afterward (see the callout above).
+         Always rendered open — an earlier version hid this behind a click-to-reveal toggle
+         ("Override type…") and more than one real user read that plain-text link as inert, not a
+         button, and reported the whole feature as missing. A bordered, always-visible block with
+         its own heading removes that ambiguity entirely. */
       var canOverride = (PAS.ROLES[PAS.getRole()] || {}).canDecide && !decided;
       if (canOverride) {
-        var validTypes = Object.keys(PAS.CANCEL_TYPES).filter(function (t) { return PAS.isValidCancelType(t, initiatedBy, q.atInception); });
-        if (validTypes.length > 1) {
-          var overrideWrap = ui.h("div", { class: "mt-9" });
-          var overrideToggle = ui.h("button", { class: "btn ghost-link", type: "button" }, q.overridden ? "Change override…" : "Override type…");
-          var overrideForm = ui.h("div", { class: "mt-6", style: { display: "none" } });
-          var typeSelect = ui.h("select", { class: "field-input select-fixed" });
-          validTypes.forEach(function (t) { typeSelect.appendChild(ui.h("option", { value: t, selected: t === q.type }, t)); });
-          var reasonInput = ui.h("input", { class: "field-input", placeholder: "Why override the derived type? (required)" });
-          var applyBtn = ui.h("button", { class: "btn small", type: "button" }, "Apply override");
-          var clearBtn = ui.h("button", { class: "btn small ghost-link", type: "button" }, "Clear override");
-          overrideForm.appendChild(ui.field({ label: "Override to" }, typeSelect));
-          overrideForm.appendChild(ui.field({ label: "Reason" }, reasonInput));
-          var overrideBtnRow = ui.h("div", { style: { display: "flex", gap: "8px", marginTop: "6px" } });
-          overrideBtnRow.appendChild(applyBtn);
-          if (q.overridden) overrideBtnRow.appendChild(clearBtn);
-          overrideForm.appendChild(overrideBtnRow);
-          overrideToggle.addEventListener("click", function () { overrideForm.style.display = overrideForm.style.display === "none" ? "" : "none"; });
-          applyBtn.addEventListener("click", function () {
-            if (!reasonInput.value.trim()) { reasonInput.focus(); return; }
-            var result = PAS.setCancelTypeOverride(p.id, txnId, typeSelect.value, reasonInput.value.trim());
-            if (!result.allowed) { ui.renderToast({ title: "Override refused", detail: result.reason, tone: "red" }); return; }
-            ui.renderToast({ title: "Type overridden", detail: p.id + " · " + typeSelect.value, tone: "blue" });
-            buildContent();
-          });
-          clearBtn.addEventListener("click", function () {
-            PAS.clearCancelTypeOverride(p.id, txnId, "Reverted to the derived type.");
-            ui.renderToast({ title: "Override cleared", detail: p.id + " · back to " + q.derivedType, tone: "blue" });
-            buildContent();
-          });
-          overrideWrap.appendChild(overrideToggle);
-          overrideWrap.appendChild(overrideForm);
-          derivedWrap.appendChild(overrideWrap);
-        } else {
-          /* Not a bug — there is genuinely nothing else this could legally become (Flat is the
-             only valid type at/before inception, full stop, for any role), so no control renders.
-             Silence read as "the feature is missing" rather than "correctly unavailable here", so
-             it says so explicitly instead of just showing nothing. */
-          derivedWrap.appendChild(ui.callout("info", "No override available — " + q.type + " is the only type this request could legally become; there's nothing to switch it to."));
+        var allTypes = Object.keys(PAS.CANCEL_TYPES);
+        var overrideWrap = ui.h("div", { class: "mt-9", style: { border: "1px solid var(--color-border)", borderRadius: "10px", padding: "12px" } });
+        overrideWrap.appendChild(ui.h("div", { style: { fontSize: "12px", fontWeight: "700", color: "var(--color-ink)", marginBottom: "8px" } }, q.overridden ? "Change the override" : "Override the cancellation type"));
+        var typeSelect = ui.h("select", { class: "field-input select-fixed" });
+        allTypes.forEach(function (t) { typeSelect.appendChild(ui.h("option", { value: t, selected: t === q.type }, t)); });
+        var reasonInput = ui.h("input", { class: "field-input", placeholder: "Why override the derived type? (required)" });
+        var selectWarning = ui.h("div", { class: "mt-6", style: { display: "none" } });
+        var applyBtn = ui.h("button", { class: "btn small", type: "button" }, "Apply override");
+        var clearBtn = ui.h("button", { class: "btn small ghost-link", type: "button" }, "Clear override");
+        overrideWrap.appendChild(ui.field({ label: "Override to" }, typeSelect));
+        overrideWrap.appendChild(selectWarning);
+        overrideWrap.appendChild(ui.field({ label: "Reason" }, reasonInput));
+        var overrideBtnRow = ui.h("div", { style: { display: "flex", gap: "8px", marginTop: "6px" } });
+        overrideBtnRow.appendChild(applyBtn);
+        if (q.overridden) overrideBtnRow.appendChild(clearBtn);
+        overrideWrap.appendChild(overrideBtnRow);
+        function refreshSelectWarning() {
+          selectWarning.innerHTML = "";
+          if (PAS.isValidCancelType(typeSelect.value, initiatedBy, q.atInception)) { selectWarning.style.display = "none"; return; }
+          selectWarning.style.display = "";
+          selectWarning.appendChild(ui.callout("warn", typeSelect.value + " is not the normal type for this cancellation — applying it is a manual exception, and will be logged as one."));
         }
+        typeSelect.addEventListener("change", refreshSelectWarning);
+        refreshSelectWarning();
+        applyBtn.addEventListener("click", function () {
+          if (!reasonInput.value.trim()) { reasonInput.focus(); return; }
+          var result = PAS.setCancelTypeOverride(p.id, txnId, typeSelect.value, reasonInput.value.trim());
+          if (!result.allowed) { ui.renderToast({ title: "Override refused", detail: result.reason, tone: "red" }); return; }
+          ui.renderToast({ title: "Type overridden", detail: p.id + " · " + typeSelect.value + (result.outsideRule ? " (outside the normal rule)" : ""), tone: result.outsideRule ? "amber" : "blue" });
+          buildContent();
+        });
+        clearBtn.addEventListener("click", function () {
+          PAS.clearCancelTypeOverride(p.id, txnId, "Reverted to the derived type.");
+          ui.renderToast({ title: "Override cleared", detail: p.id + " · back to " + q.derivedType, tone: "blue" });
+          buildContent();
+        });
+        derivedWrap.appendChild(overrideWrap);
       }
       left.push(derivedWrap);
 

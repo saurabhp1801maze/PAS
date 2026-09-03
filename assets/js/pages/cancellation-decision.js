@@ -81,27 +81,29 @@
          types is always offered, even one isValidCancelType wouldn't normally allow (e.g. Short-
          Rate on an insurer-initiated cancellation) — that rule is now a default suggestion, not a
          hard block. Picking an off-rule type shows a live warning before Apply, and cancelQuote's
-         overrideOutsideRule flag keeps it visible afterward (see the callout above). */
+         overrideOutsideRule flag keeps it visible afterward (see the callout above).
+         Always rendered open — an earlier version hid this behind a click-to-reveal toggle
+         ("Override type…") and more than one real user read that plain-text link as inert, not a
+         button, and reported the whole feature as missing. A bordered, always-visible block with
+         its own heading removes that ambiguity entirely. */
       var canOverride = (PAS.ROLES[PAS.getRole()] || {}).canDecide && !decided;
       if (canOverride) {
         var allTypes = Object.keys(PAS.CANCEL_TYPES);
-        var overrideWrap = ui.h("div", { class: "mt-9" });
-        var overrideToggle = ui.h("button", { class: "btn ghost-link", type: "button" }, q.overridden ? "Change override…" : "Override type…");
-        var overrideForm = ui.h("div", { class: "mt-6", style: { display: "none" } });
+        var overrideWrap = ui.h("div", { class: "mt-9", style: { border: "1px solid var(--color-border)", borderRadius: "10px", padding: "12px" } });
+        overrideWrap.appendChild(ui.h("div", { style: { fontSize: "12px", fontWeight: "700", color: "var(--color-ink)", marginBottom: "8px" } }, q.overridden ? "Change the override" : "Override the cancellation type"));
         var typeSelect = ui.h("select", { class: "field-input select-fixed" });
         allTypes.forEach(function (t) { typeSelect.appendChild(ui.h("option", { value: t, selected: t === q.type }, t)); });
         var reasonInput = ui.h("input", { class: "field-input", placeholder: "Why override the derived type? (required)" });
         var selectWarning = ui.h("div", { class: "mt-6", style: { display: "none" } });
         var applyBtn = ui.h("button", { class: "btn small", type: "button" }, "Apply override");
         var clearBtn = ui.h("button", { class: "btn small ghost-link", type: "button" }, "Clear override");
-        overrideForm.appendChild(ui.field({ label: "Override to" }, typeSelect));
-        overrideForm.appendChild(selectWarning);
-        overrideForm.appendChild(ui.field({ label: "Reason" }, reasonInput));
+        overrideWrap.appendChild(ui.field({ label: "Override to" }, typeSelect));
+        overrideWrap.appendChild(selectWarning);
+        overrideWrap.appendChild(ui.field({ label: "Reason" }, reasonInput));
         var overrideBtnRow = ui.h("div", { style: { display: "flex", gap: "8px", marginTop: "6px" } });
         overrideBtnRow.appendChild(applyBtn);
         if (q.overridden) overrideBtnRow.appendChild(clearBtn);
-        overrideForm.appendChild(overrideBtnRow);
-        overrideToggle.addEventListener("click", function () { overrideForm.style.display = overrideForm.style.display === "none" ? "" : "none"; });
+        overrideWrap.appendChild(overrideBtnRow);
         function refreshSelectWarning() {
           selectWarning.innerHTML = "";
           if (PAS.isValidCancelType(typeSelect.value, initiatedBy, q.atInception)) { selectWarning.style.display = "none"; return; }
@@ -122,8 +124,6 @@
           ui.renderToast({ title: "Override cleared", detail: p.id + " · back to " + q.derivedType, tone: "blue" });
           buildContent();
         });
-        overrideWrap.appendChild(overrideToggle);
-        overrideWrap.appendChild(overrideForm);
         derivedWrap.appendChild(overrideWrap);
       }
       left.push(derivedWrap);

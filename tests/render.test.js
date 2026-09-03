@@ -1293,26 +1293,25 @@ console.log("\n  seeded override-demo requests: cover every outcome the Override
 })();
 
 /* The Override control itself, driven through real clicks (not PAS.setCancelTypeOverride called
-   directly). Two things must hold: the toggle -> select -> reason -> Apply chain genuinely works
-   end to end, and picking a type that breaks the normal rule (e.g. any non-Flat type on an
-   at-inception cancellation) surfaces a live warning before Apply and a persistent one after —
-   full discretion, not silent rule-breaking. */
-console.log("\n  cancellation-decision: Override control clicked through for real, on-rule and off-rule");
+   directly). A prior version hid this behind a click-to-reveal "Override type…" toggle; more than
+   one real user read that plain-text link as inert and reported the whole feature as missing, so
+   it's now rendered open — no toggle to find or click. Two things must hold: the select -> reason
+   -> Apply chain genuinely works end to end, and picking a type that breaks the normal rule (e.g.
+   any non-Flat type on an at-inception cancellation) surfaces a live warning before Apply and a
+   persistent one after — full discretion, not silent rule-breaking. */
+console.log("\n  cancellation-decision: Override control is open by default (no toggle to find), on-rule and off-rule both work");
 (function () {
   /* Melissa Shaw (POL-2025-09112): Pro-Rata, Insured-initiated — a real case where Short-Rate is
-     a genuinely valid override, so the whole toggle -> select -> reason -> Apply chain should work
-     end to end through actual DOM events. */
+     a genuinely valid override, so the select -> reason -> Apply chain should work end to end
+     through actual DOM events, with no click needed just to see the control. */
   var dom = renderDom("cancellation-decision", "?policy=POL-2025-09112", "Super Admin");
-  var toggle = dom.querySelectorAll("button").filter(function (b) { return b.textContent === "Override type…"; })[0];
-  if (!toggle) { fails++; console.log("  FAIL  no \"Override type…\" button rendered for a real, genuinely-overridable request (POL-2025-09112)"); return; }
-  console.log("  PASS  \"Override type…\" button renders for a real overridable request");
-
-  toggle.click();
   var typeSelect = dom.querySelectorAll("select").filter(function (s) { return s.querySelectorAll("option").some(function (o) { return o.value === "Short-Rate"; }); })[0];
   var reasonInput = dom.querySelectorAll("input").filter(function (i) { return (i.getAttribute("placeholder") || "").indexOf("override the derived type") !== -1; })[0];
   var applyBtn = dom.querySelectorAll("button").filter(function (b) { return b.textContent === "Apply override"; })[0];
-  if (!typeSelect || !reasonInput || !applyBtn) { fails++; console.log("  FAIL  clicking \"Override type…\" did not reveal the type select / reason input / Apply button"); return; }
-  console.log("  PASS  clicking the toggle genuinely reveals the override form (select, reason field, Apply button)");
+  if (!typeSelect || !reasonInput || !applyBtn) { fails++; console.log("  FAIL  the override select / reason input / Apply button are not immediately visible on page load for a real overridable request (POL-2025-09112) — nothing should need to be clicked open first"); return; }
+  console.log("  PASS  the override select, reason field and Apply button are all visible immediately — no toggle to find or click");
+  if (dom.querySelectorAll("button").some(function (b) { return b.textContent === "Override type…"; })) { fails++; console.log("  FAIL  the old click-to-reveal \"Override type…\" toggle is still present — it was exactly what real users missed"); }
+  else console.log("  PASS  the old click-to-reveal toggle is gone entirely");
 
   var refundBefore = dom.textContent.match(/Refund due[^0-9]*(\$[\d,]+)/);
   setValue(typeSelect, "Short-Rate");
@@ -1322,26 +1321,22 @@ console.log("\n  cancellation-decision: Override control clicked through for rea
 
   /* The click handler's setCancelTypeOverride + buildContent() both run synchronously, rebuilding
      layoutContainer in place inside this same `dom` tree — so re-reading `dom` right after click()
-     returns genuinely reflects what got applied, not a second, disconnected render. (A brand-new
+     genuinely reflects what got applied, not a second, disconnected render. (A brand-new
      renderDom() call would spin up its own isolated in-memory store and prove nothing.) */
   var afterTxt = dom.textContent;
   if (afterTxt.indexOf("Type (manually overridden)") === -1) { fails++; console.log("  FAIL  clicking \"Apply override\" through real DOM events did not update the page — still shows the derived type, not \"manually overridden\""); }
-  else console.log("  PASS  clicking \"Apply override\" through real DOM events (toggle -> select -> reason -> Apply) genuinely updates the page in place");
+  else console.log("  PASS  clicking \"Apply override\" through real DOM events (select -> reason -> Apply) genuinely updates the page in place");
   var refundAfter = afterTxt.match(/Refund due[^0-9]*(\$[\d,]+)/);
   if (!refundBefore || !refundAfter || refundBefore[1] === refundAfter[1]) { fails++; console.log("  FAIL  the refund total shown on screen did not change after the click-driven override (before=" + (refundBefore && refundBefore[1]) + ", after=" + (refundAfter && refundAfter[1]) + ") — looks cosmetic, not a real recalculation"); }
   else console.log("  PASS  the on-screen refund genuinely changed (" + refundBefore[1] + " → " + refundAfter[1] + ") as a real consequence of the click, not just a relabelled pill");
 
   /* Kimberly Garcia (POL-2026-0442): Flat, at inception. Full discretion means the Override
-     control still renders and offers all three types — selecting an off-rule one (Pro-Rata) shows
-     a live warning before Apply, and the applied override stays visibly flagged afterward. */
+     control still renders open and offers all three types — selecting an off-rule one (Pro-Rata)
+     shows a live warning before Apply, and the applied override stays visibly flagged afterward. */
   var flatDom = renderDom("cancellation-decision", "?policy=POL-2026-0442", "Super Admin");
-  var flatToggle = flatDom.querySelectorAll("button").filter(function (b) { return b.textContent === "Override type…"; })[0];
-  if (!flatToggle) { fails++; console.log("  FAIL  the Flat demo does not show an \"Override type…\" button — full discretion means every request should offer one"); return; }
-  console.log("  PASS  the Flat demo still shows a working \"Override type…\" button, not nothing");
-
-  flatToggle.click();
   var flatSelect = flatDom.querySelectorAll("select").filter(function (s) { return s.querySelectorAll("option").some(function (o) { return o.value === "Pro-Rata"; }); })[0];
-  if (!flatSelect) { fails++; console.log("  FAIL  the Flat demo's override select is missing Pro-Rata as an option — full discretion means all three types must be offered"); return; }
+  if (!flatSelect) { fails++; console.log("  FAIL  the Flat demo's override select is not visible / missing Pro-Rata as an option — full discretion means all three types must always be offered, open by default"); return; }
+  console.log("  PASS  the Flat demo shows the override select open by default, offering Pro-Rata even though it's not the normal type here");
   setValue(flatSelect, "Pro-Rata");
   var beforeApplyTxt = flatDom.textContent;
   if (beforeApplyTxt.indexOf("is not the normal type for this cancellation") === -1) { fails++; console.log("  FAIL  selecting an off-rule type (Pro-Rata on a Flat/at-inception case) did not show a live warning before Apply"); }

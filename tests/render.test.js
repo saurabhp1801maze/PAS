@@ -1809,6 +1809,41 @@ console.log("\n  transaction ledger: real module-specific terms (Bound / Policy 
   else console.log("  PASS  " + issuedPolicy.id + "'s real transaction ledger shows \"Policy Issued\" on its Issuance entry, not a generic \"Completed\"");
 })();
 
+/* Pending Approvals: "SLA breached: 27" on its own doesn't say where to go fix it — add a real,
+   computed breakdown by transaction type underneath (user request: surface the Endorsement count
+   specifically, generalized to every type actually present so it's not just Endorsements). */
+console.log("\n  pending approvals: SLA-breached KPI shows a real breakdown by transaction type");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/pas-extensions.js", "utf8"), stub);
+  var PA = stub.PAS;
+
+  var policiesA = PA.getScopedPolicies();
+  var pendingA = PA.allTxns(policiesA).filter(function (t) { return t.h.status === "Pending" && t.h.type !== "Underwriting"; });
+  var breachedA = pendingA.filter(function (t) { return PA.getTxnSla(t.h).breached; });
+  if (!breachedA.length) { fails++; console.log("  FAIL  test fixture assumption wrong — expected at least one real SLA-breached pending transaction to test the breakdown against"); return; }
+  var byType = {};
+  breachedA.forEach(function (t) { byType[t.h.type] = (byType[t.h.type] || 0) + 1; });
+  var endorsementBreached = byType.Endorsement || 0;
+
+  var appTxt = renderText("approvals");
+  var noteMatch = appTxt.match(/Of the (\d+) SLA-breached: ([^.]+)\./);
+  if (!noteMatch) { fails++; console.log("  FAIL  no \"Of the N SLA-breached: ...\" breakdown note rendered on the Pending Approvals page"); return; }
+  if (Number(noteMatch[1]) !== breachedA.length) { fails++; console.log("  FAIL  breakdown note's total (" + noteMatch[1] + ") does not match the real SLA-breached count (" + breachedA.length + ")"); }
+  else console.log("  PASS  the breakdown note's total (" + breachedA.length + ") matches the real count of SLA-breached pending transactions");
+  Object.keys(byType).forEach(function (ty) {
+    var n = byType[ty];
+    var expectedPhrase = n + " " + ty + (n === 1 ? "" : "s");
+    if (noteMatch[2].indexOf(expectedPhrase) === -1) { fails++; console.log("  FAIL  breakdown note is missing \"" + expectedPhrase + "\" — got: " + noteMatch[2]); }
+  });
+  console.log("  PASS  breakdown note names every real type present among the breached transactions, with the real per-type count (e.g. Endorsement: " + endorsementBreached + ")");
+})();
+
 console.log("\n  documents: search + type filter genuinely narrow the table, and compose together");
 (function () {
   var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };

@@ -56,12 +56,27 @@
       why: "Held means untouched — the policy stays exactly as it was until an underwriter reviews the request's full context and decides.",
     }));
 
+    var breached = pending.filter(function (t) { return slaOf(t).breached; });
+
     page.appendChild(ui.kpiRow([
       { label: "Awaiting decision", value: pending.length, tone: "amber", tip: "Held transactions across every desk, excluding Underwriting referrals." },
-      { label: "SLA breached", value: pending.filter(function (t) { return slaOf(t).breached; }).length, tone: "red", tip: "Past approval SLA (demo clock)." },
+      { label: "SLA breached", value: breached.length, tone: "red", tip: "Past approval SLA (demo clock)." },
       { label: "Endorsements", value: pending.filter(function (t) { return t.h.type === "Endorsement"; }).length, tip: "Material changes needing sign-off." },
       { label: "Cancellations", value: pending.filter(function (t) { return t.h.type === "Cancellation"; }).length, tip: "Insured, broker or underwriter initiated." },
     ]));
+
+    /* Which desk the breached ones actually belong to — "SLA breached: 27" on its own doesn't say
+       where to go fix it. A real, computed breakdown by type (Endorsement, Cancellation, ...), not
+       a single extra number, since the breach isn't always Endorsements. */
+    if (breached.length) {
+      var breachedByType = {};
+      breached.forEach(function (t) { breachedByType[t.h.type] = (breachedByType[t.h.type] || 0) + 1; });
+      var breakdownText = Object.keys(breachedByType)
+        .sort(function (a, b) { return breachedByType[b] - breachedByType[a]; })
+        .map(function (ty) { return breachedByType[ty] + " " + ty + (breachedByType[ty] === 1 ? "" : "s"); })
+        .join(", ");
+      page.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Of the " + breached.length + " SLA-breached: " + breakdownText + "."));
+    }
 
     var toolbar = ui.h("div", { class: "register-toolbar" });
     var searchWrap = ui.h("div", { class: "register-search" });

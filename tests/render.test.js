@@ -1282,6 +1282,55 @@ console.log("\n  seeded override-demo requests: cover every outcome the Override
   });
 })();
 
+/* The Override control itself, driven through real clicks (not PAS.setCancelTypeOverride called
+   directly) — this is the actual gap a real user hit: on a Flat-derived request (POL-2026-0442,
+   see above) there is only one legal type, so the "Override type…" button never renders at all,
+   and with nothing on screen explaining why, it reads as a missing feature rather than a correct
+   one. Two things must hold: the button/form genuinely exists and works on a request that CAN be
+   overridden, and a clear explanation — not silence — appears on one that can't. */
+console.log("\n  cancellation-decision: Override control clicked through for real, and explained when absent");
+(function () {
+  /* Melissa Shaw (POL-2025-09112): Pro-Rata, Insured-initiated — a real case where Short-Rate is
+     a genuinely valid override, so the whole toggle -> select -> reason -> Apply chain should work
+     end to end through actual DOM events. */
+  var dom = renderDom("cancellation-decision", "?policy=POL-2025-09112", "Super Admin");
+  var toggle = dom.querySelectorAll("button").filter(function (b) { return b.textContent === "Override type…"; })[0];
+  if (!toggle) { fails++; console.log("  FAIL  no \"Override type…\" button rendered for a real, genuinely-overridable request (POL-2025-09112)"); return; }
+  console.log("  PASS  \"Override type…\" button renders for a real overridable request");
+
+  toggle.click();
+  var typeSelect = dom.querySelectorAll("select").filter(function (s) { return s.querySelectorAll("option").some(function (o) { return o.value === "Short-Rate"; }); })[0];
+  var reasonInput = dom.querySelectorAll("input").filter(function (i) { return (i.getAttribute("placeholder") || "").indexOf("override the derived type") !== -1; })[0];
+  var applyBtn = dom.querySelectorAll("button").filter(function (b) { return b.textContent === "Apply override"; })[0];
+  if (!typeSelect || !reasonInput || !applyBtn) { fails++; console.log("  FAIL  clicking \"Override type…\" did not reveal the type select / reason input / Apply button"); return; }
+  console.log("  PASS  clicking the toggle genuinely reveals the override form (select, reason field, Apply button)");
+
+  var refundBefore = dom.textContent.match(/Refund due[^0-9]*(\$[\d,]+)/);
+  setValue(typeSelect, "Short-Rate");
+  reasonInput.value = "Clicked through in a real test, not called directly on the data layer.";
+  reasonInput.dispatchEvent({ type: "input" });
+  applyBtn.click();
+
+  /* The click handler's setCancelTypeOverride + buildContent() both run synchronously, rebuilding
+     layoutContainer in place inside this same `dom` tree — so re-reading `dom` right after click()
+     returns genuinely reflects what got applied, not a second, disconnected render. (A brand-new
+     renderDom() call would spin up its own isolated in-memory store and prove nothing.) */
+  var afterTxt = dom.textContent;
+  if (afterTxt.indexOf("Type (manually overridden)") === -1) { fails++; console.log("  FAIL  clicking \"Apply override\" through real DOM events did not update the page — still shows the derived type, not \"manually overridden\""); }
+  else console.log("  PASS  clicking \"Apply override\" through real DOM events (toggle -> select -> reason -> Apply) genuinely updates the page in place");
+  var refundAfter = afterTxt.match(/Refund due[^0-9]*(\$[\d,]+)/);
+  if (!refundBefore || !refundAfter || refundBefore[1] === refundAfter[1]) { fails++; console.log("  FAIL  the refund total shown on screen did not change after the click-driven override (before=" + (refundBefore && refundBefore[1]) + ", after=" + (refundAfter && refundAfter[1]) + ") — looks cosmetic, not a real recalculation"); }
+  else console.log("  PASS  the on-screen refund genuinely changed (" + refundBefore[1] + " → " + refundAfter[1] + ") as a real consequence of the click, not just a relabelled pill");
+
+  /* Kimberly Garcia (POL-2026-0442): Flat, nothing to override to. Must show a clear reason, not
+     nothing — silence is exactly what a real user read as "this is broken". */
+  var flatDom = renderDom("cancellation-decision", "?policy=POL-2026-0442", "Super Admin");
+  var flatTxt = flatDom.textContent;
+  if (flatTxt.indexOf("Override type…") !== -1) { fails++; console.log("  FAIL  the Flat demo unexpectedly shows an \"Override type…\" button — there should be nothing valid to switch to"); }
+  if (flatTxt.indexOf("No override available") === -1) { fails++; console.log("  FAIL  the Flat demo shows neither an override control nor an explanation for why one isn't offered — this is the exact silence that read as a bug"); }
+  else console.log("  PASS  the Flat demo explains why no override is offered (\"No override available — Flat is the only type this request could legally become\") instead of showing nothing");
+})();
+
 /* Loyalty: every active customer's tier must match what re-running loyaltyScore against their
    own ledger produces — the tier shown is never a stored, potentially-stale label. */
 console.log("\n  loyalty: tiers and the tier-distribution KPIs reconcile to the live formula");

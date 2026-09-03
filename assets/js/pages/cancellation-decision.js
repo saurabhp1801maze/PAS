@@ -110,6 +110,12 @@
           overrideWrap.appendChild(overrideToggle);
           overrideWrap.appendChild(overrideForm);
           derivedWrap.appendChild(overrideWrap);
+        } else {
+          /* Not a bug — there is genuinely nothing else this could legally become (Flat is the
+             only valid type at/before inception, full stop, for any role), so no control renders.
+             Silence read as "the feature is missing" rather than "correctly unavailable here", so
+             it says so explicitly instead of just showing nothing. */
+          derivedWrap.appendChild(ui.callout("info", "No override available — " + q.type + " is the only type this request could legally become; there's nothing to switch it to."));
         }
       }
       left.push(derivedWrap);

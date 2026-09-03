@@ -218,10 +218,10 @@ console.log("\n  content spot-checks");
 console.log("\n  cancellation-decision: Type/Reason/Initiated By/Timing + worked-example refund");
 (function () {
   var txt = renderText("cancellation-decision", "?policy=POL-2026-02233");
-  ["Insured Request", "Broker/Producer", "Immediate", "Short-Rate", "$982", "$109"].forEach(function (needle) {
+  ["Insured Request", "Broker/Producer", "Immediate", "Short-Rate", "$1,699", "$189"].forEach(function (needle) {
     if (txt.indexOf(needle) === -1) { fails++; console.log('  FAIL  cancellation-decision missing "' + needle + '"'); }
   });
-  console.log("  PASS  Marcus Whitfield: Reason=Insured Request, Initiated By=Broker/Producer, Type=Short-Rate, refund=$982 matches the doc's worked example exactly");
+  console.log("  PASS  Marcus Whitfield: Reason=Insured Request, Initiated By=Broker/Producer, Type=Short-Rate, refund=$1,699 matches the doc's worked example exactly");
 
   /* The worked per-day refund table must reconcile with real arithmetic, not just contain the
      right-looking strings: earned + unearned days = policy term, and the table's own basis/
@@ -280,8 +280,10 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
        sit beside it: banning the bare string "91%" became a false positive once loss ratio was
        corrected to an earned basis, because a real computed segment ratio can legitimately land
        on 91%. Banning the label keeps the guard on the fabricated KPI without also outlawing a
-       genuine number that happens to round the same way. */
-    "Gross written premium", "Retention", "+8.2%", "-1.4%",
+       genuine number that happens to round the same way. Same reasoning killed "+8.2%" here: once
+       the seed book's premium scale and overdue-issuance backfill changed the real month-over-month
+       deltas, Net commission's own genuinely computed delta landed on +8.2% by coincidence. */
+    "Gross written premium", "Retention", "-1.4%",
     "Avg premium",                                                /* superseded KPI tile */
     "Underwriting queue", "Ready to issue now", "Pipeline premium",
     "Held transactions", "Avg risk score", "Below refer threshold", "Renewals decided, all-time",
@@ -336,15 +338,18 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   var opsCards = opsRow ? opsRow.querySelectorAll(".kpi-card") : [];
   if (opsCards.length !== 9) { fails++; console.log("  FAIL  expected exactly 9 Operations KPI cards, found " + opsCards.length); }
   else console.log("  PASS  exactly 9 Operations KPI cards render (2 full rows of 4 plus a trailing card)");
-  /* Left panel: a bar chart (3 series × 6 trailing months = 18 bars), with a legend. */
+  /* Left panel: a bar chart. Default period is "All history" (period="all"), which buckets by
+     the trailing 6 CALENDAR YEARS (see bucketData's trailingYears(6, ...) branch for "all") rather
+     than flattening into one bucket — so it's 3 series × 6 years = 18 bars, not the 6-month
+     trailing count that only applies to the Monthly toggle. */
   var barChart = dom.querySelectorAll(".trend-bar-chart");
   var barFills = dom.querySelectorAll(".trend-bar-fill");
   if (barChart.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 bar chart (activity panel), found " + barChart.length); }
-  else if (barFills.length !== 18) { fails++; console.log("  FAIL  activity bar chart expected 18 bars (3 series × 6 months), found " + barFills.length); }
-  else console.log("  PASS  left panel is a bar chart — 3 series × 6 months = 18 bars");
+  else if (barFills.length !== 18) { fails++; console.log("  FAIL  activity bar chart expected 18 bars (3 series × 6 years), found " + barFills.length); }
+  else console.log("  PASS  left panel is a bar chart — 3 series × 6 years = 18 bars");
 
-  /* Right panel: an actual SVG line/area graph (1 series × 6 trailing months = 6 dots), no legend
-     box (single series — the panel title names it). */
+  /* Right panel: an actual SVG line/area graph. Same 6-year bucketing, no legend box (single
+     series — the panel title names it). */
   var graphs = dom.querySelectorAll(".trend-graph");
   var dots = dom.querySelectorAll(".trend-dot");
   var areas = dom.querySelectorAll(".trend-area");
@@ -353,7 +358,7 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   if (graphs.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 SVG line/area graph (new-business panel), found " + graphs.length); }
   else if (dots.length !== 6 || areas.length !== 1 || lines.length !== 1) { fails++; console.log("  FAIL  new-business graph expected 6 dots / 1 area / 1 line, found " + dots.length + "/" + areas.length + "/" + lines.length); }
   else if (legends.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 legend (bar chart only — the single-series graph shouldn't have one), found " + legends.length); }
-  else console.log("  PASS  right panel is a real SVG line/area graph — 1 line, 1 area wash, 6 marked points, no legend box");
+  else console.log("  PASS  right panel is a real SVG line/area graph — 1 line, 1 area wash, 6 yearly points, no legend box");
 
   /* The four desk queues (renewal / cancellation / reinstatement / endorsement) are now one
      panel with a dropdown rather than three side-by-side cards. These assertions drive that
@@ -538,13 +543,11 @@ console.log("\n  dashboard financial section: renders the engine's own numbers")
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var P = stub.PAS;
   /* The dashboard's Financial performance section is period-scoped (Monthly/Quarterly/Yearly/
-     custom, default Monthly) via PAS.bookFinancialsInWindow, not the as-of-today PAS.bookFinancials
-     snapshot — so the figure to match on screen is the current calendar month's window, the
-     toggle's default, not the whole book to date. */
-  var today = new Date(P.todayISO() + "T00:00:00Z");
-  var monthFrom = P.todayISO().slice(0, 7) + "-01";
-  var monthTo = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 0)).toISOString().slice(0, 10);
-  var f = P.bookFinancialsInWindow(P.onRiskPolicies(P.getPolicies()), monthFrom, monthTo);
+     custom/All history) via PAS.bookFinancialsInWindow for every period except "All history",
+     which reads the as-of-today PAS.bookFinancials snapshot directly instead (see period==="all"
+     in financialsFor) — and All history is the toggle's default, so that's the figure to match
+     on screen, not any particular calendar window. */
+  var f = P.bookFinancials(P.onRiskPolicies(P.getPolicies()));
   var txt = renderText("dashboard");
 
   ["Financial performance", "Written premium", "Earned premium", "Net commission revenue", "Loss ratio", "Combined ratio", "How earned premium becomes the underwriting result", "Underwriting performance by segment"].forEach(function (n) {

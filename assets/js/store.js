@@ -6,6 +6,18 @@
   "use strict";
   var PAS = global.PAS = global.PAS || {};
 
+  /* The originally-authored seed premiums summed to a written premium around $58M across the
+     on-risk book — a believable book for a single-office MGA, but small next to the "whole
+     book" framing the dashboard's All-history view gives it. Scaling every premium-derived
+     dollar figure up by one constant factor gets the lifetime written premium to roughly $100M
+     without hand-editing the ~1,100 seed records. Every FIXED dollar threshold that compares
+     against a policy's premium (delegated authority, manual-issue review, the loyalty high-value
+     bonus, the auto-fleet size heuristic) is scaled by this same factor at its own declaration
+     below, so which side of each threshold a given policy falls on is unchanged — only the
+     absolute numbers grow, exactly like a currency redenomination. */
+  var PREMIUM_SCALE = 1.73;
+  PAS.PREMIUM_SCALE = PREMIUM_SCALE;
+
   /* ---------- generic helpers ---------- */
   var uid = function (p) { return p + "-" + Math.random().toString(36).slice(2, 7).toUpperCase(); };
   var todayISO = function () { return "2026-08-20"; };
@@ -155,9 +167,10 @@
      lines), so it's a defensible single number for a prototype that isn't state-specific. */
   var RENEWAL_LEAD_DAYS = 45;
   /* A regional underwriter's delegated binding authority, not a regulatory figure — $250,000 of
-     premium is a realistic single-account ceiling before a submission has to go to a senior
-     underwriter in a US P&C shop. */
-  var AUTHORITY_LIMIT = 250000;
+     premium (pre-scale) is a realistic single-account ceiling before a submission has to go to a
+     senior underwriter in a US P&C shop. Scaled by PREMIUM_SCALE along with every seed premium so
+     which submissions clear delegated authority is unchanged by the book-wide rescale. */
+  var AUTHORITY_LIMIT = Math.round(250000 * PREMIUM_SCALE);
   var LOW_SCORE_REFER = 50;
   PAS.REINSTATEMENT_WINDOW_DAYS = REINSTATEMENT_WINDOW_DAYS;
   PAS.RENEWAL_LEAD_DAYS = RENEWAL_LEAD_DAYS;
@@ -1332,8 +1345,8 @@ var CLAIMS_BY_ID = {
   PAS.vehicleFleetFor = function (policy) {
     if (!policy || policy.product !== "Comprehensive Auto") return null;
     var h = hash32(policy.id);
-    var isFleet = (policy.premium || 0) >= 20000;
-    var vehicleCount = isFleet ? Math.max(2, Math.min(12, Math.round(policy.premium / 22000))) : 1;
+    var isFleet = (policy.premium || 0) >= 20000 * PREMIUM_SCALE;
+    var vehicleCount = isFleet ? Math.max(2, Math.min(12, Math.round(policy.premium / (22000 * PREMIUM_SCALE)))) : 1;
     var makePool = isFleet ? TRUCK_MAKES : CAR_MAKES;
     var powerUnits = [];
     for (var i = 0; i < vehicleCount; i++) {
@@ -1401,7 +1414,7 @@ var CLAIMS_BY_ID = {
      — nothing here is a fabricated "loyalty points" balance. */
   var LOYALTY_CRITERIA = {
     perRenewalTerm: 15, claimFreeBonus: 20, noCancellationBonus: 15,
-    highValuePremium: 500000, highValueBonus: 10,
+    highValuePremium: Math.round(500000 * PREMIUM_SCALE), highValueBonus: 10,
   };
   PAS.LOYALTY_CRITERIA = LOYALTY_CRITERIA;
   var LOYALTY_TIERS = [
@@ -1432,6 +1445,49 @@ var CLAIMS_BY_ID = {
   }
   PAS.reservesTotal = reservesTotal;
 
+  /* PREMIUM_SCALE itself is declared at the top of this file (every fixed dollar threshold that
+     compares against a policy's premium needs it too). This block applies it to the seed data:
+     loss ratio, combined ratio, commission rates and every other RATIO stay exactly as authored
+     (scaling both sides of a ratio by the same factor leaves it unchanged), only the absolute
+     dollar figures grow. Applied once here, at the seed boundary, so every screen — dashboard,
+     registry, invoices, printed documents — reads the same scaled premium; nothing downstream
+     needs to know scaling happened. */
+  function scaleMoney(n) { return Math.round((Number(n) || 0) * PREMIUM_SCALE); }
+
+  /* Scales every premium-shaped number on a policy record, not just p.premium: a windowed period
+     view's "written premium" (see premiumEstablishedBy) reads Renewal.newPremium/previousPremium
+     off the transaction history, not p.premium, so those need the same factor or a monthly/
+     quarterly filter would show unscaled figures next to a scaled All-history total. Cancellation
+     refunds, reinstatement arrears and endorsement premium impacts are scaled too, purely for
+     realism — none of them feed PAS.bookFinancials. */
+  function scalePolicyPremiums(p) {
+    p.premium = scaleMoney(p.premium);
+    (p.history || []).forEach(function (h) {
+      if (!h.meta) return;
+      if (h.type === "Renewal") {
+        if (h.meta.previousPremium != null) h.meta.previousPremium = scaleMoney(h.meta.previousPremium);
+        if (h.meta.newPremium != null) h.meta.newPremium = scaleMoney(h.meta.newPremium);
+      } else if (h.type === "Cancellation" && h.meta.refund != null) {
+        h.meta.refund = scaleMoney(h.meta.refund);
+      } else if (h.type === "Reinstatement") {
+        if (h.meta.outstanding != null) h.meta.outstanding = scaleMoney(h.meta.outstanding);
+        if (h.meta.outstandingClaimed != null) h.meta.outstandingClaimed = scaleMoney(h.meta.outstandingClaimed);
+      } else if (h.type === "Endorsement" && h.meta.premiumImpact != null) {
+        h.meta.premiumImpact = scaleMoney(h.meta.premiumImpact);
+      }
+    });
+    return p;
+  }
+
+  /* Scales a claim's dollar fields by deriving reserved from the scaled incurred/paid rather than
+     rounding all three independently — that keeps the paid + reserved = incurred identity exact
+     after scaling instead of drifting a dollar off from three separate roundings. */
+  function scaleClaim(c) {
+    var incurred = scaleMoney(c.incurred);
+    var paid = scaleMoney(c.paid);
+    return Object.assign({}, c, { incurred: incurred, paid: paid, reserved: Math.max(0, incurred - paid) });
+  }
+
   /* The raw book of business lives in data/policies.js — a plain <script> include (see every
      HTML page's script chain, and CORE in the test harness) that runs before this file and sets
      window.PAS_SEED_POLICIES. Loaded as a script, not fetched, so the app keeps working when
@@ -1443,7 +1499,9 @@ var CLAIMS_BY_ID = {
     if (!Array.isArray(global.PAS_SEED_POLICIES)) {
       throw new Error("Seed data not found — data/policies.js must be loaded (as a <script> tag) before store.js.");
     }
-    return JSON.parse(JSON.stringify(global.PAS_SEED_POLICIES));
+    var list = JSON.parse(JSON.stringify(global.PAS_SEED_POLICIES));
+    list.forEach(scalePolicyPremiums);
+    return list;
   }
   /* Every record should have at least one document on file — a submission that's only Referred
      has a quote, not a schedule; a Bound risk has an application; only an issued/lapsed/declined
@@ -1508,7 +1566,7 @@ var CLAIMS_BY_ID = {
     },
   };
   function backfillEndorsementTrail(p) {
-    if (p.status !== "Active" || (p.premium || 0) < 3000) return;
+    if (p.status !== "Active" || (p.premium || 0) < 3000 * PREMIUM_SCALE) return;
     if (p.history.some(function (h) { return h.type === "Endorsement"; })) return;
     var tmpl = ENDORSE_TEMPLATES[p.product];
     if (!tmpl) return;
@@ -1560,14 +1618,38 @@ var CLAIMS_BY_ID = {
       meta: { reason: spec.reason, initiatedBy: spec.initiatedBy, channel: spec.channel, submittedOn: submittedOn, requestNote: spec.requestNote },
     });
   }
+  /* A handful of Bound records whose effective date has already arrived (per todayISO) but whose
+     issuance was never completed in the original story — issueGatesPass (the exact same gate the
+     live Issue desk enforces) says nothing is actually blocking them, so a real system would have
+     issued them by now rather than leaving them sitting in the queue past their own start date.
+     Completing them here, dated on each policy's own effective date — the same date===effectiveDate
+     convention every other real issuance in this book already follows — gives the dashboard's
+     current-month written premium the on-time new business it would genuinely already have,
+     instead of undercounting it because nothing ever simulated their "Issue" click. */
+  function backfillOverdueIssuance(p) {
+    if (p.status !== "Bound" || p.effectiveDate > todayISO() || !issueGatesPass(p)) return;
+    p.history.push({
+      id: uid("TXN"), seq: p.history.length + 1, date: p.effectiveDate, recordedAt: p.effectiveDate + "T09:30:00.000Z",
+      type: "Issuance", status: "Completed", user: "System",
+      title: "Policy issued", detail: "Formal contract issued. Schedule and certificate generated and stored.",
+      meta: {},
+    });
+    p.status = "Active";
+    p.documents = (p.documents || []).filter(function (d) { return d.type !== "Quote" && d.type !== "Application"; }).concat([
+      { id: uid("DOC"), name: "Policy schedule", version: 1, generatedAt: p.effectiveDate, type: "Schedule" },
+      { id: uid("DOC"), name: "Certificate of insurance", version: 1, generatedAt: p.effectiveDate, type: "Certificate" },
+    ]);
+  }
+
   function seedPolicies() {
     var list = fetchSeedRecords();
     list.forEach(function (p) {
-      p.risk = RISK_PROFILE[p.id] || {}; p.claims = CLAIMS_BY_ID[p.id] || []; p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; p.mga = mgaForPolicy(p);
+      p.risk = RISK_PROFILE[p.id] || {}; p.claims = (CLAIMS_BY_ID[p.id] || []).map(scaleClaim); p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; p.mga = mgaForPolicy(p);
       if (!p.documents || !p.documents.length) {
         var docShape = STATUS_DOC[p.status] || ["Policy schedule", "Schedule"];
         p.documents = [{ id: uid("DOC"), name: docShape[0], version: 1, generatedAt: p.submittedOn || p.effectiveDate, type: docShape[1] }];
       }
+      backfillOverdueIssuance(p);
       backfillEndorsementTrail(p);
       seedExtraCancelRequest(p);
     });
@@ -2156,7 +2238,7 @@ var CLAIMS_BY_ID = {
      needs a human to actually look at the file before the contract goes out the door. Same
      $500K line the endorsement desk already uses for mandatory Carrier-level approval, so
      "large enough that automation alone isn't enough" means one consistent thing app-wide. */
-  PAS.AUTO_ISSUE_PREMIUM_LIMIT = 500000;
+  PAS.AUTO_ISSUE_PREMIUM_LIMIT = Math.round(500000 * PREMIUM_SCALE);
   PAS.requiresManualIssue = function (p) { return (p.premium || 0) > PAS.AUTO_ISSUE_PREMIUM_LIMIT; };
   function doIssue(p, automated) {
     var t = pushTxn(p, {

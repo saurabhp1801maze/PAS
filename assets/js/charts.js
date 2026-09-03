@@ -188,7 +188,7 @@
     container.innerHTML = "";
     if (noteText) container.appendChild(ui.h("div", { class: "faint-note", style: { marginBottom: "10px" } }, noteText));
 
-    var W = 640, H = 172, padL = 12, padR = 44, padT = 20, padB = 26;
+    var W = 640, H = 148, padL = 12, padR = 44, padT = 20, padB = 26;
     var plotW = W - padL - padR, plotH = H - padT - padB;
     function xAt(i) { return n > 1 ? padL + (i / (n - 1)) * plotW : padL + plotW / 2; }
     function yAt(v) { return padT + plotH - (v / niceMax) * plotH; }

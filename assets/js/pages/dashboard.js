@@ -186,7 +186,7 @@
      Broker, or a future custom role) gets the shared scoped analytics view instead
      (renderScopedDashboard) — same layout for every scoped role, real data per role's own book. */
   function renderUnderwriterDashboard(page, allPolicies) {
-    var period = "month"; /* default: current month, per the toggle's spec */
+    var period = "all"; /* default: whole book, so the dashboard opens on the full lifetime view */
     /* How many periods back from today the selected month/quarter/year is — 0 = current,
        -1 = last, -2 = two back, etc. Navigated with the ◀/▶ arrows next to the toggle; reset to
        0 whenever the period *type* changes, since an offset from one type doesn't mean anything
@@ -469,9 +469,9 @@
     function bucketData(seriesList) {
       var policies = scopedPolicies();
       var keys = period === "month" ? trailingMonths(6, periodOffset) : period === "quarter" ? trailingQuarters(6, periodOffset)
-        : period === "year" ? trailingYears(4, periodOffset) : ["all"]; /* one bucket: custom range, or everything for "All" */
+        : (period === "year" || period === "all") ? trailingYears(period === "all" ? 6 : 4, periodOffset) : ["custom"]; /* one bucket: custom range only */
       var matches = period === "month" ? inMonth : period === "quarter" ? inQuarter
-        : period === "year" ? inYear : function (dateStr) { return periodMatches(dateStr); };
+        : (period === "year" || period === "all") ? inYear : function (dateStr) { return periodMatches(dateStr); };
       return keys.map(function (key) {
         var row = { key: key };
         seriesList.forEach(function (s) {
@@ -485,15 +485,17 @@
     function periodLabel(key) {
       if (period === "month") return MONTH_NAMES[Number(key.slice(5, 7)) - 1] + " '" + key.slice(2, 4);
       if (period === "quarter") return "Q" + key.slice(6) + " '" + key.slice(2, 4);
-      if (period === "year") return key;
-      if (period === "all") return "All time";
+      if (period === "year" || period === "all") return String(key);
       return customFrom + " – " + customTo;
     }
     function windowNote() {
       if (period === "month") return "Trailing 6 months, completed transactions by their effective date.";
       if (period === "quarter") return "Trailing 6 quarters, completed transactions by their effective date.";
       if (period === "year") return "Trailing 4 years, completed transactions by their effective date.";
-      if (period === "all") return "Every completed transaction on the book, by effective date.";
+      /* All history still shows a trend rather than one flattened bucket — the last 6 calendar
+         years, same trailingYears mechanics as the Yearly toggle, just a longer window since
+         "All" has no periodOffset navigation to page through more of them. */
+      if (period === "all") return "Trailing 6 years, completed transactions by their effective date.";
       return "From " + customFrom + " to " + customTo + ", completed transactions by their effective date.";
     }
 
@@ -904,7 +906,7 @@
           tip: "Premium earned for coverage actually provided so far.",
           /* Standard insurance accounting: Written >= Earned is a cumulative/balance-sheet identity
              (the unearned premium reserve can never go negative) — see the "All history" view, where
-             it holds ($57.91M written vs $37.78M earned). It is NOT a per-period constraint: Earned
+             it holds ($100.18M written vs $65.36M earned). It is NOT a per-period constraint: Earned
              draws ratably from the WHOLE in-force book every day, while Written only counts the
              handful of policies that happened to issue or renew inside this narrower window, so a
              below-average month/quarter for new business can legitimately show Earned > Written —

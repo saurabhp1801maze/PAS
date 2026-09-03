@@ -170,20 +170,20 @@ needsReview    = reason === "Fraud"  ||  !noticeOk
 
 ### Worked example
 
-Marcus Whitfield, Term Life, premium $2,400, effective 2026-02-01, expiring 2027-02-01, cancellation
+Marcus Whitfield, Term Life, premium $4,152, effective 2026-02-01, expiring 2027-02-01, cancellation
 requested for reason "Insured Request", Initiated By "Broker/Producer", effective 2026-08-19:
 
 ```
 Total term       365 days
 Remaining         166 days
-Unearned    2,400 × 166/365  =  1,092
-Penalty (10%)     1,092 × 0.10  =    109
-Refund                            =    982
+Unearned    4,152 × 166/365  =  1,888
+Penalty (10%)     1,888 × 0.10  =    189
+Refund                            =  1,699
 ```
 
 Type derives to Short-Rate: the reason's default is Short-Rate, and Broker/Producer is not
 insurer-side, so nothing downgrades it. Had this same request come in Initiated By "Carrier"
-instead, Type would derive to Pro-Rata and the refund would be the full $1,092 unearned — the
+instead, Type would derive to Pro-Rata and the refund would be the full $1,888 unearned — the
 penalty only exists to recover acquisition cost on a voluntary exit, not on one the insurer itself
 initiated for the same stated reason.
 

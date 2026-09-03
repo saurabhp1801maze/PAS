@@ -30,7 +30,7 @@
       Object.keys(SLA).forEach(function (k) { catSel.appendChild(ui.h("option", { value: k }, k)); });
       catSel.value = category;
       catSel.addEventListener("change", function () { category = catSel.value; buildContent(); });
-      left.push(ui.field({ label: "Category", hint: "Drives the SLA and whether this can stay a note." }, catSel));
+      left.push(ui.field({ label: "Category", hint: "Drives the SLA (Service Level Agreement — the turnaround commitment) and whether this can stay a note." }, catSel));
 
       var chanSel = ui.h("select", { class: "field-input" });
       ["Phone", "Email", "Portal", "Branch"].forEach(function (c) { chanSel.appendChild(ui.h("option", { value: c }, c)); });
@@ -51,7 +51,7 @@
 
       var right = [];
       right.push(ui.tipLabel({ text: "Handling", what: "Commitments attached to this request.", className: "label-11 block mb-10" }));
-      right.push(ui.kv({ k: "SLA target", v: SLA[category] + " hours", what: "Turnaround commitment for this category.", why: "Each category has its own — they are not uniform." }));
+      right.push(ui.kv({ k: "SLA target", v: SLA[category] + " hours", what: "SLA = Service Level Agreement: the turnaround commitment for this category.", why: "Each category has its own — they are not uniform." }));
       right.push(ui.kv({ k: "Rating relevant", v: escalate ? "Yes — escalate" : "No", what: "Whether this touches a rating factor.", rule: "Rating-relevant requests must become endorsements, not notes." }));
       right.push(ui.kv({ k: "Channel", v: channel, what: "How the customer got in touch.", why: "All channels write to one ledger." }));
 

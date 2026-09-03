@@ -302,8 +302,8 @@
   }
 
   /* ================= activity & decisions ================= */
-  function activityField(k, v) {
-    return ui.h("div", {}, [ui.h("div", { class: "af-k" }, k), ui.h("div", { class: "af-v" }, v)]);
+  function activityField(k, v, kTitle) {
+    return ui.h("div", {}, [ui.h("div", { class: "af-k", title: kTitle || null }, k), ui.h("div", { class: "af-v" }, v)]);
   }
   function activityCard(h) {
     var meta = h.meta || {};
@@ -354,7 +354,7 @@
     } else if (h.type === "Transfer") {
       fields = [activityField("Previous holder", meta.previousHolder || "—"), activityField("New holder", meta.newHolder || "—")];
     } else if (h.type === "Servicing") {
-      fields = [activityField("Category", meta.category || "—"), activityField("Channel", meta.channel || "—"), activityField("SLA", meta.sla || "—")];
+      fields = [activityField("Category", meta.category || "—"), activityField("Channel", meta.channel || "—"), activityField("SLA", meta.sla || "—", "SLA = Service Level Agreement: the turnaround commitment for this category.")];
     }
 
     var card = ui.h("div", { class: "activity-card", dataset: { kind: h.type } }, [

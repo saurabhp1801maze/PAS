@@ -81,7 +81,7 @@
       pendingWrap.innerHTML = "";
       pendingWrap.appendChild(ui.tipLabel({ text: "Awaiting decision (" + rows.length + ")", className: "label-11 block mb-9" }));
       pendingWrap.appendChild(ui.dataTable({
-        columns: ["Policy", "Type", "Effective", { label: "SLA", what: "Hours remaining before breach." }, "Detail", ""],
+        columns: ["Policy", "Type", "Effective", { label: "SLA", what: "SLA = Service Level Agreement: the turnaround this request is committed to. Hours remaining before it breaches that commitment (demo clock, not the real calendar)." }, "Detail", ""],
         rows: rows.map(function (t) {
           var sla = PAS.getTxnSla(t.h);
           return [ui.cellId(t.p.id), ui.modulePill(t.h.type), PAS.fmtDate(t.h.date),

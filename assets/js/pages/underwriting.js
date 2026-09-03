@@ -20,7 +20,7 @@
         { label: "Premium", what: "Indicative annual premium from rating.", why: "Compared against delegated authority." },
         { label: "Score", what: "Composite 0–100 risk score, built from claims and change history.", rule: "Below " + PAS.LOW_SCORE_REFER + " refers automatically." },
         { label: "Referred on", what: "Which gate or gates sent this to a senior underwriter.", why: "Score, authority and information are independent — a clean risk can still refer on size alone." },
-        { label: "Waiting", what: "Days since it landed in this queue.", why: "SLA is measured on age." }],
+        { label: "Waiting", what: "Days since it landed in this queue.", why: "SLA (Service Level Agreement — the turnaround commitment) is measured on age here." }],
       rows: q.map(function (x) {
         var score = PAS.riskScore(x);
         var dec = PAS.underwritingDecision(x, score);

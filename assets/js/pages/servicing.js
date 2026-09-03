@@ -17,7 +17,7 @@
         { label: "Requests logged", value: log.length, tip: "Servicing entries across the book." },
         { label: "Serviceable", value: policies.length, tip: "Any policy in any status can receive a request." },
         { label: "Channels", value: "4", tip: "Phone, email, portal, branch — all writing to one ledger." },
-        { label: "Open SLA breaches", value: 0, tone: "green", tip: "Requests past their category SLA target." },
+        { label: "Open SLA breaches", value: 0, tone: "green", tip: "SLA = Service Level Agreement, the turnaround commitment for each servicing category. Requests still open past that target." },
       ],
       columns: ["Policy", "Insured", { label: "Status", what: "Servicing is available in any lifecycle state." }, "Product", { label: "Requests", what: "Servicing entries already logged against this policy." }],
       rows: policies.map(function (x) { return [ui.cellId(x.id), ui.cellName(x.holder), ui.badge(x.status), x.product, x.history.filter(function (h) { return h.type === "Servicing"; }).length]; }),

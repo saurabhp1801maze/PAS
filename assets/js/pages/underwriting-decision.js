@@ -25,7 +25,7 @@
     left.push(ui.kv({ k: "Requested effective", v: PAS.fmtDate(p.effectiveDate), what: "Date cover is asked to begin." }));
     left.push(ui.kv({ k: "Producer", v: p.producer, what: "Broker or channel that placed the risk." }));
     left.push(ui.kv({ k: "Received", v: PAS.fmtDate(p.submittedOn), what: "Date the submission landed." }));
-    left.push(ui.kv({ k: "Waiting", v: PAS.daysBetween(p.submittedOn, PAS.todayISO()) + " days", what: "Age in the queue.", why: "SLA is measured on age, not volume." }));
+    left.push(ui.kv({ k: "Waiting", v: PAS.daysBetween(p.submittedOn, PAS.todayISO()) + " days", what: "Age in the queue.", why: "SLA (Service Level Agreement — the turnaround commitment) is measured on age here, not volume." }));
     var histWrap = ui.h("div", { class: "mt-14" });
     histWrap.appendChild(ui.tipLabel({ text: "Submission history", what: "Everything recorded against this submission so far.", className: "label-11 block mb-9" }));
     p.history.forEach(function (h) {

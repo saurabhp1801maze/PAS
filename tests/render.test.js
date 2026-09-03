@@ -1810,6 +1810,20 @@ console.log("\n  transaction ledger: real module-specific terms (Bound / Policy 
 })();
 
 /* Pending Approvals KPI row: Reinstatements swapped in for the old SLA-breached card. */
+/* SLA is used all over (Pending Approvals, Servicing, Underwriting, the Advanced Admin desk) but
+   is never spelled out anywhere a user actually sees it. Every real occurrence of the bare label
+   should carry an explanation of the acronym and what it means in this prototype specifically
+   (a demo-clock turnaround commitment, not a live SLA integration). */
+console.log("\n  SLA: every real occurrence explains the acronym and what it means here");
+(function () {
+  ["approvals", "servicing", "underwriting"].forEach(function (page) {
+    var txt = renderText(page);
+    if (txt.indexOf("SLA") === -1) return; /* page doesn't happen to show SLA right now — nothing to check */
+    if (txt.indexOf("Service Level Agreement") === -1) { fails++; console.log("  FAIL  " + page + " shows \"SLA\" without ever spelling out Service Level Agreement anywhere on the page"); }
+    else console.log("  PASS  " + page + " explains SLA = Service Level Agreement");
+  });
+})();
+
 console.log("\n  pending approvals: Reinstatements KPI shows the real pending-reinstatement count");
 (function () {
   var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };

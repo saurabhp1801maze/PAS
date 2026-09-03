@@ -82,7 +82,7 @@
     });
     filters.appendChild(typeSelect);
 
-    var slaSelect = ui.h("select", { class: "register-select", title: "SLA" });
+    var slaSelect = ui.h("select", { class: "register-select", title: "SLA = Service Level Agreement — the turnaround commitment this request is held against." });
     [["All", "All SLA"], ["at-risk", "At risk (≤24h)"], ["breached", "Breached"]].forEach(function (opt) {
       slaSelect.appendChild(ui.h("option", { value: opt[0] }, opt[1]));
     });
@@ -122,7 +122,7 @@
         tableContainer.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Showing " + rows.length + " of " + pending.length + " pending."));
       }
       tableContainer.appendChild(ui.dataTable({
-        columns: [{ label: "Seq", what: "Position in the policy ledger." }, "Policy", "Insured", { label: "Type", what: "Which kind of transaction is held." }, "Requested by", { label: "SLA", what: "Hours until breach (demo clock)." }, { label: "Why it is held", what: "What was submitted, and by whom.", rule: "Material endorsements, fraud cancellations and authority referrals always hold." }, { label: "Effective", what: "Business date it would take effect." }, ""],
+        columns: [{ label: "Seq", what: "Position in the policy ledger." }, "Policy", "Insured", { label: "Type", what: "Which kind of transaction is held." }, "Requested by", { label: "SLA", what: "SLA = Service Level Agreement: the turnaround this request is committed to. Hours until it breaches that commitment (demo clock, not the real calendar)." }, { label: "Why it is held", what: "What was submitted, and by whom.", rule: "Material endorsements, fraud cancellations and authority referrals always hold." }, { label: "Effective", what: "Business date it would take effect." }, ""],
         rows: rows.map(function (t) {
           var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-muted)" } }, "#" + t.h.seq);
           var idSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-ink-secondary)" } }, t.p.id);

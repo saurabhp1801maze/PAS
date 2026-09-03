@@ -34,7 +34,7 @@
       { label: "Term", value: PAS.fmtDate(p.term.effectiveDate) + " → " + PAS.fmtDate(p.term.expirationDate) },
       { label: "Sum insured", value: p.sumInsured || "—", tone: "blue" },
       { label: "Premium", value: money(p.premium) },
-      { label: "Status", value: p.status },
+      { label: "Status", value: PAS.statusLabel(p.status) },
     ]));
 
     var about = ui.panel({ title: "Named insured & placement" }, []);

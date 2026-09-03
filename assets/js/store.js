@@ -1700,6 +1700,21 @@ var CLAIMS_BY_ID = {
      an MGA acting on its behalf, a Broker, the Insured, or the System (non-payment). */
   PAS.CANCEL_INITIATOR_KEYS = ["Insured", "Broker/Producer", "MGA", "Carrier", "System"];
   PAS.STATUS_TONE = { Active: "green", Cancelled: "red", Expired: "gray", Bound: "amber", Referred: "violet", Submitted: "blue", "Non-renewed": "red", Declined: "red" };
+  /* Display labels for the 7 canonical policy statuses above — real PAS terminology (curated from
+     the carrier's own status-code table: RECEIVED / UW REVIEW / BOUND / POLICY ISSUED / DECLINED /
+     CANCELLED POLICY / EXPIRED, etc.), not the internal short codes every comparison in this file
+     is keyed on. The canonical values (Active, Referred, Bound, ...) are never renamed — they stay
+     untouched in the seed data and in every p.status === "..." check across the app — only the
+     text shown to a user runs through this map, the same pattern already used for the Cancellation
+     desk's Carrier -> "MGA" relabel. Deliberately a small, curated set: the real table has 30+
+     codes, many test/duplicate/legacy artifacts ("test", "IGNORE/ERROR", "[Deleted]") that would
+     make the app harder to explain, not easier, so only the ones this app's 7-status model actually
+     needs were picked. Bound/Declined/Expired already matched real terms and are left as-is. */
+  PAS.STATUS_LABELS = {
+    Referred: "UW Review", Bound: "Bound", Active: "Policy Issued", Declined: "Declined",
+    Cancelled: "Cancelled Policy", Expired: "Expired", "Non-renewed": "Non-Renewed",
+  };
+  PAS.statusLabel = function (status) { return PAS.STATUS_LABELS[status] || status; };
   PAS.TXN_TONE = { Completed: "green", Pending: "amber", Rejected: "red", Reversed: "violet" };
   PAS.MODULE_TONE = { Submission: "blue", Underwriting: "violet", Bind: "amber", Issuance: "indigo", Endorsement: "amber", Cancellation: "red", Reinstatement: "green", Renewal: "blue", Servicing: "violet", Transfer: "indigo" };
   PAS.MODULE_ICON = { Submission: "inbox", Underwriting: "clipboard-check", Bind: "shield-check", Issuance: "stamp", Endorsement: "edit-3", Cancellation: "x-circle", Reinstatement: "rotate-ccw", Renewal: "refresh-cw", Servicing: "headphones", Transfer: "send" };
@@ -2201,6 +2216,13 @@ var CLAIMS_BY_ID = {
     if (status === "Cancelled" || status === "Declined") return "Canceled";
     return "Expired"; /* Expired, Non-renewed */
   };
+  /* Display labels for the 4 buckets above — real PAS terms, same idea as PAS.STATUS_LABELS. The
+     bucket keys themselves (Active/On Hold/Expired/Canceled) stay untouched: they're the literal
+     `?status=` querystring value on cross-page links (e.g. the Dashboard's "Active policies" KPI
+     links to registry.html?status=Active) and the <option value> the Policy Register's own filter
+     compares against, so renaming the keys would break both — only the visible text changes. */
+  PAS.BUCKET_LABELS = { Active: "Policy Issued", "On Hold": "Pending", Expired: "Expired", Canceled: "Closed" };
+  PAS.bucketLabel = function (bucket) { return PAS.BUCKET_LABELS[bucket] || bucket; };
   PAS.pendingOf = function (policies, type) {
     return policies.reduce(function (acc, p) {
       p.history.filter(function (h) { return h.type === type && h.status === "Pending"; })

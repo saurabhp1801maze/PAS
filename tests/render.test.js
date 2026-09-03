@@ -1663,6 +1663,72 @@ console.log("\n  registry: product + state filters genuinely narrow the table");
   else console.log("  PASS  'Showing X of Y' note reflects the real filtered/total counts");
 })();
 
+/* Policy status: real PAS terminology (curated from the carrier's own status-code table), shown
+   everywhere a status is displayed to a user — but the internal canonical values (Active, Bound,
+   Referred, ... and the Active/On Hold/Expired/Canceled buckets) are never renamed, since 1087
+   seed records and dozens of p.status === "..." checks, ?status= querystring links and <option
+   value> filters are keyed on them. Only the text layer changes. */
+console.log("\n  policy status: real terms are shown everywhere status is displayed, without touching the underlying values");
+(function () {
+  var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };
+  stub.window = stub;
+  vm.createContext(stub);
+  vm.runInContext(fs.readFileSync("assets/js/icons.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("data/policies.js", "utf8"), stub);
+  vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
+  var PS = stub.PAS;
+
+  var expectStatus = { Referred: "UW Review", Bound: "Bound", Active: "Policy Issued", Declined: "Declined", Cancelled: "Cancelled Policy", Expired: "Expired", "Non-renewed": "Non-Renewed" };
+  var statusMismatch = Object.keys(expectStatus).filter(function (k) { return PS.statusLabel(k) !== expectStatus[k]; });
+  if (statusMismatch.length) { fails++; console.log("  FAIL  PAS.statusLabel wrong for: " + statusMismatch.join(", ")); }
+  else console.log("  PASS  all 7 canonical statuses map to their real, curated display term");
+  if (PS.statusLabel("SomeUnknownStatus") !== "SomeUnknownStatus") { fails++; console.log("  FAIL  statusLabel should fail safe to the raw value for an unrecognized status"); }
+  else console.log("  PASS  an unrecognized status falls back to itself, not a blank/undefined label");
+
+  var expectBucket = { Active: "Policy Issued", "On Hold": "Pending", Expired: "Expired", Canceled: "Closed" };
+  var bucketMismatch = Object.keys(expectBucket).filter(function (k) { return PS.bucketLabel(k) !== expectBucket[k]; });
+  if (bucketMismatch.length) { fails++; console.log("  FAIL  PAS.bucketLabel wrong for: " + bucketMismatch.join(", ")); }
+  else console.log("  PASS  all 4 status buckets map to their real, curated display term");
+
+  /* The canonical values themselves must be completely untouched — the Dashboard's own
+     "Active policies" KPI links to registry.html?status=Active, and the Registry's own filter
+     compares its <option value> straight against PAS.STATUS_BUCKETS/p.status. Renaming those
+     strings (rather than just their display label) would silently break both. */
+  if (PS.STATUS_BUCKETS.join(",") !== "Active,On Hold,Expired,Canceled") { fails++; console.log("  FAIL  PAS.STATUS_BUCKETS canonical values must stay unchanged, got " + PS.STATUS_BUCKETS.join(",")); }
+  else console.log("  PASS  PAS.STATUS_BUCKETS canonical keys are untouched — only bucketLabel's display text changed");
+  var activePolicy = PS.getPolicy("POL-2025-09112");
+  if (!activePolicy || activePolicy.status !== "Active") { fails++; console.log("  FAIL  test fixture assumption wrong — expected POL-2025-09112 to genuinely have p.status === 'Active'"); }
+  else console.log("  PASS  a real record's raw p.status is still the canonical 'Active' — cancellation/renewal/etc. logic keyed on it is unaffected");
+
+  /* ui.badge: tone stays keyed on the canonical status (never breaks), only the rendered text
+     runs through statusLabel — checked through a real render, not by calling ui.badge directly. */
+  var pdTxt = renderText("policy-detail", "?policy=POL-2025-09112");
+  if (pdTxt.indexOf("Policy Issued") === -1) { fails++; console.log("  FAIL  policy-detail's Status field does not show the real term \"Policy Issued\" for an Active policy"); }
+  else console.log("  PASS  policy-detail's Status field shows the real term \"Policy Issued\", not the raw \"Active\"");
+
+  /* Policy Register: the status column and its filter dropdown must show the real bucket terms —
+     this is the exact screen the user pointed at ("in policy register mainly status are active
+     hold expired") — while the filter itself keeps working, since it still compares by the
+     untouched canonical bucket value under the hood, never the display text. */
+  var out = renderDom("registry");
+  var statusSelect = out.querySelectorAll("select")[0];
+  var optionTexts = statusSelect.querySelectorAll("option").map(function (o) { return o.textContent; });
+  ["Policy Issued", "Pending", "Expired", "Closed"].forEach(function (label) {
+    if (optionTexts.indexOf(label) === -1) { fails++; console.log("  FAIL  Registry's status filter is missing the real option \"" + label + "\" — options found: " + optionTexts.join(", ")); }
+  });
+  console.log("  PASS  Registry's status filter dropdown offers the real terms (Policy Issued / Pending / Expired / Closed), not Active / On Hold / Expired / Canceled");
+  if (out.textContent.indexOf(" Active ") !== -1 || /[^a-zA-Z]On Hold[^a-zA-Z]/.test(out.textContent) || out.textContent.indexOf("Canceled") !== -1) {
+    fails++; console.log("  FAIL  Registry's rendered page still shows a raw bucket key (Active / On Hold / Canceled) somewhere");
+  } else console.log("  PASS  no raw bucket key (Active / On Hold / Canceled) leaks into the rendered Registry page");
+
+  var bookR = PS.seedPolicies();
+  var expectedIssued = bookR.filter(function (p) { return PS.statusBucket(p.status) === "Active"; }).length;
+  setValue(statusSelect, "Active");
+  var rowCount = out.querySelector("tbody").querySelectorAll("tr").length;
+  if (rowCount !== expectedIssued) { fails++; console.log("  FAIL  selecting \"Policy Issued\" (value=Active) should narrow to " + expectedIssued + " rows, got " + rowCount); }
+  else console.log("  PASS  the status filter still genuinely narrows the table (" + expectedIssued + " rows) even though its option text was relabeled — filtering is keyed on the untouched value, not the visible label");
+})();
+
 console.log("\n  documents: search + type filter genuinely narrow the table, and compose together");
 (function () {
   var stub = { sessionStorage: null, location: {}, document: { readyState: "complete" } };

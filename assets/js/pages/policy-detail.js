@@ -451,7 +451,7 @@
     var table = ui.dataTable({
       columns: ["Term", "Effective", "Expiration", "Premium", "Status"],
       rows: (policy.terms || []).map(function (t) {
-        return [t.termNumber, PAS.fmtDate(t.effectiveDate), PAS.fmtDate(t.expirationDate), PAS.money(t.premium), t.status || policy.status];
+        return [t.termNumber, PAS.fmtDate(t.effectiveDate), PAS.fmtDate(t.expirationDate), PAS.money(t.premium), PAS.statusLabel(t.status || policy.status)];
       }),
     });
     return section("terms", "Term history", null, table);

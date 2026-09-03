@@ -720,7 +720,7 @@
       byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " policies", tone: x.v === maxP ? "indigo" : "blue", onClick: function () { location.href = "registry.html?product=" + encodeURIComponent(x.pr); } })); });
 
       compBody.innerHTML = "";
-      compBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Current records by status. Bound policies await automatic issuance; Referred policies require underwriting review."));
+      compBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Current records by status. Bound policies await automatic issuance; policies in UW Review are awaiting an underwriting decision."));
       /* Every one of the seven real statuses a policy can carry, not just the five most common —
          the donut's arcs are sized against `total`, so leaving any status out understates every
          slice by however many records the missing status holds. */
@@ -728,13 +728,13 @@
       var nonRenewed = policies.filter(function (p) { return p.status === "Non-renewed"; });
       compBody.appendChild(ui.donut({
         total: policies.length, centerValue: policies.length, centerLabel: "records", segments: [
-          { label: "Active", value: active.length, tone: "green" },
-          { label: "Bound", value: bound.length, tone: "amber" },
-          { label: "Referred", value: referred.length, tone: "violet" },
-          { label: "Cancelled", value: cancelled.length, tone: "red" },
-          { label: "Expired", value: policies.filter(function (p) { return p.status === "Expired"; }).length, tone: "gray" },
-          { label: "Declined", value: declined.length, tone: "blue" },
-          { label: "Non-renewed", value: nonRenewed.length, tone: "indigo" },
+          { label: PAS.statusLabel("Active"), value: active.length, tone: "green" },
+          { label: PAS.statusLabel("Bound"), value: bound.length, tone: "amber" },
+          { label: PAS.statusLabel("Referred"), value: referred.length, tone: "violet" },
+          { label: PAS.statusLabel("Cancelled"), value: cancelled.length, tone: "red" },
+          { label: PAS.statusLabel("Expired"), value: policies.filter(function (p) { return p.status === "Expired"; }).length, tone: "gray" },
+          { label: PAS.statusLabel("Declined"), value: declined.length, tone: "blue" },
+          { label: PAS.statusLabel("Non-renewed"), value: nonRenewed.length, tone: "indigo" },
         ],
       }));
 

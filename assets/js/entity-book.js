@@ -251,7 +251,7 @@
 
       var filters = ui.h("div", { class: "register-filters" });
       var statusSelect = ui.h("select", { class: "register-select", title: "Status" });
-      ["All"].concat(PAS.STATUS_BUCKETS).forEach(function (s) { statusSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All statuses" : s)); });
+      ["All"].concat(PAS.STATUS_BUCKETS).forEach(function (s) { statusSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All statuses" : PAS.bucketLabel(s))); });
       filters.appendChild(statusSelect);
       var productSelect = ui.h("select", { class: "register-select", title: "Product" });
       products.forEach(function (p) { productSelect.appendChild(ui.h("option", { value: p }, p === "All" ? "All products" : p)); });
@@ -272,7 +272,7 @@
         { key: "record", label: "Record", locked: true, sortValue: function (p) { return p.id; }, cell: function (p) { return ui.cellId(p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (p) { return (p.holder || "").toLowerCase(); }, cell: function (p) { return ui.cellName(p.holder); } },
         { key: "product", label: "Product", sortValue: function (p) { return p.product || ""; }, cell: function (p) { return p.product; } },
-        { key: "status", label: "Status", what: "Position in the lifecycle state machine.", sortValue: function (p) { return PAS.statusBucket(p.status); }, cell: function (p) { var b = PAS.statusBucket(p.status); return ui.pill(PAS.BUCKET_TONE[b], b); } },
+        { key: "status", label: "Status", what: "Position in the lifecycle state machine.", sortValue: function (p) { return PAS.statusBucket(p.status); }, cell: function (p) { var b = PAS.statusBucket(p.status); return ui.pill(PAS.BUCKET_TONE[b], PAS.bucketLabel(b)); } },
         { key: "premium", label: "Premium", sortValue: function (p) { return p.premium || 0; }, cell: function (p) { return PAS.money(p.premium); } },
         { key: "term", label: "Term", sortValue: function (p) { return p.effectiveDate || ""; }, cell: function (p) { return p.effectiveDate + " → " + p.expirationDate; } },
       ];

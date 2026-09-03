@@ -59,7 +59,7 @@
     var filters = ui.h("div", { class: "register-filters" });
     var statusSelect = ui.h("select", { class: "register-select", title: "Status" });
     ["All"].concat(STATUS_BUCKETS).forEach(function (s) {
-      statusSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All statuses" : s));
+      statusSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All statuses" : PAS.bucketLabel(s)));
     });
     statusSelect.value = sf;
     filters.appendChild(statusSelect);
@@ -91,7 +91,7 @@
         { key: "record", label: "Record", locked: true, sortValue: function (p) { return p.id; }, cell: function (p) { return ui.cellId(p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (p) { return (p.holder || "").toLowerCase(); }, cell: function (p) { return ui.cellName(p.holder); } },
         { key: "product", label: "Product", sortValue: function (p) { return p.product || ""; }, cell: function (p) { return p.product; } },
-        { key: "status", label: "Status", what: "Position in the lifecycle state machine.", why: "Status decides which actions are legal on this record.", sortValue: function (p) { return statusBucket(p.status); }, cell: function (p) { var b = statusBucket(p.status); return ui.pill(BUCKET_TONE[b], b); } },
+        { key: "status", label: "Status", what: "Position in the lifecycle state machine.", why: "Status decides which actions are legal on this record.", sortValue: function (p) { return statusBucket(p.status); }, cell: function (p) { var b = statusBucket(p.status); return ui.pill(BUCKET_TONE[b], PAS.bucketLabel(b)); } },
         { key: "premium", label: "Premium", what: "Annual written premium.", sortValue: function (p) { return p.premium || 0; }, cell: function (p) { return PAS.money(p.premium); } },
         { key: "term", label: "Term", what: "Effective and expiry dates of the current term.", sortValue: function (p) { return p.effectiveDate || ""; }, cell: function (p) { return PAS.fmtDate(p.effectiveDate) + " → " + PAS.fmtDate(p.expirationDate); } },
         { key: "docs", label: "Docs", what: "Generated document versions held.", sortValue: function (p) { return (p.documents && p.documents.length) || 0; }, cell: function (p) { var n = (p.documents && p.documents.length) || 0; return ui.pill(n ? "gray" : "amber", String(n)); } },
@@ -116,7 +116,7 @@
       var rows = policies.filter(match);
       var header = ["id", "holder", "product", "status", "premium", "effectiveDate", "expirationDate", "state"];
       var lines = [header.join(",")].concat(rows.map(function (p) {
-        return [p.id, JSON.stringify(p.holder || ""), JSON.stringify(p.product || ""), p.status, p.premium, p.effectiveDate, p.expirationDate, JSON.stringify(p.state || "")].join(",");
+        return [p.id, JSON.stringify(p.holder || ""), JSON.stringify(p.product || ""), PAS.statusLabel(p.status), p.premium, p.effectiveDate, p.expirationDate, JSON.stringify(p.state || "")].join(",");
       }));
       var blob = new Blob([lines.join("\n")], { type: "text/csv" });
       var a = document.createElement("a");

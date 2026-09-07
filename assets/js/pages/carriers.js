@@ -4,7 +4,7 @@
   function render() {
     PAS.renderEntityBook({
       pageKey: "carriers", href: "carriers.html", paramName: "carrier", fieldName: "carrier",
-      typeMap: null, showFinancials: true,
+      typeMap: null, showFinancials: true, showCession: true,
       icon: "shield-check", tone: "green",
       title: "Reinsurers", titleUpper: "Reinsurers", titleLower: "reinsurers", singularLower: "reinsurer", article: "a",
       sub: "Every risk-bearing partner Veridex places business with",

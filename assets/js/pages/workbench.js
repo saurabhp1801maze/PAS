@@ -57,11 +57,18 @@
       });
     }
 
+    var pageSize = 25, pageIndex = 0;
     function buildTable() {
-      renderChips(typeChipRow, TYPES, typeF, function (m) { typeF = m; buildTable(); });
-      renderChips(statusChipRow, STATUSES, statusF, function (m) { statusF = m; buildTable(); });
+      renderChips(typeChipRow, TYPES, typeF, function (m) { typeF = m; pageIndex = 0; buildTable(); });
+      renderChips(statusChipRow, STATUSES, statusF, function (m) { statusF = m; pageIndex = 0; buildTable(); });
 
       var rows = all.filter(function (t) { return (typeF === "All" || t.h.type === typeF) && (statusF === "All" || (t.h.status || "Completed") === statusF); });
+      var total = rows.length;
+      var totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (pageIndex >= totalPages) pageIndex = totalPages - 1;
+      if (pageIndex < 0) pageIndex = 0;
+      var start = pageIndex * pageSize;
+      var pageRows = rows.slice(start, start + pageSize);
       tableContainer.innerHTML = "";
       tableContainer.appendChild(ui.dataTable({
         columns: [{ label: "Seq", what: "Monotonic order within the policy." }, "Policy", { label: "Type", what: "Kind of change." },
@@ -69,7 +76,7 @@
           { label: "Effective", what: "Business date the change applies from." },
           { label: "Recorded", what: "System date it was entered.", why: "Storing both makes the ledger bitemporal and as-of queryable." },
           "By", { label: "Action", what: "Reverse appends a compensating transaction.", rule: "The ledger is append-only — nothing is deleted." }],
-        rows: rows.map(function (t) {
+        rows: pageRows.map(function (t) {
           var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-muted)" } }, "#" + t.h.seq);
           var policyBtn = ui.h("button", { class: "btn ghost-link", style: { fontFamily: "var(--mono)", fontSize: "11.5px" } }, t.p.id);
           policyBtn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(t.p.id); });
@@ -90,6 +97,21 @@
         }),
         emptyText: "No transactions match these filters.",
       }));
+      if (total > 0) {
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = start + 1, to = Math.min(total, start + pageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (pageIndex > 0) { pageIndex--; buildTable(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (pageIndex < totalPages - 1) { pageIndex++; buildTable(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (pageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        tableContainer.appendChild(pager);
+      }
     }
     buildTable();
 

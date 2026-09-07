@@ -4,7 +4,7 @@
   function render() {
     PAS.renderEntityBook({
       pageKey: "customers", href: "customers.html", paramName: "customer", fieldName: "holder",
-      typeMap: null, searchable: true,
+      typeMap: null, searchable: true, relationFilters: true,
       icon: "user", tone: "blue",
       title: "Customers", titleUpper: "Customers", titleLower: "customers", singularLower: "customer", article: "a",
       sub: "Search any insured to see every policy on file for them",

@@ -100,6 +100,7 @@
 
     var endorsementTable = ui.sortableTable({
       storageKey: "pas.endorsement.columns.v1",
+      pageSize: 10,
       defaultVisible: ["requestedBy", "submitted", "change", "effective", "flags", "materiality", "premiumImpact"],
       columns: [
         { key: "policy", label: "Policy", locked: true, sortValue: function (t) { return t.p.id; }, cell: function (t) { return ui.cellId(t.p.id); } },
@@ -137,10 +138,11 @@
       noteEl.textContent = (q || productF !== "All" || fromDate || toDate) ? "Showing " + filtered.length + " of " + pend.length + " requests." : "";
       endorsementTable.rebuild();
     }
-    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
-    productSelect.addEventListener("change", function () { productF = productSelect.value; refresh(); });
-    fromInput.addEventListener("change", function () { fromDate = fromInput.value; refresh(); });
-    toInput.addEventListener("change", function () { toDate = toInput.value; refresh(); });
+    function onFilterChange() { endorsementTable.resetPage(); refresh(); }
+    searchInput.addEventListener("input", function () { q = searchInput.value; onFilterChange(); });
+    productSelect.addEventListener("change", function () { productF = productSelect.value; onFilterChange(); });
+    fromInput.addEventListener("change", function () { fromDate = fromInput.value; onFilterChange(); });
+    toInput.addEventListener("change", function () { toDate = toInput.value; onFilterChange(); });
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

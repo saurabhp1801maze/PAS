@@ -368,6 +368,7 @@
     }, []);
     var segmentBody = segmentPanel.querySelector(".panel-body");
     page.appendChild(segmentPanel);
+    var segmentPageSize = 10, segmentPageIndex = 0;
 
     page.appendChild(ui.h("div", { class: "kpi-section-head", style: { marginTop: "26px" } }, [
       ui.h("span", { class: "kpi-section-label" }, "Operations"),
@@ -980,31 +981,62 @@
           ? "Every " + dimLabel.toLowerCase() + " in this filter has an indicative combined ratio below 100%. Other operating costs are excluded."
           : losing.length + " of " + segments.length + " " + dimLabel.toLowerCase() + " segments have an indicative combined ratio of 100% or more — listed first. Other operating costs are excluded."));
 
-      segmentBody.appendChild(ui.dataTable({
-        columns: [
-          dimLabel,
-          { label: "On-risk policies", what: "Policies that carried coverage risk in this segment." },
-          { label: "Earned premium", what: "The exposure base every ratio in this row divides by." },
-          { label: "Incurred claims", what: "Paid plus reserved claims." },
-          { label: "Loss ratio", what: "Incurred ÷ earned premium." },
-          { label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium." },
-          { label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs." },
-          { label: "Net commission", what: "Veridex's own revenue for this segment — gross commission earned less the producing broker's share. Not shown anywhere else broken out by segment." },
-        ],
-        rows: segments.map(function (s) {
-          return [
-            s.k,
-            s.n,
-            PAS.moneyShort(s.f.earnedPremium),
-            PAS.moneyShort(s.f.incurred),
-            ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)),
-            pct(s.f.expenseRatio),
-            ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)),
-            PAS.moneyShort(s.f.netCommission),
-          ];
-        }),
-        wrapCells: true,
-      }));
+      var segmentTableWrap = ui.h("div", {});
+      segmentBody.appendChild(segmentTableWrap);
+      segmentPageIndex = 0;
+      buildSegmentTable();
+
+      function buildSegmentTable() {
+        segmentTableWrap.innerHTML = "";
+        var total = segments.length;
+        var totalPages = Math.max(1, Math.ceil(total / segmentPageSize));
+        if (segmentPageIndex >= totalPages) segmentPageIndex = totalPages - 1;
+        if (segmentPageIndex < 0) segmentPageIndex = 0;
+        var start = segmentPageIndex * segmentPageSize;
+        var pageSegments = segments.slice(start, start + segmentPageSize);
+
+        segmentTableWrap.appendChild(ui.dataTable({
+          columns: [
+            dimLabel,
+            { label: "On-risk policies", what: "Policies that carried coverage risk in this segment." },
+            { label: "Earned premium", what: "The exposure base every ratio in this row divides by." },
+            { label: "Incurred claims", what: "Paid plus reserved claims." },
+            { label: "Loss ratio", what: "Incurred ÷ earned premium." },
+            { label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium." },
+            { label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs." },
+            { label: "Net commission", what: "Veridex's own revenue for this segment — gross commission earned less the producing broker's share. Not shown anywhere else broken out by segment." },
+          ],
+          rows: pageSegments.map(function (s) {
+            return [
+              s.k,
+              s.n,
+              PAS.moneyShort(s.f.earnedPremium),
+              PAS.moneyShort(s.f.incurred),
+              ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)),
+              pct(s.f.expenseRatio),
+              ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)),
+              PAS.moneyShort(s.f.netCommission),
+            ];
+          }),
+          wrapCells: true,
+        }));
+
+        if (total > segmentPageSize) {
+          var pager = ui.h("div", { class: "table-pager" });
+          var from = start + 1, to = Math.min(total, start + segmentPageSize);
+          pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+          var nav = ui.h("div", { class: "table-pager-nav" });
+          var prev = ui.h("button", { class: "btn small", type: "button", disabled: segmentPageIndex <= 0 }, "← Prev");
+          prev.addEventListener("click", function () { if (segmentPageIndex > 0) { segmentPageIndex--; buildSegmentTable(); } });
+          var next = ui.h("button", { class: "btn small", type: "button", disabled: segmentPageIndex >= totalPages - 1 }, "Next →");
+          next.addEventListener("click", function () { if (segmentPageIndex < totalPages - 1) { segmentPageIndex++; buildSegmentTable(); } });
+          nav.appendChild(prev);
+          nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (segmentPageIndex + 1) + " of " + totalPages));
+          nav.appendChild(next);
+          pager.appendChild(nav);
+          segmentTableWrap.appendChild(pager);
+        }
+      }
     }
 
     function buildClaims() {
@@ -1276,6 +1308,7 @@
     var claimsPanel = ui.panel({ title: "Claims and reserves", what: "Claims, incurred amounts and open reserves for this filtered book.", why: "Shows loss performance and the exposure still held for open claims." }, []);
     var claimsBody = claimsPanel.querySelector(".panel-body");
     lobGrid.appendChild(claimsPanel);
+    var claimsPageSize = 10, claimsPageIndex = 0;
 
     /* This dashboard has no second chart to pair it with in a two-col-grid the way the other
        panels are — left full width, the line graph (drawn to a fixed 640x172 design) reads as
@@ -1353,15 +1386,20 @@
         : "From " + customFrom + " to " + customTo + ", completed transactions by their effective date.";
       drawTrendGraph(issuanceBody, ISSUANCE_SERIES, issuanceData, issuanceLabel, issuanceNote);
 
-      claimsBody.innerHTML = "";
       /* Same on-risk, earned-premium basis as the full operational dashboard, read from the same
          PAS.bookFinancials — so a Broker or MGA viewing their own book never sees a loss ratio
          computed a different way from the one an admin sees for the same policies. */
       var scopedOnRisk = PAS.onRiskPolicies(scoped);
       var scopedClaims = PAS.allClaims(scopedOnRisk);
-      if (scopedClaims.length === 0) {
-        claimsBody.appendChild(ui.h("div", { class: "faint-note" }, "No claims on file in this filter."));
-      } else {
+      claimsPageIndex = 0;
+      buildClaimsBody();
+
+      function buildClaimsBody() {
+        claimsBody.innerHTML = "";
+        if (scopedClaims.length === 0) {
+          claimsBody.appendChild(ui.h("div", { class: "faint-note" }, "No claims on file in this filter."));
+          return;
+        }
         var sfin = PAS.bookFinancials(scopedOnRisk);
         var summary = ui.h("div", { class: "mt-6" });
         summary.appendChild(ui.kv({
@@ -1376,13 +1414,36 @@
         }));
         summary.appendChild(ui.kv({ k: "Open claim reserves", v: PAS.money(sfin.reserved), what: sfin.openClaimCount + " open of " + sfin.claimCount + " total claims in this filter." }));
         claimsBody.appendChild(summary);
+
+        var total = scopedClaims.length;
+        var totalPages = Math.max(1, Math.ceil(total / claimsPageSize));
+        if (claimsPageIndex >= totalPages) claimsPageIndex = totalPages - 1;
+        if (claimsPageIndex < 0) claimsPageIndex = 0;
+        var start = claimsPageIndex * claimsPageSize;
+        var pageClaims = scopedClaims.slice(start, start + claimsPageSize);
+
         claimsBody.appendChild(ui.dataTable({
           columns: ["Policy", "Claim type", "State", { label: "Status", what: "Open claims still carry a reserve; closed claims are fully paid." }, { label: "Incurred amount", what: "Paid plus reserved — the total cost estimate." }, { label: "Reserve", what: "Estimated amount held for an open claim." }],
-          rows: scopedClaims.map(function (x) {
+          rows: pageClaims.map(function (x) {
             return [ui.cellId(x.p.id), x.c.type, x.p.state, ui.pill(x.c.status === "Open" ? "amber" : "green", x.c.status), PAS.money(x.c.incurred), x.c.reserved ? PAS.money(x.c.reserved) : "—"];
           }),
           wrapCells: true,
         }));
+
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = total === 0 ? 0 : start + 1;
+        var to = Math.min(total, start + claimsPageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: claimsPageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (claimsPageIndex > 0) { claimsPageIndex--; buildClaimsBody(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: claimsPageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (claimsPageIndex < totalPages - 1) { claimsPageIndex++; buildClaimsBody(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (claimsPageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        claimsBody.appendChild(pager);
       }
     }
 

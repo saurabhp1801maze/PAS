@@ -64,6 +64,7 @@
     reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted reinstatement requests.", className: "label-11" }));
     var reinstatementTable = ui.sortableTable({
       storageKey: "pas.reinstatement.columns.v1",
+      pageSize: 10,
       columns: [
         { key: "policy", label: "Policy", locked: true, sortValue: function (r) { return r.t.p.id; }, cell: function (r) { return ui.cellId(r.t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (r) { return (r.t.p.holder || "").toLowerCase(); }, cell: function (r) { return ui.cellName(r.t.p.holder); } },
@@ -89,10 +90,11 @@
       noteEl.textContent = (q || productF !== "All" || fromDate || toDate) ? "Showing " + filtered.length + " of " + pendEnriched.length + " requests." : "";
       reinstatementTable.rebuild();
     }
-    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
-    productSelect.addEventListener("change", function () { productF = productSelect.value; refresh(); });
-    fromInput.addEventListener("change", function () { fromDate = fromInput.value; refresh(); });
-    toInput.addEventListener("change", function () { toDate = toInput.value; refresh(); });
+    function onFilterChange() { reinstatementTable.resetPage(); refresh(); }
+    searchInput.addEventListener("input", function () { q = searchInput.value; onFilterChange(); });
+    productSelect.addEventListener("change", function () { productF = productSelect.value; onFilterChange(); });
+    fromInput.addEventListener("change", function () { fromDate = fromInput.value; onFilterChange(); });
+    toInput.addEventListener("change", function () { toDate = toInput.value; onFilterChange(); });
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

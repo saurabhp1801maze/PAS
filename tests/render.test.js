@@ -792,8 +792,13 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
   if (brokerCarriersRows !== apexCarrierCount || brokerCarriersRows === 0) { fails++; console.log("  FAIL  Carriers directory shows " + brokerCarriersRows + " rows for Broker, expected exactly " + apexCarrierCount); }
   else console.log("  PASS  Carriers directory shows exactly the " + apexCarrierCount + " carriers genuinely associated with Apex's own book");
 
-  var brokerCustomersRows = renderDom("customers", "", "Broker").querySelectorAll("tr").length - 1;
-  if (brokerCustomersRows !== apexHolderCount || brokerCustomersRows === 0) { fails++; console.log("  FAIL  Customers directory shows " + brokerCustomersRows + " rows for Broker, expected exactly " + apexHolderCount); }
+  /* The Customers directory is paginated (25/page) too, and Apex's own book comfortably exceeds
+     that — so read the real scoped total from the pager's own "Showing X–Y of Z" meta, rather than
+     counting DOM rows capped at one page. Unlike the Register's noteEl, the pager meta renders
+     unconditionally (it's not gated on a search/filter being active). */
+  var brokerCustomersPagerMeta = renderDom("customers", "", "Broker").querySelector(".table-pager-meta");
+  var brokerCustomersShown = brokerCustomersPagerMeta && (brokerCustomersPagerMeta.textContent.match(/of (\d+)/) || [])[1];
+  if (Number(brokerCustomersShown) !== apexHolderCount) { fails++; console.log("  FAIL  Customers directory's pager shows " + brokerCustomersShown + " for Broker, expected exactly " + apexHolderCount); }
   else console.log("  PASS  Customers directory shows exactly the " + apexHolderCount + " customers genuinely associated with Apex's own book — not every customer in the full 1087-policy book");
 })();
 
@@ -1863,8 +1868,13 @@ console.log("\n  documents: search + type filter genuinely narrow the table, and
 
   var out = renderDom("documents");
   var rowCount = function () { return out.querySelector("tbody").querySelectorAll("tr").length; };
-  if (rowCount() !== totalDocs) { fails++; console.log("  FAIL  documents baseline expected " + totalDocs + " rows, got " + rowCount()); }
-  else console.log("  PASS  baseline shows all " + totalDocs + " documents");
+  /* The library is paginated (25/page) — first page shows a page's worth, and the pager's own
+     meta states the real filtered total regardless of how many rows are actually in the DOM. */
+  var pagerTotal = function () { var m = out.querySelector(".table-pager-meta"); return m && Number((m.textContent.match(/of (\d+)/) || [])[1]); };
+  var expectedFirstPage = Math.min(25, totalDocs);
+  if (rowCount() !== expectedFirstPage) { fails++; console.log("  FAIL  documents baseline expected " + expectedFirstPage + " rows on page 1, got " + rowCount()); }
+  else if (pagerTotal() !== totalDocs) { fails++; console.log("  FAIL  documents pager states " + pagerTotal() + ", expected real total " + totalDocs); }
+  else console.log("  PASS  baseline is paginated — first page shows " + expectedFirstPage + " of all " + totalDocs + " documents");
 
   var melissa = bookD.find(function (p) { return p.holder === "Melissa Shaw"; });
   var expectedMelissa = melissa.documents.length;
@@ -1905,16 +1915,22 @@ console.log("\n  loyalty: tier chips genuinely narrow the ranked customer list")
     var bodies = out.querySelectorAll("tbody");
     return bodies[bodies.length - 1].querySelectorAll("tr").length;
   };
-  if (rowCount() !== activeL.length) { fails++; console.log("  FAIL  loyalty baseline expected " + activeL.length + " active customers, got " + rowCount()); }
-  else console.log("  PASS  baseline shows all " + activeL.length + " active, scored customers");
+  /* The ranked list is paginated (25/page) — first page shows a page's worth, and the pager's own
+     meta states the real filtered total regardless of how many rows are actually in the DOM. */
+  var pagerTotalL = function () { var m = out.querySelector(".table-pager-meta"); return m && Number((m.textContent.match(/of (\d+)/) || [])[1]); };
+  var expectedFirstPageL = Math.min(25, activeL.length);
+  if (rowCount() !== expectedFirstPageL) { fails++; console.log("  FAIL  loyalty baseline expected " + expectedFirstPageL + " rows on page 1, got " + rowCount()); }
+  else if (pagerTotalL() !== activeL.length) { fails++; console.log("  FAIL  loyalty pager states " + pagerTotalL() + ", expected real total " + activeL.length); }
+  else console.log("  PASS  baseline is paginated — first page shows " + expectedFirstPageL + " of all " + activeL.length + " active, scored customers");
 
   var chips = out.querySelectorAll("button").filter(function (b) { return b.classList.contains("chip"); });
   var goldChip = chips.filter(function (c) { return c.textContent === "Gold"; })[0];
   var expectedGold = byTierL.Gold || 0;
   if (!goldChip) { fails++; console.log("  FAIL  no 'Gold' tier chip found"); return; }
   goldChip.click();
-  if (rowCount() !== expectedGold) { fails++; console.log("  FAIL  'Gold' tier filter expected " + expectedGold + " rows, got " + rowCount()); }
-  else console.log("  PASS  'Gold' tier filter narrows to the " + expectedGold + " real Gold-tier customers");
+  var expectedGoldPage = Math.min(25, expectedGold);
+  if (rowCount() !== expectedGoldPage) { fails++; console.log("  FAIL  'Gold' tier filter expected " + expectedGoldPage + " rows on page 1, got " + rowCount()); }
+  else console.log("  PASS  'Gold' tier filter narrows to the " + expectedGold + " real Gold-tier customers (" + expectedGoldPage + " shown on page 1)");
   var expectedNoteL = "Showing " + expectedGold + " of " + activeL.length + " customers";
   if (out.textContent.indexOf(expectedNoteL) === -1) { fails++; console.log("  FAIL  missing '" + expectedNoteL + "' note"); }
   else console.log("  PASS  'Showing X of Y' note reflects the real tier-filtered count");
@@ -1922,13 +1938,16 @@ console.log("\n  loyalty: tier chips genuinely narrow the ranked customer list")
   var silverChip = chips.filter(function (c) { return c.textContent === "Silver"; })[0];
   var expectedSilver = byTierL.Silver || 0;
   silverChip.click();
-  if (rowCount() !== expectedSilver) { fails++; console.log("  FAIL  'Silver' tier filter expected " + expectedSilver + " rows, got " + rowCount()); }
-  else console.log("  PASS  switching tiers re-filters correctly — " + expectedSilver + " real Silver-tier customers");
+  var expectedSilverPage = Math.min(25, expectedSilver);
+  if (rowCount() !== expectedSilverPage) { fails++; console.log("  FAIL  'Silver' tier filter expected " + expectedSilverPage + " rows on page 1, got " + rowCount()); }
+  else if (pagerTotalL() !== expectedSilver) { fails++; console.log("  FAIL  'Silver' tier pager states " + pagerTotalL() + ", expected real total " + expectedSilver); }
+  else console.log("  PASS  switching tiers re-filters correctly — " + expectedSilver + " real Silver-tier customers (" + expectedSilverPage + " shown on page 1)");
 
   var allChip = chips.filter(function (c) { return c.textContent === "All"; })[0];
   allChip.click();
-  if (rowCount() !== activeL.length) { fails++; console.log("  FAIL  clearing tier filter expected all " + activeL.length + " rows back, got " + rowCount()); }
-  else console.log("  PASS  clearing the tier filter restores the full ranked list");
+  if (rowCount() !== expectedFirstPageL) { fails++; console.log("  FAIL  clearing tier filter expected " + expectedFirstPageL + " rows on page 1, got " + rowCount()); }
+  else if (pagerTotalL() !== activeL.length) { fails++; console.log("  FAIL  clearing tier filter's pager states " + pagerTotalL() + ", expected real total " + activeL.length); }
+  else console.log("  PASS  clearing the tier filter restores the full ranked list (" + activeL.length + " total, page reset to 1)");
 })();
 
 console.log(fails === 0 ? "\nALL PAGES RENDER\n" : "\n" + fails + " FAILURE(S)\n");

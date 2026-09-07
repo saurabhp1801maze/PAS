@@ -63,7 +63,7 @@
         var chipRow = ui.h("div", { class: "chip-row" });
         ["All"].concat(PAS.LOYALTY_TIERS.map(function (t) { return t.name; })).forEach(function (t) {
           var chip = ui.h("button", { class: "chip" + (tierF === t ? " active" : "") }, t);
-          chip.addEventListener("click", function () { tierF = t; buildList(); });
+          chip.addEventListener("click", function () { tierF = t; pageIndex = 0; buildList(); });
           chipRow.appendChild(chip);
         });
         return chipRow;
@@ -71,16 +71,23 @@
       pad: 0,
     }, []);
     var listBody = listPanel.querySelector(".panel-body");
+    var pageSize = 25, pageIndex = 0;
     function buildList() {
       listPanel.querySelectorAll(".chip").forEach(function (c) { c.classList.toggle("active", c.textContent === tierF); });
       var filtered = tierF === "All" ? scored : scored.filter(function (x) { return x.s.tier === tierF; });
       listBody.innerHTML = "";
       if (tierF !== "All") listBody.appendChild(ui.h("div", { class: "faint-note mb-9", style: { padding: "13px 15px 0" } }, "Showing " + filtered.length + " of " + scored.length + " customers."));
+      var total = filtered.length;
+      var totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (pageIndex >= totalPages) pageIndex = totalPages - 1;
+      if (pageIndex < 0) pageIndex = 0;
+      var start = pageIndex * pageSize;
+      var pageRows = filtered.slice(start, start + pageSize);
       listBody.appendChild(ui.dataTable({
         columns: ["Policy", "Insured", "Product", { label: "Tier", what: "Derived from the score — never set by hand." },
           { label: "Score", what: "Sum of every criterion this customer meets." },
           { label: "Why", what: "The line-by-line derivation." }],
-        rows: filtered.map(function (x) {
+        rows: pageRows.map(function (x) {
           var whyCell = ui.h("div", { style: { display: "flex", flexWrap: "wrap", gap: "4px" } });
           if (x.s.lines.length === 0) whyCell.appendChild(ui.h("span", { class: "faint-note" }, "No criteria met yet"));
           x.s.lines.forEach(function (l) { whyCell.appendChild(ui.pill("gray", l.label + " +" + l.value)); });
@@ -88,8 +95,23 @@
         }),
         wrapCells: true,
         emptyText: "No customers in this tier.",
-        onRowClick: function (i) { location.href = "policy-detail.html?policy=" + encodeURIComponent(filtered[i].p.id); },
+        onRowClick: function (i) { location.href = "policy-detail.html?policy=" + encodeURIComponent(pageRows[i].p.id); },
       }));
+      if (total > 0) {
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = start + 1, to = Math.min(total, start + pageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (pageIndex > 0) { pageIndex--; buildList(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (pageIndex < totalPages - 1) { pageIndex++; buildList(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (pageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        listBody.appendChild(pager);
+      }
     }
     buildList();
     page.appendChild(listPanel);

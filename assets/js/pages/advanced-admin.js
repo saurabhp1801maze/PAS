@@ -27,7 +27,7 @@
     var typeChips = ui.h("div", { class: "chip-row mb-13" });
     ["All"].concat(TYPES).forEach(function (t) {
       var chip = ui.h("button", { class: "chip" + (typeF.v === t ? " active" : "") }, t);
-      chip.addEventListener("click", function () { typeF.v = t; buildPending(); renderChips(); });
+      chip.addEventListener("click", function () { typeF.v = t; pendingPageIndex = 0; buildPending(); renderChips(); });
       typeChips.appendChild(chip);
     });
     function renderChips() {
@@ -76,13 +76,20 @@
     var pendingWrap = ui.h("div", { id: "advanced-pending" });
     page.appendChild(pendingWrap);
 
+    var pendingPageSize = 10, pendingPageIndex = 0;
     function buildPending() {
       var rows = pending.filter(function (t) { return typeF.v === "All" || t.h.type === typeF.v; });
       pendingWrap.innerHTML = "";
       pendingWrap.appendChild(ui.tipLabel({ text: "Awaiting decision (" + rows.length + ")", className: "label-11 block mb-9" }));
+      var total = rows.length;
+      var totalPages = Math.max(1, Math.ceil(total / pendingPageSize));
+      if (pendingPageIndex >= totalPages) pendingPageIndex = totalPages - 1;
+      if (pendingPageIndex < 0) pendingPageIndex = 0;
+      var start = pendingPageIndex * pendingPageSize;
+      var pageRows = rows.slice(start, start + pendingPageSize);
       pendingWrap.appendChild(ui.dataTable({
         columns: ["Policy", "Type", "Effective", { label: "SLA", what: "SLA = Service Level Agreement: the turnaround this request is committed to. Hours remaining before it breaches that commitment (demo clock, not the real calendar)." }, "Detail", ""],
-        rows: rows.map(function (t) {
+        rows: pageRows.map(function (t) {
           var sla = PAS.getTxnSla(t.h);
           return [ui.cellId(t.p.id), ui.modulePill(t.h.type), PAS.fmtDate(t.h.date),
             ui.pill(sla.breached ? "red" : "green", sla.remainingHours + "h"),
@@ -91,10 +98,25 @@
         }),
         emptyText: "No advanced transactions pending.",
         onRowClick: function (i) {
-          var t = rows[i];
+          var t = pageRows[i];
           location.href = "advanced-admin-decision.html?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id);
         },
       }));
+      if (total > 0) {
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = start + 1, to = Math.min(total, start + pendingPageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: pendingPageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (pendingPageIndex > 0) { pendingPageIndex--; buildPending(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: pendingPageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (pendingPageIndex < totalPages - 1) { pendingPageIndex++; buildPending(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (pendingPageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        pendingWrap.appendChild(pager);
+      }
     }
     buildPending();
 

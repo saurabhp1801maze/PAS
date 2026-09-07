@@ -43,6 +43,7 @@
     page.appendChild(ui.tipLabel({ text: "AWAITING ISSUE (" + rows.length + ")", what: "Bound policies with no formal contract yet — auto-issues the instant nothing is left blocking it.", className: "label-11 block mb-9" }));
     var awaitingTable = ui.sortableTable({
       storageKey: "pas.issue-desk.columns.v1",
+      pageSize: 10,
       columns: [
         { key: "record", label: "Policy", locked: true, sortValue: function (r) { return r.p.id; }, cell: function (r) { return ui.cellId(r.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (r) { return (r.p.holder || "").toLowerCase(); }, cell: function (r) { return ui.cellName(r.p.holder); } },
@@ -65,6 +66,7 @@
     page.appendChild(ui.tipLabel({ text: "AUTO-ISSUED IN THE LAST 24 HOURS (" + recent.length + ")", what: "Every policy the pipeline issued on its own in the last day — no manual Issue click, gates cleared and it went straight to Active.", className: "label-11 block mt-18 mb-9" }));
     var recentTable = ui.sortableTable({
       storageKey: "pas.issue-desk-recent.columns.v1",
+      pageSize: 10,
       columns: [
         { key: "record", label: "Policy", locked: true, sortValue: function (t) { return t.p.id; }, cell: function (t) { return ui.cellId(t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (t) { return (t.p.holder || "").toLowerCase(); }, cell: function (t) { return ui.cellName(t.p.holder); } },

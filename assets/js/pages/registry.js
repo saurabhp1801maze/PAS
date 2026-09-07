@@ -32,14 +32,17 @@
 
     var kpiRowWrap = ui.h("div", {});
     page.appendChild(kpiRowWrap);
-    function buildKpis() {
-      var periodPolicies = policies.filter(inPeriod);
+    /* KPIs reflect the same records the table below is actually showing — period AND every active
+       filter (status/product/state/search) — not just the period, so a filtered view never shows
+       summary numbers for a wider set than what's on screen. */
+    function buildKpis(filteredPolicies) {
       kpiRowWrap.innerHTML = "";
+      var filterSuffix = filtersActive() ? ", matching the current filters" : "";
       kpiRowWrap.appendChild(ui.kpiRow([
-        { label: "Total records", value: periodPolicies.length, tip: "Submissions plus policies, " + pt.noteText() + "." },
-        { label: "In force", value: periodPolicies.filter(function (p) { return p.status === "Active"; }).length, tone: "green", tip: "Issued, not cancelled or expired." },
-        { label: "Pre-issue", value: periodPolicies.filter(function (p) { return ["Referred", "Bound"].indexOf(p.status) !== -1; }).length, tone: "amber", tip: "Submissions and bound-not-issued." },
-        { label: "Closed", value: periodPolicies.filter(function (p) { return ["Cancelled", "Expired", "Non-renewed", "Declined"].indexOf(p.status) !== -1; }).length, tip: "No longer on risk." },
+        { label: "Total records", value: filteredPolicies.length, tip: "Submissions plus policies, " + pt.noteText() + filterSuffix + "." },
+        { label: "In force", value: filteredPolicies.filter(function (p) { return p.status === "Active"; }).length, tone: "green", tip: "Issued, not cancelled or expired." },
+        { label: "Pre-issue", value: filteredPolicies.filter(function (p) { return ["Referred", "Bound"].indexOf(p.status) !== -1; }).length, tone: "amber", tip: "Submissions and bound-not-issued." },
+        { label: "Closed", value: filteredPolicies.filter(function (p) { return ["Cancelled", "Expired", "Non-renewed", "Declined"].indexOf(p.status) !== -1; }).length, tip: "No longer on risk." },
       ]));
     }
 
@@ -81,6 +84,7 @@
         && (stf === "All" || p.state === stf)
         && (p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
     }
+    function filtersActive() { return sf !== "All" || pf !== "All" || stf !== "All" || !!q; }
 
     /* `record` and `insured` are locked visible — without an identifying column the table would
        be useless to click into, so they're not offered in the Columns picker at all. */
@@ -133,8 +137,8 @@
     page.appendChild(registryTable.tableWrap);
 
     function refresh() {
-      buildKpis();
       var filtered = policies.filter(match);
+      buildKpis(filtered);
       var extra = [];
       if (sf !== "All") extra.push(sf);
       if (pf !== "All") extra.push(pf);

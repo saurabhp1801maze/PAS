@@ -260,15 +260,23 @@
       return panel;
     }
 
+    var usersPageSize = 10, usersPageIndex = 0;
     function buildList() {
       listWrap.innerHTML = "";
       if (currentSpec.canManageUsers) listWrap.appendChild(buildInviteForm());
 
       var users = PAS.getUsers();
       var panel = ui.panel({ title: "Users", what: users.length + " invited user" + (users.length === 1 ? "" : "s") + ".", pad: 0 }, []);
-      panel.querySelector(".panel-body").appendChild(ui.dataTable({
+      var total = users.length;
+      var totalPages = Math.max(1, Math.ceil(total / usersPageSize));
+      if (usersPageIndex >= totalPages) usersPageIndex = totalPages - 1;
+      if (usersPageIndex < 0) usersPageIndex = 0;
+      var start = usersPageIndex * usersPageSize;
+      var pageUsers = users.slice(start, start + usersPageSize);
+      var panelBody = panel.querySelector(".panel-body");
+      panelBody.appendChild(ui.dataTable({
         columns: ["Name", "Email", "Role", "Identity", "Status", "Invited", ""],
-        rows: users.map(function (u) {
+        rows: pageUsers.map(function (u) {
           var r = PAS.ROLES[u.roleKey];
           var actions = ui.h("div", { style: { display: "flex", gap: "6px" } });
           var viewBtn = ui.h("button", { class: "btn small", type: "button" }, "View as");
@@ -293,6 +301,21 @@
         }),
         emptyText: "No users invited yet.",
       }));
+      if (total > 0) {
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = start + 1, to = Math.min(total, start + usersPageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: usersPageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (usersPageIndex > 0) { usersPageIndex--; buildList(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: usersPageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (usersPageIndex < totalPages - 1) { usersPageIndex++; buildList(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (usersPageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        panelBody.appendChild(pager);
+      }
       listWrap.appendChild(panel);
     }
 

@@ -63,6 +63,7 @@
     reqHead.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Confirmed renewal intent, ready for re-underwriting and pricing.", className: "label-11" }));
     var renewalTable = ui.sortableTable({
       storageKey: "pas.renewal.columns.v1",
+      pageSize: 10,
       columns: [
         { key: "policy", label: "Policy", locked: true, sortValue: function (t) { return t.p.id; }, cell: function (t) { return ui.cellId(t.p.id); } },
         { key: "insured", label: "Insured", locked: true, sortValue: function (t) { return (t.p.holder || "").toLowerCase(); }, cell: function (t) { return ui.cellName(t.p.holder); } },
@@ -88,10 +89,11 @@
       noteEl.textContent = (q || productF !== "All" || fromDate || toDate) ? "Showing " + filtered.length + " of " + pend.length + " requests." : "";
       renewalTable.rebuild();
     }
-    searchInput.addEventListener("input", function () { q = searchInput.value; refresh(); });
-    productSelect.addEventListener("change", function () { productF = productSelect.value; refresh(); });
-    fromInput.addEventListener("change", function () { fromDate = fromInput.value; refresh(); });
-    toInput.addEventListener("change", function () { toDate = toInput.value; refresh(); });
+    function onFilterChange() { renewalTable.resetPage(); refresh(); }
+    searchInput.addEventListener("input", function () { q = searchInput.value; onFilterChange(); });
+    productSelect.addEventListener("change", function () { productF = productSelect.value; onFilterChange(); });
+    fromInput.addEventListener("change", function () { fromDate = fromInput.value; onFilterChange(); });
+    toInput.addEventListener("change", function () { toDate = toInput.value; onFilterChange(); });
 
     if (noRequest.length > 0) {
       var extra = ui.h("div", { class: "mt-18" });
@@ -105,11 +107,18 @@
       extra.appendChild(noticeBody);
       page.appendChild(extra);
 
+      var noticePageSize = 10, noticePageIndex = 0;
       function buildNoticeTable() {
+        var total = noRequest.length;
+        var totalPages = Math.max(1, Math.ceil(total / noticePageSize));
+        if (noticePageIndex >= totalPages) noticePageIndex = totalPages - 1;
+        if (noticePageIndex < 0) noticePageIndex = 0;
+        var start = noticePageIndex * noticePageSize;
+        var pageRows = noRequest.slice(start, start + noticePageSize);
         noticeBody.innerHTML = "";
         noticeBody.appendChild(ui.dataTable({
           columns: ["Policy", "Insured", "Expires", "Days left", { label: "Notice status", what: "Whether the renewal notice window has been met.", rule: "Notices must go out at least " + PAS.RENEWAL_LEAD_DAYS + " days before expiry." }, { label: "Renewal notice", what: "Sends to the customer, the underwriter on file, and the renewal lead — logged on the policy's own ledger, not a toast that vanishes." }],
-          rows: noRequest.map(function (x) {
+          rows: pageRows.map(function (x) {
             var r = PAS.renewalCompliance(x);
             var sent = PAS.lastRenewalNotice(x);
             var noticeCell;
@@ -123,6 +132,20 @@
             return [ui.cellId(x.id), ui.cellName(x.holder), PAS.fmtDate(x.expirationDate), r.daysToExpiry + "d", ui.pill(r.status === "Compliant" ? "green" : r.status === "Urgent" ? "amber" : "red", r.status), noticeCell];
           }),
         }));
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = total === 0 ? 0 : start + 1;
+        var to = Math.min(total, start + noticePageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, total === 0 ? "No rows" : ("Showing " + from + "–" + to + " of " + total)));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: noticePageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (noticePageIndex > 0) { noticePageIndex--; buildNoticeTable(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: noticePageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (noticePageIndex < totalPages - 1) { noticePageIndex++; buildNoticeTable(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (noticePageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        noticeBody.appendChild(pager);
       }
       buildNoticeTable();
     }

@@ -115,15 +115,22 @@
       location.href = PAS.DETAIL_URL_OF[desk] + "?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id);
     }
 
+    var pageSize = 10, pageIndex = 0;
     function buildTable() {
       var rows = sortByUrgency(pending.filter(match));
       tableContainer.innerHTML = "";
       if (q || typeF !== "All" || slaF !== "All") {
         tableContainer.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Showing " + rows.length + " of " + pending.length + " pending."));
       }
+      var total = rows.length;
+      var totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (pageIndex >= totalPages) pageIndex = totalPages - 1;
+      if (pageIndex < 0) pageIndex = 0;
+      var start = pageIndex * pageSize;
+      var pageRows = rows.slice(start, start + pageSize);
       tableContainer.appendChild(ui.dataTable({
         columns: [{ label: "Seq", what: "Position in the policy ledger." }, "Policy", "Insured", { label: "Type", what: "Which kind of transaction is held." }, "Requested by", { label: "SLA", what: "SLA = Service Level Agreement: the turnaround this request is committed to. Hours until it breaches that commitment (demo clock, not the real calendar)." }, { label: "Why it is held", what: "What was submitted, and by whom.", rule: "Material endorsements, fraud cancellations and authority referrals always hold." }, { label: "Effective", what: "Business date it would take effect." }, ""],
-        rows: rows.map(function (t) {
+        rows: pageRows.map(function (t) {
           var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-muted)" } }, "#" + t.h.seq);
           var idSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-ink-secondary)" } }, t.p.id);
           var detailSpan = ui.h("span", { style: { fontSize: "12px", color: "var(--color-ink-secondary)", whiteSpace: "normal", display: "inline-block", maxWidth: "300px" } }, t.h.detail);
@@ -134,11 +141,26 @@
         }),
         emptyText: "Nothing awaiting approval.",
       }));
+      if (total > 0) {
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = start + 1, to = Math.min(total, start + pageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (pageIndex > 0) { pageIndex--; buildTable(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (pageIndex < totalPages - 1) { pageIndex++; buildTable(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (pageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        tableContainer.appendChild(pager);
+      }
     }
 
-    searchInput.addEventListener("input", function () { q = searchInput.value; buildTable(); });
-    typeSelect.addEventListener("change", function () { typeF = typeSelect.value; buildTable(); });
-    slaSelect.addEventListener("change", function () { slaF = slaSelect.value; buildTable(); });
+    searchInput.addEventListener("input", function () { q = searchInput.value; pageIndex = 0; buildTable(); });
+    typeSelect.addEventListener("change", function () { typeF = typeSelect.value; pageIndex = 0; buildTable(); });
+    slaSelect.addEventListener("change", function () { slaF = slaSelect.value; pageIndex = 0; buildTable(); });
     buildTable();
 
     var root = document.getElementById("page-content");

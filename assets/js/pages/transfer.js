@@ -55,19 +55,47 @@
     }));
 
     page.appendChild(ui.tipLabel({ text: "Requests awaiting decision (" + pend.length + ")", what: "Already-submitted transfer requests, newest first.", className: "label-11 block mb-9" }));
-    page.appendChild(ui.dataTable({
-      columns: ["Policy", "Current insured", "Requested by",
-        { label: "Reason", what: "Why the transfer is being requested." },
-        { label: "New insured", what: "Who the policy will be held by if approved." },
-        { label: "Submitted", what: "When the request arrived." }, ""],
-      rows: pend.map(function (t) {
-        var meta = t.h.meta || {};
-        return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(meta), meta.reason || "—", meta.newHolder || "—", PAS.fmtDate(meta.submittedOn || t.h.date), ui.cellOpen("Review")];
-      }),
-      emptyText: "No transfer requests awaiting decision.",
-      wrapCells: true,
-      onRowClick: function (i) { location.href = "transfer-decision.html?policy=" + encodeURIComponent(pend[i].p.id) + "&txn=" + encodeURIComponent(pend[i].h.id); },
-    }));
+    var tableContainer = ui.h("div", {});
+    page.appendChild(tableContainer);
+    var pageSize = 10, pageIndex = 0;
+    function buildTable() {
+      var total = pend.length;
+      var totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (pageIndex >= totalPages) pageIndex = totalPages - 1;
+      if (pageIndex < 0) pageIndex = 0;
+      var start = pageIndex * pageSize;
+      var pageRows = pend.slice(start, start + pageSize);
+      tableContainer.innerHTML = "";
+      tableContainer.appendChild(ui.dataTable({
+        columns: ["Policy", "Current insured", "Requested by",
+          { label: "Reason", what: "Why the transfer is being requested." },
+          { label: "New insured", what: "Who the policy will be held by if approved." },
+          { label: "Submitted", what: "When the request arrived." }, ""],
+        rows: pageRows.map(function (t) {
+          var meta = t.h.meta || {};
+          return [ui.cellId(t.p.id), ui.cellName(t.p.holder), ui.initiatorPill(meta), meta.reason || "—", meta.newHolder || "—", PAS.fmtDate(meta.submittedOn || t.h.date), ui.cellOpen("Review")];
+        }),
+        emptyText: "No transfer requests awaiting decision.",
+        wrapCells: true,
+        onRowClick: function (i) { location.href = "transfer-decision.html?policy=" + encodeURIComponent(pageRows[i].p.id) + "&txn=" + encodeURIComponent(pageRows[i].h.id); },
+      }));
+      if (total > 0) {
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = start + 1, to = Math.min(total, start + pageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (pageIndex > 0) { pageIndex--; buildTable(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (pageIndex < totalPages - 1) { pageIndex++; buildTable(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (pageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        tableContainer.appendChild(pager);
+      }
+    }
+    buildTable();
 
     var root = document.getElementById("page-content");
     root.innerHTML = "";

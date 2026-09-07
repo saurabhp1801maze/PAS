@@ -31,7 +31,7 @@
     var typeChipRow = ui.h("div", { class: "chip-row" });
     TYPES.forEach(function (t) {
       var chip = ui.h("button", { class: "chip" + (typeF === t ? " active" : ""), type: "button" }, t);
-      chip.addEventListener("click", function () { typeF = t; renderChips(); buildTable(); });
+      chip.addEventListener("click", function () { typeF = t; pageIndex = 0; renderChips(); buildTable(); });
       typeChipRow.appendChild(chip);
     });
     toolbar.appendChild(typeChipRow);
@@ -42,23 +42,45 @@
 
     var tableContainer = ui.h("div", {});
     page.appendChild(tableContainer);
+    var pageSize = 25, pageIndex = 0;
     function buildTable() {
       var rows = docs.filter(function (x) {
         return (typeF === "All" || x.d.type === typeF) && (x.p.holder.toLowerCase().indexOf(q.toLowerCase()) !== -1 || x.p.id.toLowerCase().indexOf(q.toLowerCase()) !== -1);
       });
       tableContainer.innerHTML = "";
       if (typeF !== "All" || q) tableContainer.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Showing " + rows.length + " of " + docs.length + " documents."));
+      var total = rows.length;
+      var totalPages = Math.max(1, Math.ceil(total / pageSize));
+      if (pageIndex >= totalPages) pageIndex = totalPages - 1;
+      if (pageIndex < 0) pageIndex = 0;
+      var start = pageIndex * pageSize;
+      var pageRows = rows.slice(start, start + pageSize);
       tableContainer.appendChild(ui.dataTable({
         columns: ["Document", "Policy", "Insured", { label: "Type", what: "Document class." }, { label: "Version", what: "Regenerated on every material change." }, "Generated", ""],
-        rows: rows.map(function (x) {
+        rows: pageRows.map(function (x) {
           var nameSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "7px", fontWeight: "600" } }, [PAS.icon("file-text", { size: 13, color: "var(--color-link)" }), document.createTextNode(x.d.name)]);
           var dlSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "5px", color: "var(--color-link)", fontSize: "12px", fontWeight: "700" } }, [PAS.icon("download", { size: 12 }), document.createTextNode("PDF")]);
           return [nameSpan, ui.cellId(x.p.id), x.p.holder, x.d.type, ui.pill("gray", "v" + x.d.version), PAS.fmtDate(x.d.generatedAt), dlSpan];
         }),
         emptyText: "No matching documents.",
       }));
+      if (total > 0) {
+        var pager = ui.h("div", { class: "table-pager" });
+        var from = start + 1, to = Math.min(total, start + pageSize);
+        pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
+        var nav = ui.h("div", { class: "table-pager-nav" });
+        var prev = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex <= 0 }, "← Prev");
+        prev.addEventListener("click", function () { if (pageIndex > 0) { pageIndex--; buildTable(); } });
+        var next = ui.h("button", { class: "btn small", type: "button", disabled: pageIndex >= totalPages - 1 }, "Next →");
+        next.addEventListener("click", function () { if (pageIndex < totalPages - 1) { pageIndex++; buildTable(); } });
+        nav.appendChild(prev);
+        nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (pageIndex + 1) + " of " + totalPages));
+        nav.appendChild(next);
+        pager.appendChild(nav);
+        tableContainer.appendChild(pager);
+      }
     }
-    searchInput.addEventListener("input", function () { q = searchInput.value; buildTable(); });
+    searchInput.addEventListener("input", function () { q = searchInput.value; pageIndex = 0; buildTable(); });
     buildTable();
 
     var root = document.getElementById("page-content");

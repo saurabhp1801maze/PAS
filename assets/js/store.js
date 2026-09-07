@@ -45,8 +45,10 @@
     catch (e) { return "$" + Math.round(n || 0).toLocaleString("en-US"); }
   };
   var moneyShort = function (n) {
-    return n >= 1000000 ? "$" + (n / 1000000).toFixed(2) + "M"
-      : n >= 1000 ? "$" + (n / 1000).toFixed(1) + "K" : money(n);
+    var sign = n < 0 ? "-" : "";
+    var abs = Math.abs(n);
+    return abs >= 1000000 ? sign + "$" + (abs / 1000000).toFixed(2) + "M"
+      : abs >= 1000 ? sign + "$" + (abs / 1000).toFixed(1) + "K" : money(n);
   };
   var fmtTime = function (iso) { return new Date(iso).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", second: "2-digit" }); };
   /* Renders a stored `YYYY-MM-DD` as a locale-formatted date without ever touching what's stored

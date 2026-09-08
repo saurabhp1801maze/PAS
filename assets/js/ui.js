@@ -145,6 +145,26 @@
     return h("span", { class: "status-badge outcome-badge", "data-outcome": key }, outcome);
   }
   function modulePill(type) { return pill(PAS.MODULE_TONE[type], type, PAS.MODULE_ICON[type]); }
+  /* "Requested by" as more than just the initiator's ROLE — a policy can have dozens of brokers/
+     MGAs on file, so the role pill alone ("Broker / Producer") doesn't say which one owns this
+     item. Stacks the real name underneath: Broker/MGA/Carrier get the policy's own producer/mga/
+     carrier field, Underwriter gets whoever made the last completed underwriting decision on this
+     policy (never fabricated); Insured and System carry no further name to show. Shared by
+     Pending Approvals and the Dashboard's Open work queues so "whose work item is this" never
+     looks different depending on which screen you're reading it from. */
+  function requestedByCell(t) {
+    var meta = t.h.meta || {};
+    var role = meta.initiatedBy;
+    var name = role === "Broker/Producer" ? t.p.producer
+      : role === "MGA" ? t.p.mga
+      : role === "Carrier" ? t.p.carrier
+      : role === "Underwriter" ? PAS.underwriterOf(t.p)
+      : null;
+    var wrap = h("div", {});
+    wrap.appendChild(initiatorPill(meta));
+    if (name) wrap.appendChild(h("div", { class: "faint-note", style: { marginTop: "3px" } }, name));
+    return wrap;
+  }
   /* labelOverrides is optional and defaults to none — every existing caller keeps showing
      PAS.INITIATORS' own shared label unchanged. A desk that needs its own wording for one
      initiator (without touching the shared map every other desk also reads from) passes e.g.
@@ -306,7 +326,7 @@
     columnsBtn.addEventListener("click", function (e) { e.stopPropagation(); if (panelEl) closePanel(); else openPanel(); });
 
     var tableWrap = h("div", {});
-    var sortState = null; /* { key, dir } */
+    var sortState = opts.initialSort || null; /* { key, dir } */
     var pageSize = opts.pageSize || 0;
     var pageIndex = 0; /* 0-based */
     function rebuild() {
@@ -347,6 +367,7 @@
           if (sortState && sortState.key === key) sortState = { key: key, dir: sortState.dir === "asc" ? "desc" : "asc" };
           else sortState = { key: key, dir: "asc" };
           pageIndex = 0;
+          if (opts.onSortChange) opts.onSortChange(sortState);
           rebuild();
         },
         rows: pageRows.map(function (r) {
@@ -630,16 +651,43 @@
     row.appendChild(valEl);
     return row;
   }
+  /* opts.collapsible: adds a chevron toggle (defaulting open unless opts.defaultOpen === false)
+     that shows/hides .panel-body — used to let a dense secondary panel start tucked away instead
+     of always taking its full vertical space. opts.right (if present) and the toggle share one
+     head-right cluster so they group together at the end of the head row instead of spreading
+     apart under panel-head's own space-between layout. */
   function panel(opts, body) {
     var p = h("div", { class: "panel" + (opts.pad === 0 ? " no-pad" : "") });
     var head = h("div", { class: "panel-head" });
     head.appendChild(opts.what || opts.why || opts.tip || opts.rule
       ? tipLabel({ text: opts.title, what: opts.what, why: opts.why, tip: opts.tip, rule: opts.rule, className: "panel-title" })
       : h("span", { class: "panel-title" }, opts.title));
-    if (opts.right) head.appendChild(opts.right);
-    p.appendChild(head);
     var bodyEl = h("div", { class: "panel-body" });
     appendKids(bodyEl, body);
+    var headRight = (opts.right || opts.collapsible) ? h("div", { class: "panel-head-right" }) : null;
+    if (headRight && opts.right) headRight.appendChild(opts.right);
+    if (opts.collapsible) {
+      var open = opts.defaultOpen !== false;
+      var chevron = PAS.icon(open ? "chevron-up" : "chevron-down", { size: 15, color: "var(--color-muted)" });
+      var toggleBtn = h("button", {
+        type: "button", class: "panel-collapse-btn",
+        "aria-expanded": open ? "true" : "false",
+        "aria-label": (open ? "Collapse " : "Expand ") + opts.title,
+      }, chevron);
+      bodyEl.hidden = !open;
+      toggleBtn.addEventListener("click", function () {
+        open = !open;
+        bodyEl.hidden = !open;
+        toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+        toggleBtn.setAttribute("aria-label", (open ? "Collapse " : "Expand ") + opts.title);
+        var next = PAS.icon(open ? "chevron-up" : "chevron-down", { size: 15, color: "var(--color-muted)" });
+        toggleBtn.replaceChild(next, chevron);
+        chevron = next;
+      });
+      headRight.appendChild(toggleBtn);
+    }
+    if (headRight) head.appendChild(headRight);
+    p.appendChild(head);
     p.appendChild(bodyEl);
     return p;
   }
@@ -837,10 +885,16 @@
     wrap.appendChild(d);
     var legend = h("div", { class: "donut-legend" });
     opts.segments.forEach(function (s) {
-      var row = h("div", { class: "donut-legend-row" });
+      var row = h("div", { class: "donut-legend-row" + (s.onClick ? " clickable" : "") });
       row.appendChild(h("span", { class: "donut-swatch", style: { background: TONE_HEX[s.tone] } }));
       row.appendChild(h("span", { class: "donut-legend-label" }, s.label));
       row.appendChild(h("span", { class: "donut-legend-value" }, String(s.value)));
+      if (s.onClick) {
+        row.setAttribute("role", "link");
+        row.setAttribute("tabindex", "0");
+        row.addEventListener("click", s.onClick);
+        row.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.onClick(); } });
+      }
       legend.appendChild(row);
     });
     wrap.appendChild(legend);
@@ -1465,7 +1519,7 @@
 
   PAS.ui = {
     h: h, append: appendKids, tooltip: tooltip, tipLabel: tipLabel, infoDot: infoDot,
-    pill: pill, statusBadge: statusBadge, badge: badge, txnStatusBadge: txnStatusBadge, outcomeBadge: outcomeBadge, modulePill: modulePill, initiatorPill: initiatorPill, tabs: tabs, emptyState: emptyState, diffPanel: diffPanel, stepper: stepper, drawer: drawer,
+    pill: pill, statusBadge: statusBadge, badge: badge, txnStatusBadge: txnStatusBadge, outcomeBadge: outcomeBadge, modulePill: modulePill, initiatorPill: initiatorPill, requestedByCell: requestedByCell, tabs: tabs, emptyState: emptyState, diffPanel: diffPanel, stepper: stepper, drawer: drawer,
     cellOpen: cellOpen, cellId: cellId, cellName: cellName, methodBadge: methodBadge, statusCodeBadge: statusCodeBadge,
     codeBlock: codeBlock, dataTable: dataTable, sortableTable: sortableTable, deskList: deskList, kpiRow: kpiRow, kpiSection: kpiSection, actionBar: actionBar,
     backLink: backLink, kv: kv, panel: panel, accordion: accordion, accordionSection: accordionSection, pageHeader: pageHeader, field: field, checkboxRow: checkboxRow, multiSelect: multiSelect,

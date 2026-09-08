@@ -24,6 +24,28 @@
   var PAS = window.PAS, ui = PAS.ui;
 
   function sum(list, fn) { return list.reduce(function (s, x) { return s + fn(x); }, 0); }
+
+  /* Where a segment/entity name actually drills into — the Policy Register when the dimension is
+     one it can filter (product, state), or that entity's own directory page when it's a
+     distribution-chain partner the Register has no filter for (Broker, MGA, Reinsurer). Shared by
+     both the full operational dashboard and the scoped Broker/MGA/Carrier one, so the same name
+     always lands in the same place no matter which dashboard or panel it was clicked from. */
+  function drilldownHref(dim, name) {
+    if (dim === "product") return "registry.html?product=" + encodeURIComponent(name);
+    if (dim === "state") return "registry.html?state=" + encodeURIComponent(name);
+    if (dim === "producer") return "brokers.html?broker=" + encodeURIComponent(name);
+    if (dim === "mga") return "mgas.html?mga=" + encodeURIComponent(name);
+    if (dim === "carrier") return "carriers.html?carrier=" + encodeURIComponent(name);
+    return null;
+  }
+  /* A bare, underline-on-hover text link — same look ui.hbar's own clickable label uses — for
+     naming a clickable cell inside a data table, where a full button's chrome would look wrong. */
+  function linkCell(text, href) {
+    if (!href) return text;
+    var btn = ui.h("button", { class: "hbar-label-link", type: "button", style: { fontWeight: "700" } }, text);
+    btn.addEventListener("click", function (e) { e.stopPropagation(); location.href = href; });
+    return btn;
+  }
   function txnsOfType(policies, type, status) {
     var out = [];
     policies.forEach(function (p) { p.history.forEach(function (h) { if (h.type === type && h.status === status) out.push({ p: p, h: h }); }); });
@@ -344,9 +366,17 @@
     var finVerdictWrap = ui.h("div", {});
     page.appendChild(finVerdictWrap);
 
-    /* The panel that answers "which is loss, where profit" directly. Ranked worst-first by
-       combined ratio, because the loss-making segments are the ones anyone actually needs to act
-       on — a table sorted alphabetically buries them. */
+    /* The panel that answers "which is loss, where profit, and how many claims is that actually
+       resting on" in one place. This used to be two separate panels — this table (premium/ratios)
+       up here, and a "Top claim segments" bar chart further down under Lifetime claims performance
+       — so reading "Group Health is at 89% loss ratio" and "backed by 14 claims" meant scrolling
+       between them and manually matching the segment name by eye. The claim count now sits right
+       next to the incurred-claims dollar figure it explains, both on the same row as the premium
+       and ratios they're computed from — one table, no cross-referencing. Ranked worst-first by
+       combined ratio by default (the loss-making segments are the ones anyone actually needs to
+       act on), but every column header is click-to-sort — including Claims, so "which segment has
+       the most claims" (what the old separate chart ranked by) is still one click away, not a
+       separate panel. */
     var SEGMENT_DIMS = [
       { key: "product", label: "Line of business" },
       { key: "state", label: "State" },
@@ -354,21 +384,45 @@
       { key: "mga", label: "MGA" },
     ];
     var segmentDim = "product";
+    /* Which metric ranks the rows — a separate question from which dimension groups them (the
+       chips above). Every option here mirrors a real column in the table below, so "sorted by
+       X" always names a column actually on screen. Combined ratio is the default because it's
+       the single number that answers "is this segment losing money" — same ordering the table
+       used before this control existed. All bases rank worst/largest first (desc): for the
+       ratios that means worst first, for the dollar/count columns it means biggest first —
+       clicking a column header still works and overrides this for that column. */
+    var SEGMENT_SORT_BASES = [
+      { key: "combinedRatio", label: "Indicative combined ratio", sortValue: function (s) { return s.f.combinedRatio; } },
+      { key: "lossRatio", label: "Loss ratio", sortValue: function (s) { return s.f.lossRatio; } },
+      { key: "expenseRatio", label: "Acquisition expense ratio", sortValue: function (s) { return s.f.expenseRatio; } },
+      { key: "claimCount", label: "Claims", sortValue: function (s) { return s.f.claimCount; } },
+      { key: "incurred", label: "Incurred claims", sortValue: function (s) { return s.f.incurred; } },
+      { key: "earnedPremium", label: "Earned premium", sortValue: function (s) { return s.f.earnedPremium; } },
+      { key: "netCommission", label: "Net commission", sortValue: function (s) { return s.f.netCommission; } },
+      { key: "policies", label: "On-risk policies", sortValue: function (s) { return s.n; } },
+    ];
+    var segmentSortBasis = SEGMENT_SORT_BASES[0].key;
+    var segmentSortSelect = ui.h("select", { class: "register-select", "aria-label": "Sort performance by", style: { maxWidth: "185px" } });
+    SEGMENT_SORT_BASES.forEach(function (s) { segmentSortSelect.appendChild(ui.h("option", { value: s.key }, s.label)); });
+    segmentSortSelect.value = segmentSortBasis;
+    segmentSortSelect.addEventListener("change", function () { segmentSortBasis = segmentSortSelect.value; buildFinancials(); });
+    var segmentRight = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" } });
+    var segmentChipRow = ui.h("div", { class: "chip-row" });
+    SEGMENT_DIMS.forEach(function (d) {
+      var chip = ui.h("button", { class: "chip" + (segmentDim === d.key ? " active" : ""), type: "button", "aria-pressed": String(segmentDim === d.key) }, d.label);
+      chip.addEventListener("click", function () { segmentDim = d.key; buildFinancials(); });
+      segmentChipRow.appendChild(chip);
+    });
+    segmentRight.appendChild(segmentChipRow);
+    segmentRight.appendChild(ui.h("span", { class: "faint-note", style: { whiteSpace: "nowrap" } }, "Sort by"));
+    segmentRight.appendChild(segmentSortSelect);
     var segmentPanel = ui.panel({
       title: "Performance by segment",
-      right: (function () {
-        var chipRow = ui.h("div", { class: "chip-row" });
-        SEGMENT_DIMS.forEach(function (d) {
-          var chip = ui.h("button", { class: "chip" + (segmentDim === d.key ? " active" : ""), type: "button", "aria-pressed": String(segmentDim === d.key) }, d.label);
-          chip.addEventListener("click", function () { segmentDim = d.key; buildFinancials(); });
-          chipRow.appendChild(chip);
-        });
-        return chipRow;
-      })(),
+      collapsible: true,
+      right: segmentRight,
     }, []);
     var segmentBody = segmentPanel.querySelector(".panel-body");
     page.appendChild(segmentPanel);
-    var segmentPageSize = 10, segmentPageIndex = 0;
 
     page.appendChild(ui.h("div", { class: "kpi-section-head", style: { marginTop: "26px" } }, [
       ui.h("span", { class: "kpi-section-label" }, "Operations"),
@@ -378,15 +432,20 @@
     var kpiContainer = ui.h("div", {});
     page.appendChild(kpiContainer);
 
-    /* Actionable queues come before historical trend charts in the operations workflow. */
-    var summaryGrid = ui.h("div", { class: "two-col-grid" });
-    page.appendChild(summaryGrid);
+    /* Portfolio concentration comes before the historical trend charts in the operations
+       workflow. Open work queues used to sit right next to it in a two-col-grid — it now moves to
+       the very end of the page (see queuePanelSlot below), so this holds Portfolio concentration
+       alone, full width, rather than half-width with an empty column beside it. 14px bottom margin
+       matches the two-col-grid immediately below it (chartGrid) — a lone .panel carries no margin
+       of its own, so without this it sat flush against the next panel with no gap at all. */
+    var topPanelSlot = ui.h("div", { style: { marginBottom: "14px" } });
+    page.appendChild(topPanelSlot);
 
     var chartGrid = ui.h("div", { class: "two-col-grid" });
-    var chartPanel = ui.panel({ title: "Renewal, cancellation & reinstatement activity" }, []);
+    var chartPanel = ui.panel({ title: "Renewal, cancellation & reinstatement activity", collapsible: true }, []);
     var chartBody = chartPanel.querySelector(".panel-body");
     chartGrid.appendChild(chartPanel);
-    var issuancePanel = ui.panel({ title: "New policies issued" }, []);
+    var issuancePanel = ui.panel({ title: "New policies issued", collapsible: true }, []);
     var issuanceBody = issuancePanel.querySelector(".panel-body");
     chartGrid.appendChild(issuancePanel);
     page.appendChild(chartGrid);
@@ -451,7 +510,7 @@
         { label: expiringSoonWindow ? "Policies expiring in 30 days" : "Policies expiring in period", value: expiring, tone: expiring > 0 ? "amber" : "gray", href: "renewal.html", tip: expiringSoonWindow ? "Active policies whose term ends within the next 30 days." : ("Active policies whose term ends " + periodNote + ".") },
         { label: "Pending endorsement requests", value: endorsementPending, tone: endorsementPending > 0 ? "amber" : "gray", href: "endorsement.html" },
         { label: "Pending approvals", value: pending.length, tone: "red", href: "approvals.html", tip: "Transactions awaiting approval now; underwriting referrals are handled separately." },
-        { label: "Bound, awaiting automatic issuance", value: bound.length, tone: bound.length > 0 ? "amber" : "gray", tip: "Bound policies waiting for automatic issuance after all blockers are cleared." },
+        { label: "Bound, awaiting automatic issuance", value: bound.length, tone: bound.length > 0 ? "amber" : "gray", href: "issue.html", tip: "Bound policies waiting for automatic issuance after all blockers are cleared." },
       ]));
       kpiContainer.appendChild(ui.kpiSection({
         label: "Completed in selected period",
@@ -575,10 +634,10 @@
     ]);
     page.appendChild(snapshotHead);
     var twoCol = ui.h("div", { class: "two-col-grid" });
-    var prodPanel = ui.panel({ title: "In-force premium by line of business" }, []);
+    var prodPanel = ui.panel({ title: "In-force premium by line of business", collapsible: true }, []);
     var prodBody = prodPanel.querySelector(".panel-body");
     twoCol.appendChild(prodPanel);
-    var compPanel = ui.panel({ title: "Policies by lifecycle status" }, []);
+    var compPanel = ui.panel({ title: "Policies by lifecycle status", collapsible: true }, []);
     var compBody = compPanel.querySelector(".panel-body");
     twoCol.appendChild(compPanel);
     page.appendChild(twoCol);
@@ -598,6 +657,7 @@
       title: "Lifetime loss ratio by line of business",
       what: "Incurred claims divided by earned premium for each line of business across all on-risk history.",
       why: "Above 100% means claims alone exceed earned premium. The 85% alert is a review threshold, not proof of an underwriting loss; use combined ratio for profitability.",
+      collapsible: true,
     }, []);
     var lossByProductBody = lossByProductPanel.querySelector(".panel-body");
     claimsGrid.appendChild(lossByProductPanel);
@@ -605,6 +665,7 @@
       title: "Lifetime loss ratio by state",
       what: "Incurred claims divided by earned premium for the eight states with the highest ratios.",
       why: "Use claim counts as context: a state with only one claim can show a volatile ratio.",
+      collapsible: true,
     }, []);
     var lossByStateBody = lossByStatePanel.querySelector(".panel-body");
     claimsGrid.appendChild(lossByStatePanel);
@@ -613,65 +674,59 @@
     var claimsCalloutWrap = ui.h("div", {});
     page.appendChild(claimsCalloutWrap);
 
-    /* Top claim segments: the two "lifetime loss ratio" panels above rank by RATIO (claims per
-       earned-premium dollar); this ranks by raw claim COUNT instead — "where is claim volume
-       actually piling up", a different question a fixed-dimension ratio bar can't answer once you
-       want to look at it by Broker or MGA instead of just product/state. */
-    var CLAIM_TOP_DIMS = [
-      { key: "product", label: "Line of business" },
-      { key: "state", label: "State" },
-      { key: "producer", label: "Broker" },
-      { key: "mga", label: "MGA" },
-    ];
-    var claimTopDim = "product";
-    var claimTopPanel = ui.panel({
-      title: "Top claim segments",
-      what: "The 5 segments with the most claims for the selected dimension, in this filter.",
-      right: (function () {
-        var chipRow = ui.h("div", { class: "chip-row" });
-        CLAIM_TOP_DIMS.forEach(function (d) {
-          var chip = ui.h("button", { class: "chip" + (claimTopDim === d.key ? " active" : ""), type: "button", "aria-pressed": String(claimTopDim === d.key) }, d.label);
-          chip.addEventListener("click", function () { claimTopDim = d.key; buildClaims(); });
-          chipRow.appendChild(chip);
-        });
-        return chipRow;
-      })(),
-    }, []);
-    var claimTopBody = claimTopPanel.querySelector(".panel-body");
-    page.appendChild(claimTopPanel);
+    /* Open work queues moves to the very last section of the page — reserved here, before the
+       panel itself exists (it's built further down, alongside Portfolio concentration), so its
+       final page position is set now rather than wherever its construction happens to sit in the
+       source. */
+    var queuePanelSlot = ui.h("div", { style: { marginTop: "26px" } });
+    page.appendChild(queuePanelSlot);
 
-    /* Rankings on the left, work queues on the right — side by side so both are readable
-       without scrolling one past the other. Appended to the page here so the pair lands in the
-       same position the old six cards occupied. */
-    /* ---- Top performers: one panel, switchable dimension ----
+    /* ---- Top performers: one panel, switchable dimension and switchable ranking basis ----
        This was three fixed side-by-side cards (brokers / MGAs / insurers). One panel with a
-       dropdown asks the same ranking question of any dimension, and makes room for Underwriters —
-       which has no directory page of its own, so under the old layout it could never have had a
-       card without inventing one. The row cap rises from 3 to 5 now that the panel has the full
-       page width rather than a third of it. */
+       dropdown asks the same ranking question of any distribution-chain dimension — Broker, MGA
+       or Reinsurer, the three real counterpart fields a policy carries. The row cap rises from 3
+       to 5 now that the panel has the full page width rather than a third of it. */
     var TOP_ENTITY_ROWS = 5;
     var TOP_DIMS = [
-      { key: "producer", label: "Brokers", note: "In-force premium by broker, largest first — showing distribution concentration, not performance. Direct means business written without a producing broker.", href: "brokers.html" },
-      { key: "mga", label: "MGAs", note: "In-force premium by MGA facility, largest first — showing binding-authority concentration.", href: "mgas.html" },
-      { key: "carrier", label: "Carriers", note: "In-force premium by carrier, largest first — showing concentration on each carrier's paper.", href: "carriers.html" },
-      /* Read from each policy's own completed underwriting decision (PAS.underwriterOf), not from
-         `producer` — the broker who introduced the risk and the underwriter who accepted it are
-         different parties, and conflating them is exactly what the MOM asked us to stop doing. */
-      { key: "underwriter", label: "Underwriters", note: "In-force premium by underwriter — showing authority concentration, not individual performance.", href: null },
+      { key: "producer", label: "Brokers", note: "By broker, largest first — showing distribution concentration, not performance. Direct means business written without a producing broker.", href: "brokers.html" },
+      { key: "mga", label: "MGAs", note: "By MGA facility, largest first — showing binding-authority concentration.", href: "mgas.html" },
+      { key: "carrier", label: "Reinsurers", note: "By reinsurer, largest first — showing concentration on each reinsurer's paper.", href: "carriers.html" },
+    ];
+    /* What "top 5" actually ranks by — a separate control from which dimension is grouped, so
+       "biggest by premium" and "biggest by policy count" can both be asked of the same Broker/MGA/
+       Reinsurer breakdown without needing three panels. Percent-of-total only makes sense for the
+       additive bases (premium, policy count, claims) — averaging averages isn't meaningful, so the avg-
+       premium basis note leaves that figure out rather than show a bogus percentage. */
+    var TOP_SORT_BASES = [
+      { key: "premium", label: "In-force premium", sortValue: function (r) { return r.premium; } },
+      { key: "policies", label: "Number of policies", sortValue: function (r) { return r.n; } },
+      { key: "avgPremium", label: "Average premium", sortValue: function (r) { return r.avgPremium; } },
+      { key: "claims", label: "Claims", sortValue: function (r) { return r.claimCount; } },
     ];
     var topDim = TOP_DIMS[0].key;
+    var topSortBasis = TOP_SORT_BASES[0].key;
     var topSelect = ui.h("select", { class: "register-select", "aria-label": "Group portfolio concentration by" });
     TOP_DIMS.forEach(function (d) { topSelect.appendChild(ui.h("option", { value: d.key }, d.label)); });
+    /* Plain metric names, same convention as topSelect's own options — no "Rank by " verb prefix,
+       which pushed the longest option ("Rank by Average premium per policy") past .register-
+       select's shared 168px max-width and clipped it mid-word. The wider max-width here is a
+       per-control override, not a change to that shared class — every other .register-select on
+       this page and across the app shows much shorter text and doesn't need it. */
+    var topSortSelect = ui.h("select", { class: "register-select", "aria-label": "Rank top 5 by", style: { maxWidth: "185px" } });
+    TOP_SORT_BASES.forEach(function (s) { topSortSelect.appendChild(ui.h("option", { value: s.key }, s.label)); });
     var topLinkWrap = ui.h("span", {});
     var topRight = ui.h("div", { style: { display: "flex", alignItems: "center", gap: "8px" } });
     topRight.appendChild(topSelect);
+    topRight.appendChild(topSortSelect);
     topRight.appendChild(topLinkWrap);
     var topPanel = ui.panel({
       title: "Portfolio concentration",
       right: topRight,
+      collapsible: true,
     }, []);
     var topBody = topPanel.querySelector(".panel-body");
     topSelect.addEventListener("change", function () { topDim = topSelect.value; buildTopEntities(); });
+    topSortSelect.addEventListener("change", function () { topSortBasis = topSortSelect.value; buildTopEntities(); });
 
     /* ---- Open work queues: one panel, switchable queue ----
        Same consolidation, and the same gain: Reinstatement had no card before (there were only
@@ -695,10 +750,11 @@
     var queuePanel = ui.panel({
       title: "Open work queues",
       right: queueRight,
+      collapsible: true,
     }, []);
     var queueBody = queuePanel.querySelector(".panel-body");
-    summaryGrid.appendChild(queuePanel);
-    summaryGrid.appendChild(topPanel);
+    queuePanelSlot.appendChild(queuePanel);
+    topPanelSlot.appendChild(topPanel);
     queueSelect.addEventListener("change", function () { queueKey = queueSelect.value; buildQueues(); });
 
     function buildSnapshotPanels() {
@@ -718,7 +774,7 @@
       }).sort(function (a, b) { return b.v - a.v; });
       var maxP = Math.max.apply(null, byProduct.map(function (x) { return x.v; }).concat([1]));
       prodBody.innerHTML = "";
-      byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " policies", tone: x.v === maxP ? "indigo" : "blue", onClick: function () { location.href = "registry.html?product=" + encodeURIComponent(x.pr); } })); });
+      byProduct.forEach(function (x) { prodBody.appendChild(ui.hbar({ label: x.pr, value: x.v, max: maxP, note: PAS.moneyShort(x.v) + " · " + x.n + " policies", tone: x.v === maxP ? "indigo" : "blue", onClick: function () { location.href = drilldownHref("product", x.pr); } })); });
 
       compBody.innerHTML = "";
       compBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, "Current records by status. Bound policies await automatic issuance; policies in UW Review are awaiting an underwriting decision."));
@@ -727,15 +783,21 @@
          slice by however many records the missing status holds. */
       var declined = policies.filter(function (p) { return p.status === "Declined"; });
       var nonRenewed = policies.filter(function (p) { return p.status === "Non-renewed"; });
+      /* Every legend row links to the Policy Register pre-filtered to the same records — the
+         Register's own status filter only understands the 4 lifecycle BUCKETS (PAS.statusBucket),
+         not these 7 raw statuses, so a click on e.g. "Declined" lands on the whole Canceled bucket
+         (Cancelled + Declined) rather than Declined alone — the most precise filter the Register
+         can actually apply, same convention the Active/Bound KPI cards above already use. */
+      function statusOnClick(raw) { return function () { location.href = "registry.html?status=" + encodeURIComponent(PAS.statusBucket(raw)); }; }
       compBody.appendChild(ui.donut({
         total: policies.length, centerValue: policies.length, centerLabel: "records", segments: [
-          { label: PAS.statusLabel("Active"), value: active.length, tone: "green" },
-          { label: PAS.statusLabel("Bound"), value: bound.length, tone: "amber" },
-          { label: PAS.statusLabel("Referred"), value: referred.length, tone: "violet" },
-          { label: PAS.statusLabel("Cancelled"), value: cancelled.length, tone: "red" },
-          { label: PAS.statusLabel("Expired"), value: policies.filter(function (p) { return p.status === "Expired"; }).length, tone: "gray" },
-          { label: PAS.statusLabel("Declined"), value: declined.length, tone: "blue" },
-          { label: PAS.statusLabel("Non-renewed"), value: nonRenewed.length, tone: "indigo" },
+          { label: PAS.statusLabel("Active"), value: active.length, tone: "green", onClick: statusOnClick("Active") },
+          { label: PAS.statusLabel("Bound"), value: bound.length, tone: "amber", onClick: statusOnClick("Bound") },
+          { label: PAS.statusLabel("Referred"), value: referred.length, tone: "violet", onClick: statusOnClick("Referred") },
+          { label: PAS.statusLabel("Cancelled"), value: cancelled.length, tone: "red", onClick: statusOnClick("Cancelled") },
+          { label: PAS.statusLabel("Expired"), value: policies.filter(function (p) { return p.status === "Expired"; }).length, tone: "gray", onClick: statusOnClick("Expired") },
+          { label: PAS.statusLabel("Declined"), value: declined.length, tone: "blue", onClick: statusOnClick("Declined") },
+          { label: PAS.statusLabel("Non-renewed"), value: nonRenewed.length, tone: "indigo", onClick: statusOnClick("Non-renewed") },
         ],
       }));
 
@@ -743,7 +805,25 @@
 
     /* All four desk queues, one at a time. Each is its own small builder so the queue picker
        only ever has to choose between them — adding a fifth desk later means adding one entry
-       to QUEUES and one builder here, not another column to a grid that has run out of room. */
+       to QUEUES and one builder here, not another column to a grid that has run out of room.
+
+       Redesigned (was a plain ranked-bar list) so the two things that actually decide "do I act
+       on this now" — who it belongs to, and how much time is left — are always visible as their
+       own elements, not folded into one note string next to a magnitude bar:
+         - Owner: for a real held transaction (cancellation/reinstatement/endorsement) this is
+           ui.requestedByCell — the same initiator pill + real name Pending Approvals shows for
+           the identical row, so "who does this belong to" reads the same on both screens. Renewal
+           has no held transaction yet at this stage (it is a forward pipeline of active policies
+           approaching expiry, not a decision already raised) — its real owner is whoever
+           underwrote the policy, PAS.underwriterOf, the same source policy-detail's own
+           "Underwritten by" field reads from.
+         - Deadline: for the three held-transaction queues this is the real approval SLA
+           (PAS.getTxnSla — the same clock Pending Approvals and Advanced Admin already show,
+           factoring in the transaction's own reason/materiality). Reinstatement's own eligibility
+           window is a more urgent, more relevant deadline than the generic approval SLA (the
+           window can run out before an approval SLA ever would), so it uses that instead. Renewal
+           has no approval SLA at all — its deadline is whether the notice lead time has arrived,
+           from the same PAS.renewalCompliance the Renewal desk itself is sorted by. */
     function buildQueues() {
       var policies = scopedPolicies();
       var active = policies.filter(function (p) { return p.status === "Active"; });
@@ -755,23 +835,66 @@
       queueBody.innerHTML = "";
       queueBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, spec.note));
 
-      /* Every queue renders the same way: a ranked bar list, then a "showing N of M" note and a
-         View more link when the real list is longer than the cap. */
-      function renderQueue(rows, emptyText, moreText) {
+      function txnDecisionHref(t) {
+        var desk = PAS.TYPE_TO_DESK[t.h.type];
+        return PAS.DETAIL_URL_OF[desk] + "?policy=" + encodeURIComponent(t.p.id) + "&txn=" + encodeURIComponent(t.h.id);
+      }
+      /* Same shape ui.requestedByCell renders (a pill, with a real name stacked underneath it) —
+         used for Renewal, which has no transaction/meta.initiatedBy to hand that helper. */
+      function ownerBlock(pillNode, name) {
+        var wrap = ui.h("div", {});
+        wrap.appendChild(pillNode);
+        if (name) wrap.appendChild(ui.h("div", { class: "faint-note", style: { marginTop: "3px" } }, name));
+        return wrap;
+      }
+      function queueRow(row) {
+        var item = ui.h("div", { class: "queue-item" + (row.onClick ? " clickable" : "") });
+        if (row.onClick) {
+          item.setAttribute("role", "link");
+          item.setAttribute("tabindex", "0");
+          item.addEventListener("click", row.onClick);
+          item.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); row.onClick(); } });
+        }
+        var main = ui.h("div", { class: "queue-item-main" });
+        main.appendChild(ui.h("div", { class: "queue-item-title" }, row.title));
+        if (row.sub) main.appendChild(ui.h("div", { class: "queue-item-sub" }, row.sub));
+        row.ownerNode.style.marginTop = "6px";
+        main.appendChild(row.ownerNode);
+        item.appendChild(main);
+        var side = ui.h("div", { class: "queue-item-side" });
+        side.appendChild(ui.pill(row.deadlineTone, row.deadlineText));
+        if (row.metric) side.appendChild(ui.h("div", { class: "queue-item-metric" }, row.metric));
+        item.appendChild(side);
+        return item;
+      }
+      /* Every queue renders the same way: up to QUEUE_ROWS compact rows, then a "showing N of M"
+         note and a View more link when the real list is longer than the cap. */
+      function renderRows(rows, total, emptyText, moreText) {
         if (rows.length === 0) { queueBody.appendChild(ui.h("div", { class: "faint-note" }, emptyText)); return; }
-        rows.slice(0, QUEUE_ROWS).forEach(function (r) { queueBody.appendChild(ui.hbar(r)); });
-        if (rows.length > QUEUE_ROWS) {
-          queueBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + QUEUE_ROWS + " of " + rows.length + " " + moreText + "."));
+        var list = ui.h("div", { class: "queue-list" });
+        rows.forEach(function (r) { list.appendChild(queueRow(r)); });
+        queueBody.appendChild(list);
+        if (total > QUEUE_ROWS) {
+          queueBody.appendChild(ui.h("div", { class: "faint-note mt-6" }, "Showing " + QUEUE_ROWS + " of " + total + " " + moreText + "."));
           queueBody.appendChild(openLink(spec.href, "View more"));
         }
       }
 
       if (spec.key === "renewal") {
         var renewalSorted = active.slice().sort(function (a, b) { return PAS.daysBetween(PAS.todayISO(), a.expirationDate) - PAS.daysBetween(PAS.todayISO(), b.expirationDate); });
-        renderQueue(renewalSorted.map(function (p) {
+        var rows = renewalSorted.slice(0, QUEUE_ROWS).map(function (p) {
           var rc = PAS.renewalCompliance(p);
-          return { label: p.holder, value: Math.max(0, 365 - rc.daysToExpiry), max: 365, note: rc.daysToExpiry + " days left", tone: rc.status === "Compliant" ? "green" : rc.status === "Urgent" ? "amber" : "red" };
-        }), "No in-force policies approaching expiry.", "in force, closest to expiry first");
+          var uwName = PAS.underwriterOf(p);
+          return {
+            title: p.holder, sub: p.id + " · " + p.product,
+            ownerNode: ownerBlock(ui.initiatorPill({ initiatedBy: "Underwriter" }), uwName || "Unassigned — no underwriting decision on file"),
+            deadlineTone: rc.status === "Overdue" ? "red" : rc.status === "Urgent" ? "amber" : "green",
+            deadlineText: rc.status === "Overdue" ? "Overdue " + Math.abs(rc.daysToExpiry) + "d" : rc.daysToExpiry + "d left",
+            metric: rc.daysToExpiry + "d to expiry",
+            onClick: function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(p.id); },
+          };
+        });
+        renderRows(rows, renewalSorted.length, "No in-force policies approaching expiry.", "in force, closest to expiry first");
 
       } else if (spec.key === "cancellation") {
         /* Ranked by refund amount — biggest exposure first. Same live quote (reason +
@@ -782,42 +905,62 @@
           var reason = meta.reason || "Insured Request";
           var initiatedBy = meta.initiatedBy || "Insured";
           var effDate = t.h.date || PAS.todayISO();
-          return { p: t.p, reason: reason, refund: Math.round(PAS.cancelQuote(t.p, reason, initiatedBy, effDate).refund) };
+          return { t: t, reason: reason, refund: Math.round(PAS.cancelQuote(t.p, reason, initiatedBy, effDate).refund) };
         }).sort(function (a, b) { return b.refund - a.refund; });
-        var maxRefund = Math.max.apply(null, pendingCx.map(function (x) { return x.refund; }).concat([1]));
-        renderQueue(pendingCx.map(function (x) {
-          return { label: x.p.holder, value: x.refund, max: maxRefund, note: PAS.money(x.refund) + " · " + x.reason, tone: x.refund === maxRefund ? "red" : "amber" };
-        }), "No open cancellation requests.", "open requests");
+        var cxRows = pendingCx.slice(0, QUEUE_ROWS).map(function (x) {
+          var sla = PAS.getTxnSla(x.t.h);
+          return {
+            title: x.t.p.holder, sub: x.t.p.id + " · " + x.reason,
+            ownerNode: ui.requestedByCell(x.t),
+            deadlineTone: sla.breached ? "red" : sla.remainingHours <= 24 ? "amber" : "green",
+            deadlineText: sla.breached ? "SLA breached" : sla.remainingHours + "h left",
+            metric: PAS.money(x.refund) + " refund",
+            onClick: function () { location.href = txnDecisionHref(x.t); },
+          };
+        });
+        renderRows(cxRows, pendingCx.length, "No open cancellation requests.", "open requests");
 
       } else if (spec.key === "reinstatement") {
         /* Sorted by days already elapsed since cancellation, longest first: eligibility expires
            at REINSTATEMENT_WINDOW_DAYS, so the oldest request is the one about to run out of
            time. Ineligible ones (fraud, or past the window) still show, flagged — they need a
-           decline rather than being quietly hidden from the desk. */
+           decline rather than being quietly hidden from the desk. The deadline badge is this
+           eligibility window, not the generic approval SLA — it is the real time-critical limit
+           for this queue specifically (see the note text this panel already shows). */
         var pendingRe = PAS.pendingOf(policies, "Reinstatement").map(function (t) {
-          return { p: t.p, el: PAS.reinstatementEligibility(t.p) };
+          return { t: t, el: PAS.reinstatementEligibility(t.p) };
         }).filter(function (x) { return x.el; }).sort(function (a, b) { return b.el.daysSince - a.el.daysSince; });
-        renderQueue(pendingRe.map(function (x) {
+        var reRows = pendingRe.slice(0, QUEUE_ROWS).map(function (x) {
           var left = PAS.REINSTATEMENT_WINDOW_DAYS - x.el.daysSince;
           return {
-            label: x.p.holder,
-            value: Math.max(0, Math.min(PAS.REINSTATEMENT_WINDOW_DAYS, x.el.daysSince)),
-            max: PAS.REINSTATEMENT_WINDOW_DAYS,
-            note: x.el.fraud ? "Fraud · barred" : (x.el.eligible ? left + " days left to decide" : "Window closed"),
-            tone: x.el.eligible ? (left <= 10 ? "amber" : "green") : "red",
+            title: x.t.p.holder, sub: x.t.p.id,
+            ownerNode: ui.requestedByCell(x.t),
+            deadlineTone: x.el.fraud || !x.el.eligible ? "red" : (left <= 10 ? "amber" : "green"),
+            deadlineText: x.el.fraud ? "Barred — fraud" : x.el.eligible ? left + "d left" : "Window closed",
+            metric: x.el.daysSince + "d since cancellation",
+            onClick: function () { location.href = txnDecisionHref(x.t); },
           };
-        }), "No open reinstatement requests.", "open requests");
+        });
+        renderRows(reRows, pendingRe.length, "No open reinstatement requests.", "open requests");
 
       } else {
         /* Only real premium INCREASES: a decrease or a no-impact change (a plain address update)
            is not what this queue is for. */
         var pendingEn = PAS.pendingOf(policies, "Endorsement").map(function (t) {
-          return { p: t.p, impact: Math.round((t.h.meta && t.h.meta.premiumImpact) || 0) };
+          return { t: t, impact: Math.round((t.h.meta && t.h.meta.premiumImpact) || 0) };
         }).filter(function (x) { return x.impact > 0; }).sort(function (a, b) { return b.impact - a.impact; });
-        var maxImpact = Math.max.apply(null, pendingEn.map(function (x) { return x.impact; }).concat([1]));
-        renderQueue(pendingEn.map(function (x) {
-          return { label: x.p.holder, value: x.impact, max: maxImpact, note: "+" + PAS.money(x.impact), tone: x.impact === maxImpact ? "red" : "amber" };
-        }), "No open endorsement requests increasing premium.", "open requests increasing premium");
+        var enRows = pendingEn.slice(0, QUEUE_ROWS).map(function (x) {
+          var sla = PAS.getTxnSla(x.t.h);
+          return {
+            title: x.t.p.holder, sub: x.t.p.id,
+            ownerNode: ui.requestedByCell(x.t),
+            deadlineTone: sla.breached ? "red" : sla.remainingHours <= 24 ? "amber" : "green",
+            deadlineText: sla.breached ? "SLA breached" : sla.remainingHours + "h left",
+            metric: "+" + PAS.money(x.impact),
+            onClick: function () { location.href = txnDecisionHref(x.t); },
+          };
+        });
+        renderRows(enRows, pendingEn.length, "No open endorsement requests increasing premium.", "open requests increasing premium");
       }
     }
 
@@ -962,13 +1105,16 @@
         c.setAttribute("aria-pressed", String(c.textContent === dimLabel));
       });
 
+      var sortSpec = SEGMENT_SORT_BASES.filter(function (s) { return s.key === segmentSortBasis; })[0] || SEGMENT_SORT_BASES[0];
+      segmentSortSelect.value = sortSpec.key;
+
       var keys = Array.from(new Set(onRisk.map(function (p) { return p[segmentDim]; }).filter(Boolean)));
       var segments = keys.map(function (k) {
         var seg = onRisk.filter(function (p) { return p[segmentDim] === k; });
         var sf = financialsFor(seg);
         return { k: k, f: sf, n: seg.length };
       }).filter(function (s) { return s.f.earnedPremium > 0; })
-        .sort(function (a, b) { return b.f.combinedRatio - a.f.combinedRatio; });
+        .sort(function (a, b) { return sortSpec.sortValue(b) - sortSpec.sortValue(a); });
 
       segmentBody.innerHTML = "";
       if (segments.length === 0) {
@@ -981,62 +1127,40 @@
           ? "Every " + dimLabel.toLowerCase() + " in this filter has an indicative combined ratio below 100%. Other operating costs are excluded."
           : losing.length + " of " + segments.length + " " + dimLabel.toLowerCase() + " segments have an indicative combined ratio of 100% or more — listed first. Other operating costs are excluded."));
 
-      var segmentTableWrap = ui.h("div", {});
-      segmentBody.appendChild(segmentTableWrap);
-      segmentPageIndex = 0;
-      buildSegmentTable();
-
-      function buildSegmentTable() {
-        segmentTableWrap.innerHTML = "";
-        var total = segments.length;
-        var totalPages = Math.max(1, Math.ceil(total / segmentPageSize));
-        if (segmentPageIndex >= totalPages) segmentPageIndex = totalPages - 1;
-        if (segmentPageIndex < 0) segmentPageIndex = 0;
-        var start = segmentPageIndex * segmentPageSize;
-        var pageSegments = segments.slice(start, start + segmentPageSize);
-
-        segmentTableWrap.appendChild(ui.dataTable({
-          columns: [
-            dimLabel,
-            { label: "On-risk policies", what: "Policies that carried coverage risk in this segment." },
-            { label: "Earned premium", what: "The exposure base every ratio in this row divides by." },
-            { label: "Incurred claims", what: "Paid plus reserved claims." },
-            { label: "Loss ratio", what: "Incurred ÷ earned premium." },
-            { label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium." },
-            { label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs." },
-            { label: "Net commission", what: "Veridex's own revenue for this segment — gross commission earned less the producing broker's share. Not shown anywhere else broken out by segment." },
-          ],
-          rows: pageSegments.map(function (s) {
-            return [
-              s.k,
-              s.n,
-              PAS.moneyShort(s.f.earnedPremium),
-              PAS.moneyShort(s.f.incurred),
-              ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)),
-              pct(s.f.expenseRatio),
-              ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)),
-              PAS.moneyShort(s.f.netCommission),
-            ];
-          }),
-          wrapCells: true,
-        }));
-
-        if (total > segmentPageSize) {
-          var pager = ui.h("div", { class: "table-pager" });
-          var from = start + 1, to = Math.min(total, start + segmentPageSize);
-          pager.appendChild(ui.h("span", { class: "table-pager-meta" }, "Showing " + from + "–" + to + " of " + total));
-          var nav = ui.h("div", { class: "table-pager-nav" });
-          var prev = ui.h("button", { class: "btn small", type: "button", disabled: segmentPageIndex <= 0 }, "← Prev");
-          prev.addEventListener("click", function () { if (segmentPageIndex > 0) { segmentPageIndex--; buildSegmentTable(); } });
-          var next = ui.h("button", { class: "btn small", type: "button", disabled: segmentPageIndex >= totalPages - 1 }, "Next →");
-          next.addEventListener("click", function () { if (segmentPageIndex < totalPages - 1) { segmentPageIndex++; buildSegmentTable(); } });
-          nav.appendChild(prev);
-          nav.appendChild(ui.h("span", { class: "table-pager-page" }, "Page " + (segmentPageIndex + 1) + " of " + totalPages));
-          nav.appendChild(next);
-          pager.appendChild(nav);
-          segmentTableWrap.appendChild(pager);
-        }
-      }
+      /* One consolidated table: premium, the claim count AND dollar figure it's derived from, and
+         every ratio, all on the same row — a fresh instance every time the dimension/filters/
+         period change, same as every other rebuilt panel on this page. Every header is click-to-
+         sort (sortableTable), so ranking by raw claim volume — what the old separate "Top claim
+         segments" chart existed for — is a click on the Claims header, not a different panel. */
+      var segmentTable = ui.sortableTable({
+        storageKey: "pas.dashboard.segment-performance.columns.v1",
+        initialSort: { key: sortSpec.key, dir: "desc" },
+        /* Clicking a column header re-sorts independently of the "Sort by" select — but when the
+           clicked column IS one of that select's options (every column except the segment-name
+           column itself), keep the select's displayed value truthful rather than letting it go
+           stale and claim a basis the table is no longer actually sorted by. */
+        onSortChange: function (s) {
+          if (SEGMENT_SORT_BASES.some(function (b) { return b.key === s.key; })) {
+            segmentSortBasis = s.key;
+            segmentSortSelect.value = s.key;
+          }
+        },
+        pageSize: 10,
+        columns: [
+          { key: "segment", label: dimLabel, locked: true, sortValue: function (s) { return String(s.k).toLowerCase(); }, cell: function (s) { return linkCell(s.k, drilldownHref(segmentDim, s.k)); } },
+          { key: "policies", label: "On-risk policies", what: "Policies that carried coverage risk in this segment.", sortValue: function (s) { return s.n; }, cell: function (s) { return String(s.n); } },
+          { key: "earnedPremium", label: "Earned premium", what: "The exposure base every ratio in this row divides by.", sortValue: function (s) { return s.f.earnedPremium; }, cell: function (s) { return PAS.moneyShort(s.f.earnedPremium); } },
+          { key: "claimCount", label: "Claims", what: "Number of claims reported against this segment's on-risk policies — the count behind the incurred-claims figure and loss ratio in this same row.", sortValue: function (s) { return s.f.claimCount; }, cell: function (s) { return s.f.claimCount ? String(s.f.claimCount) : "—"; } },
+          { key: "incurred", label: "Incurred claims", what: "Paid plus reserved claims.", sortValue: function (s) { return s.f.incurred; }, cell: function (s) { return PAS.moneyShort(s.f.incurred); } },
+          { key: "lossRatio", label: "Loss ratio", what: "Incurred ÷ earned premium.", sortValue: function (s) { return s.f.lossRatio; }, cell: function (s) { return ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)); } },
+          { key: "expenseRatio", label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium.", sortValue: function (s) { return s.f.expenseRatio; }, cell: function (s) { return pct(s.f.expenseRatio); } },
+          { key: "combinedRatio", label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs.", sortValue: function (s) { return s.f.combinedRatio; }, cell: function (s) { return ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)); } },
+          { key: "netCommission", label: "Net commission", what: "Veridex's own revenue for this segment — gross commission earned less the producing broker's share. Not shown anywhere else broken out by segment.", sortValue: function (s) { return s.f.netCommission; }, cell: function (s) { return PAS.moneyShort(s.f.netCommission); } },
+        ],
+        rows: segments,
+        wrapCells: true,
+      });
+      segmentBody.appendChild(segmentTable.tableWrap);
     }
 
     function buildClaims() {
@@ -1046,7 +1170,6 @@
          cancelled, so excluding it reports the survivors' loss ratio and labels it the book's.
          Earned premium (not written) is the denominator, matching PAS.bookFinancials exactly. */
       var onRisk = PAS.onRiskPolicies(policies);
-      var claims = PAS.allClaims(onRisk);
 
       function byField(field) {
         var keys = Array.from(new Set(onRisk.map(function (p) { return p[field]; }).filter(Boolean)));
@@ -1068,7 +1191,7 @@
             label: x.k, value: pct, max: maxProductRatio, note: pct + "% · $" + (x.ratio * 100).toFixed(2) + " per $100 earned", tone: lossToneFor(x.ratio),
             tip: x.k + ": " + PAS.money(x.incurred) + " incurred claims divided by " + PAS.money(x.premium) + " earned premium = " + pct + "%.",
             ariaLabel: x.k + ", " + pct + "% loss ratio, $" + (x.ratio * 100).toFixed(2) + " of incurred claims per $100 earned premium",
-            onClick: function () { location.href = "registry.html?product=" + encodeURIComponent(x.k); },
+            onClick: function () { location.href = drilldownHref("product", x.k); },
           }));
         });
       }
@@ -1083,6 +1206,7 @@
           lossByStateBody.appendChild(ui.hbar({
             label: x.k, value: pct, max: maxStateRatio, note: pct + "% · " + x.claimN + " claim" + (x.claimN === 1 ? "" : "s"), tone: lossToneFor(x.ratio),
             ariaLabel: x.k + ", " + pct + "% lifetime loss ratio based on " + x.claimN + " claim" + (x.claimN === 1 ? "" : "s"),
+            onClick: function () { location.href = drilldownHref("state", x.k); },
           }));
         });
       }
@@ -1100,41 +1224,6 @@
           document.createTextNode("Every product's incurred claims remain below 85% of earned premium in this filter."),
         ]));
       }
-
-      /* ---- top claim segments ---- */
-      var topDimLabel = CLAIM_TOP_DIMS.filter(function (d) { return d.key === claimTopDim; })[0].label;
-      claimTopPanel.querySelectorAll(".chip").forEach(function (c) {
-        c.classList.toggle("active", c.textContent === topDimLabel);
-        c.setAttribute("aria-pressed", String(c.textContent === topDimLabel));
-      });
-
-      var claimAgg = {};
-      claims.forEach(function (x) {
-        var k = x.p[claimTopDim];
-        if (!k) return;
-        if (!claimAgg[k]) claimAgg[k] = { n: 0, incurred: 0 };
-        claimAgg[k].n += 1;
-        claimAgg[k].incurred += Number(x.c.incurred) || 0;
-      });
-      var topSegments = Object.keys(claimAgg).map(function (k) { return { k: k, n: claimAgg[k].n, incurred: claimAgg[k].incurred }; })
-        .sort(function (a, b) { return b.n - a.n; })
-        .slice(0, 5);
-
-      claimTopBody.innerHTML = "";
-      if (topSegments.length === 0) {
-        claimTopBody.appendChild(ui.h("div", { class: "faint-note" }, "No claims on file in this filter."));
-      } else {
-        var maxClaimN = topSegments[0].n;
-        topSegments.forEach(function (s) {
-          claimTopBody.appendChild(ui.hbar({
-            label: s.k, value: s.n, max: maxClaimN,
-            note: s.n + " claim" + (s.n === 1 ? "" : "s") + " · " + PAS.money(s.incurred) + " incurred",
-            tone: "red",
-            ariaLabel: s.k + ", " + s.n + " claim" + (s.n === 1 ? "" : "s") + ", " + PAS.money(s.incurred) + " incurred",
-          }));
-        });
-      }
-
     }
 
     /* Expand/collapse state is kept per dimension, outside buildTopEntities, so switching from
@@ -1143,43 +1232,57 @@
     var topExpanded = {};
     TOP_DIMS.forEach(function (d) { topExpanded[d.key] = false; });
 
-    /* `accessor` rather than a plain field name, because Underwriter is not a property on the
-       policy — it has to be read out of the ledger (PAS.underwriterOf). Everything else about the
-       ranking is identical, so the difference stays confined to one function argument. */
-    function valueOf(p, dim) { return dim === "underwriter" ? PAS.underwriterOf(p) : p[dim]; }
-
     function buildTopEntities() {
       var list = scopedPolicies();
       var spec = TOP_DIMS.filter(function (d) { return d.key === topDim; })[0] || TOP_DIMS[0];
+      var sortSpec = TOP_SORT_BASES.filter(function (s) { return s.key === topSortBasis; })[0] || TOP_SORT_BASES[0];
       topSelect.value = spec.key;
+      topSortSelect.value = sortSpec.key;
 
       topLinkWrap.innerHTML = "";
-      /* Underwriters have no directory page to open — no link rather than a dead one. */
       if (spec.href) topLinkWrap.appendChild(openLink(spec.href, "View directory"));
 
-      var keys = Array.from(new Set(list.map(function (p) { return valueOf(p, spec.key); }).filter(Boolean)));
+      /* Same period window financials run over on-risk business elsewhere on this page (see
+         buildFinancials' financialsFor) — claim count here uses that identical window, not just
+         "Active" policies, since a claim can be reported against a policy that has since expired
+         or cancelled and shouldn't silently vanish from a claims-basis ranking. */
+      var bounds = period === "all" ? null : periodBounds(period, periodOffset, customFrom, customTo);
+      var keys = Array.from(new Set(list.map(function (p) { return p[spec.key]; }).filter(Boolean)));
       var rows = keys.map(function (k) {
-        var mine = list.filter(function (p) { return valueOf(p, spec.key) === k; });
-        return {
-          k: k,
-          v: sum(mine.filter(function (p) { return p.status === "Active"; }), function (p) { return p.premium; }),
-          n: mine.length,
-        };
-      }).sort(function (a, b) { return b.v - a.v; });
+        var mine = list.filter(function (p) { return p[spec.key] === k; });
+        var active = mine.filter(function (p) { return p.status === "Active"; });
+        var premium = sum(active, function (p) { return p.premium; });
+        var onRiskMine = PAS.onRiskPolicies(mine);
+        var f = bounds ? PAS.bookFinancialsInWindow(onRiskMine, bounds[0], bounds[1]) : PAS.bookFinancials(onRiskMine);
+        return { k: k, premium: premium, n: mine.length, avgPremium: active.length ? premium / active.length : 0, claimCount: f.claimCount };
+      }).sort(function (a, b) { return sortSpec.sortValue(b) - sortSpec.sortValue(a); });
 
       topBody.innerHTML = "";
-      topBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, spec.note));
+      topBody.appendChild(ui.h("div", { class: "faint-note mb-9" }, spec.note + " Ranked by " + sortSpec.label.toLowerCase() + "."));
       if (rows.length === 0) { topBody.appendChild(ui.h("div", { class: "faint-note" }, "No records in this filter.")); return; }
 
-      var max = Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1]));
-      var concentrationTotal = rows.reduce(function (total, r) { return total + r.v; }, 0) || 1;
+      var max = Math.max.apply(null, rows.map(function (r) { return sortSpec.sortValue(r); }).concat([1]));
+      var totalPremium = rows.reduce(function (total, r) { return total + r.premium; }, 0) || 1;
+      var totalPolicies = rows.reduce(function (total, r) { return total + r.n; }, 0) || 1;
+      /* Percent-of-total is only meaningful for the two additive bases — an average can't be
+         summed across entities and divided back into a share, so that basis states its own figure
+         and the policy count for context instead of a bogus percentage. */
+      var totalClaims = rows.reduce(function (total, r) { return total + r.claimCount; }, 0) || 1;
+      function noteFor(r) {
+        if (sortSpec.key === "policies") return r.n + " polic" + (r.n === 1 ? "y" : "ies") + " · " + ((r.n / totalPolicies) * 100).toFixed(1) + "% of filtered policies · " + PAS.moneyShort(r.premium) + " in-force premium";
+        if (sortSpec.key === "avgPremium") return PAS.moneyShort(r.avgPremium) + " avg per policy · " + r.n + " policies · " + PAS.moneyShort(r.premium) + " total in-force premium";
+        if (sortSpec.key === "claims") return r.claimCount + " claim" + (r.claimCount === 1 ? "" : "s") + (r.claimCount ? " · " + ((r.claimCount / totalClaims) * 100).toFixed(1) + "% of filtered claims" : "") + " · " + r.n + " policies";
+        return PAS.moneyShort(r.premium) + " · " + ((r.premium / totalPremium) * 100).toFixed(1) + "% of filtered premium · " + r.n + " policies";
+      }
       var expanded = topExpanded[spec.key];
       (expanded ? rows : rows.slice(0, TOP_ENTITY_ROWS)).forEach(function (r) {
+        var v = sortSpec.sortValue(r);
         topBody.appendChild(ui.hbar({
-          label: r.k, value: r.v, max: max,
-          note: PAS.moneyShort(r.v) + " · " + ((r.v / concentrationTotal) * 100).toFixed(1) + "% · " + r.n + " policies",
-          tone: r.v === max ? "indigo" : "blue",
-          ariaLabel: r.k + ", " + ((r.v / concentrationTotal) * 100).toFixed(1) + "% of filtered in-force premium across " + r.n + " policies",
+          label: r.k, value: v, max: max,
+          note: noteFor(r),
+          tone: v === max ? "indigo" : "blue",
+          ariaLabel: r.k + ", " + noteFor(r),
+          onClick: function () { location.href = drilldownHref(spec.key, r.k); },
         }));
       });
       if (rows.length > TOP_ENTITY_ROWS) {
@@ -1349,20 +1452,25 @@
           return { k: k, v: sum(forKey, function (p) { return p.premium; }), n: forKey.length };
         }).sort(function (a, b) { return b.v - a.v; });
       }
-      function fillPanel(body, rows, onClickField) {
+      /* `dim` is whichever real policy field these rows were grouped by (state/product/producer/
+         mga) — drilldownHref already knows where each one goes: the Register for the two it can
+         filter on (state, product), that partner's own directory page for the two it can't
+         (producer/Broker, mga/MGA). Every breakdown on this scoped dashboard names a real
+         dimension, so every one of them gets a real link now, not just the LOB panel. */
+      function fillPanel(body, rows, dim) {
         body.innerHTML = "";
         var max = Math.max.apply(null, rows.map(function (r) { return r.v; }).concat([1]));
         if (rows.length === 0 || max === 1 && rows.every(function (r) { return r.v === 0; })) { body.appendChild(ui.h("div", { class: "faint-note" }, "No in-force premium in this filter.")); return; }
         rows.forEach(function (r) {
           body.appendChild(ui.hbar({
             label: r.k, value: r.v, max: max, note: PAS.moneyShort(r.v) + " · " + r.n + " policies", tone: r.v === max ? "indigo" : "blue",
-            onClick: onClickField ? function () { location.href = "registry.html?" + onClickField + "=" + encodeURIComponent(r.k); } : undefined,
+            onClick: function () { location.href = drilldownHref(dim, r.k); },
           }));
         });
       }
-      fillPanel(stateBody, stateTopOnly ? byField("state").slice(0, 5) : byField("state"));
-      fillPanel(brokerBody, byField(secondDim));
-      if (isCarrierScope) fillPanel(thirdBody, byField(thirdDim));
+      fillPanel(stateBody, stateTopOnly ? byField("state").slice(0, 5) : byField("state"), "state");
+      fillPanel(brokerBody, byField(secondDim), secondDim);
+      if (isCarrierScope) fillPanel(thirdBody, byField(thirdDim), thirdDim);
       fillPanel(lobBody, byField("product"), "product");
 
       var issuanceKeys = period === "month" ? trailingMonths(6, periodOffset) : period === "quarter" ? trailingQuarters(6, periodOffset)

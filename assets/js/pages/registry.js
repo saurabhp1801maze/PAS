@@ -5,6 +5,13 @@
 
   var STATUS_BUCKETS = PAS.STATUS_BUCKETS, BUCKET_TONE = PAS.BUCKET_TONE, statusBucket = PAS.statusBucket;
 
+  /* Same thresholds the Dashboard's own financial view and every Broker/MGA/Reinsurer record
+     screen use, so a loss/combined ratio never reads "healthy" here and "hot" there for the same
+     number. */
+  function lossToneFor(ratio) { return ratio >= 0.85 ? "red" : ratio >= 0.6 ? "amber" : "green"; }
+  function combinedToneFor(ratio) { return ratio >= 1 ? "red" : ratio >= 0.95 ? "amber" : "green"; }
+  function pct(x) { return (Math.round(x * 1000) / 10) + "%"; }
+
   function render() {
     var policies = PAS.getScopedPolicies();
     var params = new URLSearchParams(location.search);
@@ -12,8 +19,10 @@
     var products = ["All"].concat(Array.from(new Set(policies.map(function (p) { return p.product; }))).sort());
     var states = ["All"].concat(Array.from(new Set(policies.map(function (p) { return p.state; }))).sort());
     var productParam = params.get("product");
+    var stateParam = params.get("state");
     var q = "", sf = (statusParam && STATUS_BUCKETS.indexOf(statusParam) !== -1) ? statusParam : "All",
-        pf = (productParam && products.indexOf(productParam) !== -1) ? productParam : "All", stf = "All";
+        pf = (productParam && products.indexOf(productParam) !== -1) ? productParam : "All",
+        stf = (stateParam && states.indexOf(stateParam) !== -1) ? stateParam : "All";
 
     var page = ui.h("div", {});
     page.appendChild(ui.pageHeader({
@@ -32,6 +41,8 @@
 
     var kpiRowWrap = ui.h("div", {});
     page.appendChild(kpiRowWrap);
+    var finKpiWrap = ui.h("div", {});
+    page.appendChild(finKpiWrap);
     /* KPIs reflect the same records the table below is actually showing — period AND every active
        filter (status/product/state/search) — not just the period, so a filtered view never shows
        summary numbers for a wider set than what's on screen. */
@@ -43,6 +54,31 @@
         { label: "In force", value: filteredPolicies.filter(function (p) { return p.status === "Active"; }).length, tone: "green", tip: "Issued, not cancelled or expired." },
         { label: "Pre-issue", value: filteredPolicies.filter(function (p) { return ["Referred", "Bound"].indexOf(p.status) !== -1; }).length, tone: "amber", tip: "Submissions and bound-not-issued." },
         { label: "Closed", value: filteredPolicies.filter(function (p) { return ["Cancelled", "Expired", "Non-renewed", "Declined"].indexOf(p.status) !== -1; }).length, tip: "No longer on risk." },
+      ]));
+
+      /* Financial performance for whatever is currently on screen — the same on-risk, earned-basis
+         PAS.bookFinancials every Broker/MGA/Reinsurer record screen and the Dashboard itself read
+         from, so this can never quote a different loss ratio for the same records. Scoped to
+         on-risk records only (Active, Cancelled, Expired, Non-renewed) — a Referred or Bound
+         submission hasn't earned a rupee or could have had a claim yet, and including it would
+         dilute every ratio with pure zeroes, same reasoning as the Dashboard's own financial view. */
+      finKpiWrap.innerHTML = "";
+      var onRisk = PAS.onRiskPolicies(filteredPolicies);
+      var f = PAS.bookFinancials(onRisk);
+      if (f.policies === 0) {
+        finKpiWrap.appendChild(ui.h("div", { class: "faint-note", style: { padding: "2px 0 14px" } }, "No on-risk records (Active, Cancelled, Expired, Non-renewed) in this filter."));
+        return;
+      }
+      finKpiWrap.appendChild(ui.kpiSection({
+        label: "Financial performance",
+        sub: pt.noteText() + filterSuffix + " — on-risk records only, earned basis",
+      }, [
+        { label: "Annual premium", value: PAS.moneyShort(f.writtenPremium), tone: "gray", tip: "Total written premium across on-risk records in this view." },
+        { label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue", tip: "Premium recognized for coverage actually provided so far." },
+        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Veridex revenue after paying the broker's share — not the premium itself." },
+        { label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red", tip: "Paid claims plus reserves across " + f.claimCount + " claim" + (f.claimCount === 1 ? "" : "s") + "." },
+        { label: "Loss ratio", value: pct(f.lossRatio), tone: lossToneFor(f.lossRatio), tip: "Incurred claims ÷ earned premium (not written) — the standard actuarial basis." },
+        { label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedToneFor(f.combinedRatio), tip: "Loss ratio plus acquisition expense ratio. Below 100% indicates a carrier underwriting profit before other operating costs." },
       ]));
     }
 
@@ -74,6 +110,7 @@
 
     var stateSelect = ui.h("select", { class: "register-select", title: "State" });
     states.forEach(function (s) { stateSelect.appendChild(ui.h("option", { value: s }, s === "All" ? "All states" : s)); });
+    stateSelect.value = stf;
     filters.appendChild(stateSelect);
     toolbar.appendChild(filters);
 

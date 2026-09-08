@@ -8,26 +8,6 @@
     return PAS.getTxnSla ? PAS.getTxnSla(t.h) : { remainingHours: 0, breached: false };
   }
 
-  /* "Requested by" only ever showed the initiator's ROLE (Broker/Producer, MGA, ...), never which
-     actual broker or MGA — a policy can have dozens of each, so the role alone doesn't say who.
-     Stack the specific name underneath the role pill instead of adding separate columns: Broker
-     and MGA initiators get the policy's own producer/mga field, Underwriter gets whoever made the
-     last completed underwriting decision on this policy; Insured and System carry no further name
-     to show (the Insured column already names the insured; System has no person behind it). */
-  function requestedByCell(t) {
-    var meta = t.h.meta || {};
-    var role = meta.initiatedBy;
-    var name = role === "Broker/Producer" ? t.p.producer
-      : role === "MGA" ? t.p.mga
-      : role === "Carrier" ? t.p.carrier
-      : role === "Underwriter" ? PAS.underwriterOf(t.p)
-      : null;
-    var wrap = ui.h("div", {});
-    wrap.appendChild(ui.initiatorPill(meta));
-    if (name) wrap.appendChild(ui.h("div", { class: "faint-note", style: { marginTop: "3px" } }, name));
-    return wrap;
-  }
-
   function sortByUrgency(list) {
     return list.slice().sort(function (a, b) {
       var sa = slaOf(a), sb = slaOf(b);
@@ -137,7 +117,7 @@
           var sla = slaOf(t);
           var reviewBtn = ui.h("button", { class: "btn small tone-primary" }, "Review →");
           reviewBtn.addEventListener("click", function () { openReview(t); });
-          return [seqSpan, idSpan, t.p.holder, ui.modulePill(t.h.type), requestedByCell(t), ui.pill(sla.breached ? "red" : "amber", sla.remainingHours + "h"), detailSpan, PAS.fmtDate(t.h.date), reviewBtn];
+          return [seqSpan, idSpan, t.p.holder, ui.modulePill(t.h.type), ui.requestedByCell(t), ui.pill(sla.breached ? "red" : "amber", sla.remainingHours + "h"), detailSpan, PAS.fmtDate(t.h.date), reviewBtn];
         }),
         emptyText: "Nothing awaiting approval.",
       }));

@@ -153,32 +153,53 @@
          Register's KPI row. */
       var kpiRowWrap = ui.h("div", {});
       page.appendChild(kpiRowWrap);
+      var finKpiWrap = ui.h("div", {});
+      page.appendChild(finKpiWrap);
       function buildKpis(filteredRows) {
         kpiRowWrap.innerHTML = "";
         var filteredNames = new Set(filteredRows.map(function (r) { return r.name; }));
         var withField = policies.filter(function (p) { return filteredNames.has(p[opts.fieldName]); });
         var filteredPremium = filteredRows.reduce(function (s, r) { return s + r.premium; }, 0);
         var filterSuffix = (tf !== "All" || q || relationFiltersActive()) ? ", matching the current filters" : "";
-        var kpis = [
+        kpiRowWrap.appendChild(ui.kpiRow([
           { label: "Total " + opts.titleLower, value: filteredRows.length, tip: "Distinct " + opts.titleLower + " on the book" + filterSuffix + "." },
           { label: "Total policies", value: withField.length, tone: "blue", tip: "Every record placed through " + opts.article + " " + opts.singularLower + " on file" + filterSuffix + "." },
           { label: "In-force premium", value: PAS.moneyShort(filteredPremium), tone: "green", tip: "Sum of active premium across every " + opts.singularLower + filterSuffix + "." },
-        ];
-        if (opts.showFinancials) {
-          var fAll = PAS.bookFinancials(PAS.onRiskPolicies(withField));
-          kpis.push({ label: "Loss ratio", value: pct(fAll.lossRatio), tone: lossTone(fAll.lossRatio), tip: "Incurred claims ÷ earned premium, across every " + opts.singularLower + "'s on-risk business — same earned basis as the dashboard." });
-          if (opts.showCommission) kpis.push({ label: "Commission paid", value: PAS.moneyShort(fAll.brokerCommission), tone: "green", tip: "Total " + opts.singularLower + " share of commission earned across the whole book" + filterSuffix + "." });
-          if (opts.showCession) {
-            var netCededAll = fAll.earnedPremium - fAll.commission;
-            kpis.push({ label: "Net premium ceded", value: PAS.moneyShort(netCededAll), tone: "blue", tip: "Earned premium net of distribution commission — what actually crosses to these reinsurers' paper" + filterSuffix + "." });
-            kpis.push({
-              label: "Underwriting result", value: (fAll.underwritingResult >= 0 ? "+" : "") + PAS.moneyShort(fAll.underwritingResult),
-              tone: fAll.underwritingResult >= 0 ? "green" : "red",
-              tip: "Earned premium minus incurred claims minus commission — what these reinsurers actually keep or lose" + filterSuffix + ".",
-            });
-          }
+        ]));
+
+        /* Full P&L for whatever is currently on screen — same on-risk, earned-basis
+           PAS.bookFinancials the Dashboard and the Policy Register's own Financial performance
+           section read from, so a broker/MGA/reinsurer's numbers here can never disagree with
+           what the Dashboard's "Performance by segment" table shows for the same book. */
+        finKpiWrap.innerHTML = "";
+        if (!opts.showFinancials) return;
+        var fAll = PAS.bookFinancials(PAS.onRiskPolicies(withField));
+        if (fAll.policies === 0) {
+          finKpiWrap.appendChild(ui.h("div", { class: "faint-note", style: { padding: "2px 0 14px" } }, "No on-risk " + opts.titleLower + " (Active, Cancelled, Expired, Non-renewed) in this filter."));
+          return;
         }
-        kpiRowWrap.appendChild(ui.kpiRow(kpis, kpis.length > 4));
+        var finKpis = [
+          { label: "Annual premium", value: PAS.moneyShort(fAll.writtenPremium), tone: "gray", tip: "Total written premium across on-risk " + opts.titleLower + filterSuffix + "." },
+          { label: "Earned premium", value: PAS.moneyShort(fAll.earnedPremium), tone: "blue", tip: "Premium recognized for coverage actually provided so far." },
+          { label: "Incurred claims", value: PAS.moneyShort(fAll.incurred), tone: "red", tip: "Paid claims plus reserves across " + fAll.claimCount + " claim" + (fAll.claimCount === 1 ? "" : "s") + "." },
+          { label: "Loss ratio", value: pct(fAll.lossRatio), tone: lossTone(fAll.lossRatio), tip: "Incurred claims ÷ earned premium, across every " + opts.singularLower + "'s on-risk business — same earned basis as the dashboard." },
+          { label: "Combined ratio", value: pct(fAll.combinedRatio), tone: combinedTone(fAll.combinedRatio), tip: "Loss ratio plus acquisition expense ratio. Below 100% indicates a carrier underwriting profit before other operating costs." },
+          { label: "Net commission", value: PAS.moneyShort(fAll.netCommission), tone: "green", tip: "Veridex revenue after paying the broker's share — not the premium itself." },
+        ];
+        if (opts.showCommission) finKpis.push({ label: "Commission paid", value: PAS.moneyShort(fAll.brokerCommission), tone: "green", tip: "Total " + opts.singularLower + " share of commission earned across the whole book" + filterSuffix + "." });
+        if (opts.showCession) {
+          var netCededAll = fAll.earnedPremium - fAll.commission;
+          finKpis.push({ label: "Net premium ceded", value: PAS.moneyShort(netCededAll), tone: "blue", tip: "Earned premium net of distribution commission — what actually crosses to these reinsurers' paper" + filterSuffix + "." });
+          finKpis.push({
+            label: "Underwriting result", value: (fAll.underwritingResult >= 0 ? "+" : "") + PAS.moneyShort(fAll.underwritingResult),
+            tone: fAll.underwritingResult >= 0 ? "green" : "red",
+            tip: "Earned premium minus incurred claims minus commission — what these reinsurers actually keep or lose" + filterSuffix + ".",
+          });
+        }
+        finKpiWrap.appendChild(ui.kpiSection({
+          label: "Financial performance",
+          sub: "On-risk " + opts.titleLower + " only, earned basis" + filterSuffix,
+        }, finKpis));
       }
 
       /* Two ranked-bar panels (Reinsurer page only) — same hbar component and layout the
@@ -199,7 +220,6 @@
         var cededPanel = ui.panel({
           title: "Net premium ceded, by " + opts.singularLower,
           what: "Earned premium net of distribution commission — what actually crosses to each partner's paper.",
-          pad: 0,
         }, [cededBody]);
         var byCeded = withClaims.slice().sort(function (a, b) { return b.netPremiumCeded - a.netPremiumCeded; });
         var maxCeded = Math.max.apply(null, byCeded.map(function (r) { return r.netPremiumCeded; }).concat([1]));
@@ -217,7 +237,6 @@
         var ratioPanel = ui.panel({
           title: "Combined ratio, by " + opts.singularLower,
           what: "Loss ratio + acquisition expense ratio. Above 100% means the partner is paying out more than it collects.",
-          pad: 0,
         }, [ratioBody]);
         var byRatio = withClaims.slice().sort(function (a, b) { return b.combinedRatio - a.combinedRatio; });
         var maxRatio = Math.max.apply(null, byRatio.map(function (r) { return r.combinedRatio * 100; }).concat([100]));
@@ -361,6 +380,7 @@
         ui.h("span", { class: "kpi-section-sub" }, "On-risk business placed through this " + opts.singularLower + " — earned basis, as of today"),
       ]));
       var finKpis = [
+        { label: "Annual premium", value: PAS.moneyShort(f.writtenPremium), tone: "gray", tip: "Total written premium placed through this " + opts.singularLower + "." },
         { label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue", tip: "The portion of placed premium actually on risk to date." },
         { label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red", tip: f.claimCount + " claims, " + f.openClaimCount + " still open." },
         { label: "Loss ratio", value: pct(f.lossRatio), tone: lossTone(f.lossRatio), tip: "Incurred ÷ earned. Book average is " + pct(bookAvg) + "." },
@@ -370,7 +390,10 @@
         var netCeded = f.earnedPremium - f.commission;
         finKpis.push({ label: "Net premium ceded", value: PAS.moneyShort(netCeded), tone: "blue", tip: "Earned premium net of distribution commission — what actually crosses to this reinsurer's paper, not the gross written figure." });
       }
-      finKpis.push({ label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedTone(f.combinedRatio), tip: pct(f.lossRatio) + " loss ratio + " + pct(f.expenseRatio) + " acquisition cost." });
+      finKpis.push(
+        { label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedTone(f.combinedRatio), tip: pct(f.lossRatio) + " loss ratio + " + pct(f.expenseRatio) + " acquisition cost." },
+        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Veridex revenue after paying the broker's share — not the premium itself." }
+      );
       if (opts.showCession) {
         finKpis.push({
           label: "Underwriting result", value: (f.underwritingResult >= 0 ? "+" : "") + PAS.moneyShort(f.underwritingResult),

@@ -384,7 +384,7 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   /* Renewal is the default queue: capped at 5, most-urgent-first, with a "View more" link only
      when the real list is longer than the cap. */
   var activeCount = policies.filter(function (p) { return p.status === "Active"; }).length;
-  var renewalRows = queuePanel.querySelectorAll(".hbar").length;
+  var renewalRows = queuePanel.querySelectorAll(".queue-item").length;
   if (renewalRows > 5) { fails++; console.log("  FAIL  Renewal pipeline shows " + renewalRows + " rows, expected at most 5"); }
   else if (activeCount > 5 && renewalRows !== 5) { fails++; console.log("  FAIL  Renewal pipeline has " + activeCount + " active policies but shows only " + renewalRows + ", expected the full cap of 5"); }
   else if (activeCount > 5 && queuePanel.textContent.indexOf("View more") === -1) { fails++; console.log('  FAIL  Renewal pipeline exceeds the cap but is missing its "View more" link'); }
@@ -402,7 +402,7 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   }).sort(function (a, b) { return b - a; });
 
   setValue(queueSelect, "cancellation");
-  var cancelRows = queuePanel.querySelectorAll(".hbar").length;
+  var cancelRows = queuePanel.querySelectorAll(".queue-item").length;
   var expectedCancelRows = Math.min(pendingCx.length, 5);
   if (cancelRows !== expectedCancelRows) { fails++; console.log("  FAIL  after switching to Cancellation the panel shows " + cancelRows + " rows, expected " + expectedCancelRows + " (min of the book's " + pendingCx.length + " open requests and the cap of 5)"); }
   else console.log("  PASS  switching the dropdown to Cancellation genuinely re-renders the panel — " + cancelRows + " of " + pendingCx.length + " open requests, ranked by refund");
@@ -416,18 +416,20 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
      reinstatement requests, not an empty placeholder. */
   setValue(queueSelect, "reinstatement");
   var realReinstatements = PAS.pendingOf(policies, "Reinstatement").length;
-  var reRows = queuePanel.querySelectorAll(".hbar").length;
+  var reRows = queuePanel.querySelectorAll(".queue-item").length;
   if (reRows !== Math.min(realReinstatements, 5)) { fails++; console.log("  FAIL  reinstatement queue shows " + reRows + " rows, expected " + Math.min(realReinstatements, 5) + " (book has " + realReinstatements + " pending)"); }
   else console.log("  PASS  the new Reinstatement queue shows the book's " + realReinstatements + " real pending request(s)");
 
-  /* And the Top performers panel switches dimension the same way, including Underwriters —
-     which is read from the ledger, not from a field on the policy. */
+  /* Top performers switches dimension the same way — Broker, MGA and Reinsurer, the three real
+     distribution-chain fields a policy carries. No Underwriter option here (product decision:
+     this panel is scoped to distribution concentration only). */
   var topSelect = topPanel.querySelector("select");
   var topOptions = topSelect ? topSelect.querySelectorAll("option").map(function (o) { return o.textContent; }) : [];
-  ["Brokers", "MGAs", "Carriers", "Underwriters"].forEach(function (label) {
+  ["Brokers", "MGAs", "Reinsurers"].forEach(function (label) {
     if (topOptions.indexOf(label) === -1) { fails++; console.log('  FAIL  top-performers dropdown is missing "' + label + '"'); }
   });
-  console.log("  PASS  one top-performers panel offering all four rankings (" + topOptions.join(", ") + ")");
+  if (topOptions.indexOf("Underwriters") !== -1) { fails++; console.log('  FAIL  top-performers dropdown still offers "Underwriters" — should be Broker/MGA/Reinsurer only'); }
+  console.log("  PASS  one top-performers panel offering the three distribution-chain rankings (" + topOptions.join(", ") + ")");
 
   var topBrokerText = topPanel.textContent;
   var biggestBroker = (function () {
@@ -440,12 +442,29 @@ console.log("\n  dashboard regression checks (F-15, F-16, KPI redesign)");
   if (topBrokerText.indexOf(biggestBroker) === -1) { fails++; console.log('  FAIL  default Top brokers ranking does not lead with the real largest broker "' + biggestBroker + '"'); }
   else console.log('  PASS  default ranking leads with the real largest broker by in-force premium ("' + biggestBroker + '")');
 
-  setValue(topSelect, "underwriter");
-  var realUnderwriters = Array.from(new Set(policies.map(function (p) { return PAS.underwriterOf(p); }).filter(Boolean)));
-  var uwRows = topPanel.querySelectorAll(".hbar").length;
-  if (realUnderwriters.length === 0) { fails++; console.log("  FAIL  no policy in the book records who underwrote it — the Top underwriters ranking has no real source"); }
-  else if (uwRows === 0) { fails++; console.log("  FAIL  switching to Underwriters rendered no rows despite " + realUnderwriters.length + " real underwriters on the ledger"); }
-  else console.log("  PASS  switching to Underwriters ranks the " + realUnderwriters.length + " real decision-makers read from the ledger (" + uwRows + " shown), not the producers who introduced the business");
+  /* The ranking BASIS is now its own control, separate from the dimension dropdown — switching it
+     to "Number of policies" must genuinely re-sort the same Brokers list, not just relabel it:
+     the broker with the most premium is not necessarily the one with the most policies. */
+  var realBrokerByCount = (function () {
+    var byBroker = {};
+    policies.forEach(function (p) { if (p.producer) byBroker[p.producer] = (byBroker[p.producer] || 0) + 1; });
+    return Object.keys(byBroker).sort(function (a, b) { return byBroker[b] - byBroker[a]; })[0];
+  })();
+  var topSortSelect = topPanel.querySelectorAll("select")[1];
+  if (!topSortSelect) { fails++; console.log("  FAIL  no ranking-basis select found next to the dimension dropdown"); }
+  else {
+    setValue(topSortSelect, "policies");
+    var byCountText = topPanel.textContent;
+    if (byCountText.indexOf(realBrokerByCount) === -1) { fails++; console.log('  FAIL  ranking by "Number of policies" does not lead with the real broker with the most policies "' + realBrokerByCount + '"'); }
+    else console.log('  PASS  switching the ranking basis to "Number of policies" genuinely re-sorts to the real broker with the most policies (' + realBrokerByCount + ')');
+  }
+
+  setValue(topSelect, "carrier");
+  var realCarriers = Array.from(new Set(policies.map(function (p) { return p.carrier; }).filter(Boolean)));
+  var carrierRows = topPanel.querySelectorAll(".hbar").length;
+  if (realCarriers.length === 0) { fails++; console.log("  FAIL  no policy in the book records a reinsurer — the Reinsurers ranking has no real source"); }
+  else if (carrierRows === 0) { fails++; console.log("  FAIL  switching to Reinsurers rendered no rows despite " + realCarriers.length + " real reinsurers on the book"); }
+  else console.log("  PASS  switching to Reinsurers ranks the " + realCarriers.length + " real reinsurers on the book (" + carrierRows + " shown)");
 })();
 
 /* ================= the financial engine =================

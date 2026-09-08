@@ -76,7 +76,11 @@
     if (itemizedTaxes && itemizedTaxes.length) {
       itemizedTaxes.forEach(function (t) { rows.push([t.name, "", money(t.amount)]); });
     } else {
-      if (q.tax != null) rows.push(["Tax", q.taxPct != null ? (Math.round(q.taxPct * 1000) / 10) + "%" : "", money(q.tax)]);
+      /* taxPct is a plain percentage number (4.5 meaning 4.5%), same convention as countyRate right
+         below, fee.pct in feeDetail() above, and policy-document.js's own identical tax.pct field
+         for this same quote — not a fraction. This used to multiply by 100 on top of that, showing
+         a 4.5% rate as "450%". */
+      if (q.tax != null) rows.push(["Tax", q.taxPct != null ? q.taxPct + "%" : "", money(q.tax)]);
       if (q.countyName) rows.push([q.countyName + " county tax", q.countyRate != null ? q.countyRate + "%" : "", money(q.countyTax)]);
     }
     rows.push([ui.h("strong", {}, "Total premium"), "", ui.h("strong", {}, money(q.finalPremium))]);

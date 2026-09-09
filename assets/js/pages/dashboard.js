@@ -410,7 +410,7 @@
       { key: "incurred", label: "Incurred claims", sortValue: function (s) { return s.f.incurred; } },
       { key: "earnedPremium", label: "Earned premium", sortValue: function (s) { return s.f.earnedPremium; } },
       { key: "netCommission", label: "Net commission", sortValue: function (s) { return s.f.netCommission; } },
-      { key: "policies", label: "On-risk policies", sortValue: function (s) { return s.n; } },
+      { key: "policies", label: "Policies", sortValue: function (s) { return s.n; } },
     ];
     var segmentSortBasis = SEGMENT_SORT_BASES[0].key;
     var segmentSortSelect = ui.h("select", { class: "register-select", "aria-label": "Sort performance by", style: { maxWidth: "185px" } });
@@ -1075,12 +1075,17 @@
         {
           label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green",
           delta: valueDelta(f.netCommission, previousF && previousF.netCommission), deltaTone: "gray", deltaTitle: comparisonTitle,
-          tip: "Southlake revenue after paying the broker's share.",
+          tip: "Southlake paid commission (MGA + Broker) - Southlake received commission (Reinsurers).",
         },
         {
-          label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red",
-          delta: valueDelta(f.incurred, previousF && previousF.incurred), deltaTone: !previousF ? null : !deltasReliable ? "gray" : (f.incurred <= previousF.incurred ? "green" : "red"), deltaTitle: comparisonTitle,
-          tip: "Paid claims plus reserves across " + f.claimCount + " claims.",
+          label: "Incurred claims", value: PAS.moneyShort(f.paid), tone: "red",
+          delta: valueDelta(f.paid, previousF && previousF.paid), deltaTone: !previousF ? null : !deltasReliable ? "gray" : (f.paid <= previousF.paid ? "green" : "red"), deltaTitle: comparisonTitle,
+          tip: "Claims actually paid out so far, across " + f.claimCount + " claims — reserved amounts for open claims are shown separately, in Reserved claims.",
+        },
+        {
+          label: "Reserved claims", value: PAS.moneyShort(f.reserved), tone: "amber",
+          delta: valueDelta(f.reserved, previousF && previousF.reserved), deltaTone: !previousF ? null : !deltasReliable ? "gray" : (f.reserved <= previousF.reserved ? "green" : "red"), deltaTitle: comparisonTitle,
+          tip: "Set aside for " + f.openClaimCount + " open claim" + (f.openClaimCount === 1 ? "" : "s") + " not yet paid out. Reserved + Incurred (paid) = total incurred claims, the figure Loss ratio is actually computed from.",
         },
         {
           label: "Loss ratio", value: pct(f.lossRatio), tone: lossToneFor(f.lossRatio),
@@ -1163,14 +1168,14 @@
         pageSize: 10,
         columns: [
           { key: "segment", label: dimLabel, locked: true, sortValue: function (s) { return String(s.k).toLowerCase(); }, cell: function (s) { return linkCell(s.k, drilldownHref(segmentDim, s.k)); } },
-          { key: "policies", label: "On-risk policies", what: "Policies that carried coverage risk in this segment.", sortValue: function (s) { return s.n; }, cell: function (s) { return String(s.n); } },
+          { key: "policies", label: "Policies", what: "Policies that carried coverage risk in this segment.", sortValue: function (s) { return s.n; }, cell: function (s) { return String(s.n); } },
           { key: "earnedPremium", label: "Earned premium", what: "The exposure base every ratio in this row divides by.", sortValue: function (s) { return s.f.earnedPremium; }, cell: function (s) { return PAS.moneyShort(s.f.earnedPremium); } },
           { key: "claimCount", label: "Claims", what: "Number of claims reported against this segment's on-risk policies — the count behind the incurred-claims figure and loss ratio in this same row.", sortValue: function (s) { return s.f.claimCount; }, cell: function (s) { return s.f.claimCount ? String(s.f.claimCount) : "—"; } },
           { key: "incurred", label: "Incurred claims", what: "Paid plus reserved claims.", sortValue: function (s) { return s.f.incurred; }, cell: function (s) { return PAS.moneyShort(s.f.incurred); } },
           { key: "lossRatio", label: "Loss ratio", what: "Incurred ÷ earned premium.", sortValue: function (s) { return s.f.lossRatio; }, cell: function (s) { return ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)); } },
           { key: "expenseRatio", label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium.", sortValue: function (s) { return s.f.expenseRatio; }, cell: function (s) { return pct(s.f.expenseRatio); } },
           { key: "combinedRatio", label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs.", sortValue: function (s) { return s.f.combinedRatio; }, cell: function (s) { return ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)); } },
-          { key: "netCommission", label: "Net commission", what: "Southlake's own revenue for this segment — gross commission earned less the producing broker's share. Not shown anywhere else broken out by segment.", sortValue: function (s) { return s.f.netCommission; }, cell: function (s) { return PAS.moneyShort(s.f.netCommission); } },
+          { key: "netCommission", label: "Net commission", what: "Southlake paid commission (MGA + Broker) - Southlake received commission (Reinsurers).", sortValue: function (s) { return s.f.netCommission; }, cell: function (s) { return PAS.moneyShort(s.f.netCommission); } },
         ],
         rows: segments,
         wrapCells: true,

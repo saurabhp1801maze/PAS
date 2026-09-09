@@ -105,8 +105,8 @@
     return section("financial", "Financial performance", "Earned basis, as of today", [
       ui.kpiRow([
         { label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue", tip: "This policy's share of premium actually on risk to date, across its whole life." },
-        { label: "Incurred claims", value: PAS.moneyShort(incurred), tone: "red", tip: claims.length + " claim" + (claims.length === 1 ? "" : "s") + " on file." },
-        { label: "Open reserves", value: PAS.moneyShort(openReserve), tone: "amber", tip: "Money set aside for claims not yet closed." },
+        { label: "Incurred claims", value: PAS.moneyShort(incurred - openReserve), tone: "red", tip: "Claims actually paid out, of " + claims.length + " claim" + (claims.length === 1 ? "" : "s") + " on file — reserved amounts are shown separately, in Open reserves." },
+        { label: "Open reserves", value: PAS.moneyShort(openReserve), tone: "amber", tip: "Set aside for claims not yet closed. Open reserves + Incurred (paid) = total incurred claims, the figure Loss ratio is actually computed from." },
         { label: "Loss ratio", value: pct(lossRatio), tone: lossTone, tip: "Incurred ÷ earned premium — the earned, not written, basis." },
         { label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedTone, tip: pct(lossRatio) + " loss ratio + " + pct(f.expenseRatio) + " acquisition cost." },
       ]),

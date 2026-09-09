@@ -181,10 +181,11 @@
         var finKpis = [
           { label: "Annual premium", value: PAS.moneyShort(fAll.writtenPremium), tone: "gray", tip: "Total written premium across on-risk " + opts.titleLower + filterSuffix + "." },
           { label: "Earned premium", value: PAS.moneyShort(fAll.earnedPremium), tone: "blue", tip: "Premium recognized for coverage actually provided so far." },
-          { label: "Incurred claims", value: PAS.moneyShort(fAll.incurred), tone: "red", tip: "Paid claims plus reserves across " + fAll.claimCount + " claim" + (fAll.claimCount === 1 ? "" : "s") + "." },
+          { label: "Incurred claims", value: PAS.moneyShort(fAll.paid), tone: "red", tip: "Claims actually paid out so far, across " + fAll.claimCount + " claim" + (fAll.claimCount === 1 ? "" : "s") + " — reserved amounts for open claims are shown separately, in Reserved claims." },
+          { label: "Reserved claims", value: PAS.moneyShort(fAll.reserved), tone: "amber", tip: "Set aside for " + fAll.openClaimCount + " open claim" + (fAll.openClaimCount === 1 ? "" : "s") + " not yet paid out. Reserved + Incurred (paid) = total incurred claims, the figure Loss ratio is actually computed from." },
           { label: "Loss ratio", value: pct(fAll.lossRatio), tone: lossTone(fAll.lossRatio), tip: "Incurred claims ÷ earned premium, across every " + opts.singularLower + "'s on-risk business — same earned basis as the dashboard." },
           { label: "Combined ratio", value: pct(fAll.combinedRatio), tone: combinedTone(fAll.combinedRatio), tip: "Loss ratio plus acquisition expense ratio. Below 100% indicates a carrier underwriting profit before other operating costs." },
-          { label: "Net commission", value: PAS.moneyShort(fAll.netCommission), tone: "green", tip: "Southlake revenue after paying the broker's share — not the premium itself." },
+          { label: "Net commission", value: PAS.moneyShort(fAll.netCommission), tone: "green", tip: "Southlake paid commission (MGA + Broker) - Southlake received commission (Reinsurers)." },
         ];
         if (opts.showCommission) finKpis.push({ label: "Commission paid", value: PAS.moneyShort(fAll.brokerCommission), tone: "green", tip: "Total " + opts.singularLower + " share of commission earned across the whole book" + filterSuffix + "." });
         if (opts.showCession) {
@@ -382,7 +383,8 @@
       var finKpis = [
         { label: "Annual premium", value: PAS.moneyShort(f.writtenPremium), tone: "gray", tip: "Total written premium placed through this " + opts.singularLower + "." },
         { label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue", tip: "The portion of placed premium actually on risk to date." },
-        { label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red", tip: f.claimCount + " claims, " + f.openClaimCount + " still open." },
+        { label: "Incurred claims", value: PAS.moneyShort(f.paid), tone: "red", tip: "Claims actually paid out, of " + f.claimCount + " claims (" + f.openClaimCount + " still open)." },
+        { label: "Reserved claims", value: PAS.moneyShort(f.reserved), tone: "amber", tip: "Set aside for " + f.openClaimCount + " open claim" + (f.openClaimCount === 1 ? "" : "s") + " not yet paid out. Reserved + Incurred (paid) = total incurred claims, the figure Loss ratio is actually computed from." },
         { label: "Loss ratio", value: pct(f.lossRatio), tone: lossTone(f.lossRatio), tip: "Incurred ÷ earned. Book average is " + pct(bookAvg) + "." },
       ];
       if (opts.showCommission) finKpis.push({ label: "Commission paid", value: PAS.moneyShort(f.brokerCommission), tone: "green", tip: "This " + opts.singularLower + "'s actual revenue for placing the business." });
@@ -392,7 +394,7 @@
       }
       finKpis.push(
         { label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedTone(f.combinedRatio), tip: pct(f.lossRatio) + " loss ratio + " + pct(f.expenseRatio) + " acquisition cost." },
-        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Southlake revenue after paying the broker's share — not the premium itself." }
+        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Southlake paid commission (MGA + Broker) - Southlake received commission (Reinsurers)." }
       );
       if (opts.showCession) {
         finKpis.push({

@@ -828,19 +828,22 @@
     // if (deskGroup && !deskGroup.items.some(function (it) { return it[0] === "advanced-desk"; })) {
     //   deskGroup.items.push(["advanced-desk", "Advanced PAS", "layers", "advanced-admin.html"]);
     // }
-    if (!PAS.NAV.some(function (g) { return g.label === "Integration"; })) {
-      /* Inserted before "Admin" (if present) rather than pushed to the very end, so Admin
-         Configuration stays the last thing in the sidebar regardless of what else this file
-         appends to PAS.NAV. */
-      var integrationGroup = { label: "Integration", items: [["integration-hub", "PAS integration hub", "braces", "integration-hub.html"]] };
-      var adminIdx = PAS.NAV.findIndex(function (g) { return g.label === "Admin"; });
-      if (adminIdx === -1) PAS.NAV.push(integrationGroup);
-      else PAS.NAV.splice(adminIdx, 0, integrationGroup);
-    }
-    var intGroup = PAS.NAV.find(function (g) { return g.label === "Integration"; });
-    if (intGroup && !intGroup.items.some(function (it) { return it[0] === "import-quote"; })) {
-      intGroup.items.push(["import-quote", "Import quote", "arrow-down-left", "import-quote.html"]);
-    }
+    /* Integration section hidden from the sidebar (its pages stay reachable directly at
+       integration-hub.html / import-quote.html — PAGE_META/PAGE_APIS below stay wired). Same
+       hide-from-nav-but-keep-functional convention as Advanced PAS just above. */
+    // if (!PAS.NAV.some(function (g) { return g.label === "Integration"; })) {
+    //   /* Inserted before "Admin" (if present) rather than pushed to the very end, so Admin
+    //      Configuration stays the last thing in the sidebar regardless of what else this file
+    //      appends to PAS.NAV. */
+    //   var integrationGroup = { label: "Integration", items: [["integration-hub", "PAS integration hub", "braces", "integration-hub.html"]] };
+    //   var adminIdx = PAS.NAV.findIndex(function (g) { return g.label === "Admin"; });
+    //   if (adminIdx === -1) PAS.NAV.push(integrationGroup);
+    //   else PAS.NAV.splice(adminIdx, 0, integrationGroup);
+    // }
+    // var intGroup = PAS.NAV.find(function (g) { return g.label === "Integration"; });
+    // if (intGroup && !intGroup.items.some(function (it) { return it[0] === "import-quote"; })) {
+    //   intGroup.items.push(["import-quote", "Import quote", "arrow-down-left", "import-quote.html"]);
+    // }
   }
   PAS.PAGE_META["advanced-desk"] = { nav: "advanced-desk", title: "Decision desks / Advanced PAS" };
   PAS.PAGE_META["advanced-detail"] = { nav: "advanced-desk", title: "Decision desks / Advanced PAS" };

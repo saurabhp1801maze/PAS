@@ -204,7 +204,7 @@ console.log("\n  content spot-checks");
   ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected reinsurers", "Meridian Assurance Co.", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
   ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring in period", "Endorsement requests", "Reinstated", "Cancelled", "Pending approvals", "Bound — awaiting issuance", "Monthly", "Yearly", "New business issued", "Cancellation requests"]],
-  ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Types of cancellation", "Refunds by type", "Refunds by reason", "Cancellation trend", "Pro-Rata", "Short-Rate", "Monthly", "Quarterly", "Yearly", "Custom range"]],
+  ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Types of cancellation", "Pro-Rata", "Short-Rate", "Total refunded to date"]],
 ].forEach(function (c) {
   var txt = renderText(c[0]);
   c[1].forEach(function (needle) {
@@ -656,42 +656,22 @@ console.log("\n  claims & loss ratio panel: real variance, callout flags the act
   }
 })();
 
-/* Cancellation trend (MOM 2026-08-26): a real SVG chart, split by type, on the Cancellation desk
-   itself — not just buried in the dashboard's generic 3-transaction-type activity chart. Now also
-   carries the same Monthly/Quarterly/Yearly + custom-range reporting control as the dashboard
-   (PAS.charts.periodPicker), not a fixed trailing-6-months window; and the old "Terminology" /
-   "Reason, notice & default type" reference sections are gone from this page — see the per-request
-   worked refund breakdown on cancellation-decision.js instead, tested separately below. */
-console.log("\n  cancellation trend chart: real SVG, split by type, driven by the dashboard's own period picker");
+/* Cancellation desk reference sections: "Terminology" / "Reason, notice & default type" were
+   removed earlier (see the per-request worked refund breakdown on cancellation-decision.js
+   instead), and "Refunds by type" / "Refunds by reason" / "Cancellation trend" were removed later
+   — only "Types of cancellation" and the plain "Total refunded to date" line stayed. */
+console.log("\n  cancellation desk: removed reference/breakdown sections stay gone");
 (function () {
   var cxDom = renderDom("cancellation", "", "Super Admin");
   var cxTxt = cxDom.textContent;
-  var graphs = cxDom.querySelectorAll(".trend-graph");
-  var dots = cxDom.querySelectorAll(".trend-dot");
-  var legendItems = cxDom.querySelectorAll(".trend-legend-item");
-  if (graphs.length !== 1) { fails++; console.log("  FAIL  expected exactly 1 trend graph on the Cancellation desk, found " + graphs.length); }
-  else if (dots.length !== 18) { fails++; console.log("  FAIL  cancellation trend expected 18 dots (3 types × 6 months, the Monthly default), found " + dots.length); }
-  else console.log("  PASS  Cancellation trend is a real SVG line/area graph — 3 cancellation types × 6 trailing months = 18 marked points");
-  if (legendItems.length !== 3) { fails++; console.log("  FAIL  expected 3 legend entries (Flat/Pro-Rata/Short-Rate), found " + legendItems.length); }
-  else console.log("  PASS  legend distinguishes all 3 cancellation types — a multi-series chart, not a single blended line");
-
-  /* Switch to Yearly for real and confirm the graph genuinely re-buckets (4 years × 3 types), not
-     just that the chip visually toggles. */
-  var periodChips = cxDom.querySelectorAll(".chip").filter(function (b) { return b.textContent === "Yearly"; });
-  if (periodChips.length === 0) { fails++; console.log("  FAIL  no \"Yearly\" chip found on the Cancellation trend's period picker"); }
-  else {
-    periodChips[0].click();
-    var yearlyDots = cxDom.querySelectorAll(".trend-dot");
-    if (yearlyDots.length !== 12) { fails++; console.log("  FAIL  switching the cancellation trend to Yearly expected 12 dots (3 types × 4 years), got " + yearlyDots.length); }
-    else console.log("  PASS  switching the Cancellation trend's period picker to Yearly genuinely re-renders the chart (3 types × 4 years = 12 points), not a cosmetic toggle");
-  }
-
-  ["Terminology", "Reason, notice & default type"].forEach(function (removed) {
-    if (cxTxt.indexOf(removed) !== -1) { fails++; console.log('  FAIL  Cancellation desk still shows the "' + removed + '" reference section — it should have been removed'); }
+  ["Terminology", "Reason, notice & default type", "Refunds by type", "Refunds by reason", "Cancellation trend"].forEach(function (removed) {
+    if (cxTxt.indexOf(removed) !== -1) { fails++; console.log('  FAIL  Cancellation desk still shows the "' + removed + '" section — it should have been removed'); }
   });
-  console.log("  PASS  the \"Terminology\" and \"Reason, notice & default type\" reference sections are gone from the Cancellation desk");
-  if (cxTxt.indexOf("Types of cancellation") === -1) { fails++; console.log("  FAIL  \"Types of cancellation\" should still be on the page — only the other two reference sections were asked to go"); }
+  console.log("  PASS  \"Terminology\", \"Reason, notice & default type\", \"Refunds by type\", \"Refunds by reason\" and \"Cancellation trend\" are all gone from the Cancellation desk");
+  if (cxTxt.indexOf("Types of cancellation") === -1) { fails++; console.log("  FAIL  \"Types of cancellation\" should still be on the page — it was not asked to be removed"); }
   else console.log("  PASS  \"Types of cancellation\" is still present — the one reference section that was not asked to be removed");
+  if (cxDom.querySelectorAll(".trend-graph").length !== 0) { fails++; console.log("  FAIL  Cancellation desk still renders a trend graph — it should have been removed"); }
+  else console.log("  PASS  no trend graph renders on the Cancellation desk any more");
 })();
 
 /* Role-based dashboard: the same URL, genuinely different renders. Super Admin/Admin get the

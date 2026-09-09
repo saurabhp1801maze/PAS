@@ -1807,19 +1807,19 @@ var CLAIMS_BY_ID = {
       ["registry", "Policy register", "list-checks", "registry.html"],
       ["brokers", "Brokers", "users", "brokers.html"],
       ["mgas", "MGA", "building-2", "mgas.html"],
-      ["carriers", "Reinsurer", "shield-check", "carriers.html"],
+      // ["carriers", "Reinsurer", "shield-check", "carriers.html"],
       ["customers", "Customers", "user", "customers.html"],
       ["workbench", "Transaction workbench", "git-branch", "workbench.html"],
       // ["documents", "Documents", "file-check-2", "documents.html"],
       // ["loyalty", "Loyalty", "award", "loyalty.html"],
       // ["terms", "Terms & Conditions", "edit-3", "terms.html"],
     ] },
-    { label: "Reference", items: [
-      ["domain-model", "Domain model", "git-branch", "domain-model.html"],
-      ["data-model", "Data model", "database", "data-model.html"],
-      ["api-reference", "API reference", "braces", "api-reference.html"],
-      ["architecture", "Architecture", "layers", "architecture.html"],
-    ] },
+    // { label: "Reference", items: [
+    //   ["domain-model", "Domain model", "git-branch", "domain-model.html"],
+    //   ["data-model", "Data model", "database", "data-model.html"],
+    //   ["api-reference", "API reference", "braces", "api-reference.html"],
+    //   ["architecture", "Architecture", "layers", "architecture.html"],
+    // ] },
     { label: "Admin", items: [["admin-config", "Admin Configuration", "key-round", "admin-config.html"]] },
   ];
 

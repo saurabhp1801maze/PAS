@@ -68,79 +68,13 @@
     }, [typeGrid]);
     page.appendChild(typesPanel);
 
-    /* Refund-wise breakdown: every completed cancellation already carries its decided type,
-       reason and refund on `meta` — this is that history grouped two ways rather than a new
-       computation. Pending requests are excluded deliberately: their refund is a live quote, not
-       yet a fact, and mixing a projection into a completed total would misstate what's actually
-       been paid out. */
+    /* Total refunded to date across completed cancellations. Pending requests are excluded
+       deliberately: their refund is a live quote, not yet a fact, and mixing a projection into a
+       completed total would misstate what's actually been paid out. */
     var completed = hist.filter(function (t) { return t.h.status === "Completed"; });
     var totalRefunded = completed.reduce(function (s, t) { return s + (Number(t.h.meta && t.h.meta.refund) || 0); }, 0);
-    function groupRefunds(field) {
-      var keys = Array.from(new Set(completed.map(function (t) { return (t.h.meta && t.h.meta[field]) || "—"; })));
-      return keys.map(function (k) {
-        var rows = completed.filter(function (t) { return ((t.h.meta && t.h.meta[field]) || "—") === k; });
-        return { k: k, v: rows.reduce(function (s, t) { return s + (Number(t.h.meta && t.h.meta.refund) || 0); }, 0), n: rows.length };
-      }).sort(function (a, b) { return b.v - a.v; });
-    }
-    /* The two panels below only ever show it split by type or by reason — shown plainly here too,
-       not just implied by two partial breakdowns or left inside a hover tooltip. */
     page.appendChild(ui.h("div", { class: "label-11 mb-9" },
       "Total refunded to date: " + PAS.money(totalRefunded) + " across " + completed.length + " completed cancellation" + (completed.length === 1 ? "" : "s") + "."));
-
-    var refundGrid = ui.h("div", { class: "two-col-grid" });
-    var byTypePanel = ui.panel({ title: "Refunds by type", what: "Total refunded, grouped by the decided cancellation type.", why: "Total refunded to date: " + PAS.money(totalRefunded) + " across " + completed.length + " completed cancellations." }, []);
-    var byTypeBody = byTypePanel.querySelector(".panel-body");
-    var byType = groupRefunds("cancelType");
-    if (byType.length === 0) byTypeBody.appendChild(ui.h("div", { class: "faint-note" }, "No completed cancellations yet."));
-    else {
-      var maxType = Math.max.apply(null, byType.map(function (r) { return r.v; }).concat([1]));
-      byType.forEach(function (r) { byTypeBody.appendChild(ui.hbar({ label: r.k, value: r.v, max: maxType, note: PAS.money(r.v) + " · " + r.n, tone: (PAS.CANCEL_TYPES[r.k] && PAS.CANCEL_TYPES[r.k].tone) || "gray" })); });
-    }
-    refundGrid.appendChild(byTypePanel);
-
-    var byReasonPanel = ui.panel({ title: "Refunds by reason", what: "Total refunded, grouped by the stated reason.", why: "Where the money is actually going out — not just why a policy was cancelled." }, []);
-    var byReasonBody = byReasonPanel.querySelector(".panel-body");
-    var byReason = groupRefunds("reason");
-    if (byReason.length === 0) byReasonBody.appendChild(ui.h("div", { class: "faint-note" }, "No completed cancellations yet."));
-    else {
-      var maxReason = Math.max.apply(null, byReason.map(function (r) { return r.v; }).concat([1]));
-      byReason.forEach(function (r) { byReasonBody.appendChild(ui.hbar({ label: r.k, value: r.v, max: maxReason, note: PAS.money(r.v) + " · " + r.n, tone: r.v === maxReason ? "indigo" : "blue" })); });
-    }
-    refundGrid.appendChild(byReasonPanel);
-    page.appendChild(refundGrid);
-
-    /* Cancellation trend (MOM 2026-08-26: "Cancellation data and trends should be clearly visible
-       for analysis") — completed cancellations by period, split by type. A volume spike reads
-       differently depending on which type is driving it: Short-Rate rising is an insured-request/
-       fraud pattern worth a look; Pro-Rata or Flat rising is more likely a process one (DNOC
-       backlog, mass non-renewal) — the split is what makes the trend analyzable, not just visible.
-       Same Monthly/Quarterly/Yearly + custom-range reporting control the dashboard uses
-       (PAS.charts.periodPicker), not a fixed trailing-6-months window. */
-    var cancelTypeKeys = Object.keys(PAS.CANCEL_TYPES);
-    var trendSeries = cancelTypeKeys.map(function (k) { return { type: k, label: k, tone: PAS.CANCEL_TYPES[k].tone }; });
-    var TREND_BUCKETS = { month: 6, quarter: 6, year: 4, custom: 1 };
-
-    var trendPanel = ui.panel({ title: "Cancellation trend", what: "Completed cancellations by period, split by type.", why: "A spike in Short-Rate reads as an insured-driven pattern; a spike in Flat/Pro-Rata reads as an insurer- or process-driven one — the split is what makes the trend analyzable." }, []);
-    var trendBody = trendPanel.querySelector(".panel-body");
-
-    var picker = PAS.charts.periodPicker({ label: "Cancellation trend period", onChange: buildTrend });
-    page.appendChild(picker.toggleRow);
-    page.appendChild(picker.customToggleRow);
-    page.appendChild(picker.rangeRow);
-    page.appendChild(trendPanel);
-
-    function buildTrend() {
-      var keys = picker.bucketKeys(TREND_BUCKETS[picker.getPeriod()] || 6);
-      var data = keys.map(function (key) {
-        var row = { key: key };
-        trendSeries.forEach(function (s) {
-          row[s.type] = completed.filter(function (t) { return picker.matches(t.h.date, key) && (t.h.meta && t.h.meta.cancelType) === s.type; }).length;
-        });
-        return row;
-      });
-      PAS.charts.drawTrendGraph(trendBody, trendSeries, data, picker.bucketLabel, picker.windowNote(keys.length, "completed cancellations by effective date, split by type"));
-    }
-    buildTrend();
 
     page.appendChild(ui.logRequestForm({
       policies: policies.filter(function (p) { return p.status === "Active"; }),

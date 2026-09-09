@@ -1083,7 +1083,7 @@
           tip: "Claims actually paid out so far, across " + f.claimCount + " claims — reserved amounts for open claims are shown separately, in Reserved claims.",
         },
         {
-          label: "Reserved claims", value: PAS.moneyShort(f.reserved), tone: "amber",
+          label: "Reserved", value: PAS.moneyShort(f.reserved), tone: "amber",
           delta: valueDelta(f.reserved, previousF && previousF.reserved), deltaTone: !previousF ? null : !deltasReliable ? "gray" : (f.reserved <= previousF.reserved ? "green" : "red"), deltaTitle: comparisonTitle,
           tip: "Set aside for " + f.openClaimCount + " open claim" + (f.openClaimCount === 1 ? "" : "s") + " not yet paid out. Reserved + Incurred (paid) = total incurred claims, the figure Loss ratio is actually computed from.",
         },

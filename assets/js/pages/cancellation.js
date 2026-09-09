@@ -65,6 +65,8 @@
       title: "Types of cancellation",
       what: "The three refund bases a cancellation can derive to — Flat, Pro-Rata, and Short-Rate.",
       why: "Getting Type wrong means refunding money you were entitled to keep, or applying a penalty the insurer side may never charge. See any request's own decision screen for the worked-out, per-day refund math.",
+      collapsible: true,
+      defaultOpen: false,
     }, [typeGrid]);
     page.appendChild(typesPanel);
 

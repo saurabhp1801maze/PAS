@@ -9,7 +9,7 @@
       title: "Customers", titleUpper: "Customers", titleLower: "customers", singularLower: "customer", article: "a",
       sub: "Search any insured to see every policy on file for them",
       what: "Every named insured across the book — search by name.",
-      why: "A customer's full relationship with Veridex, not just the one policy you started from.",
+      why: "A customer's full relationship with Southlake, not just the one policy you started from.",
     });
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", render);

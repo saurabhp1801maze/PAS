@@ -133,7 +133,7 @@
     var policies = PAS.getPolicies();
     var carrierPanel = ui.panel({
       title: "Connected reinsurers",
-      what: "Veridex is the MGA — it doesn't carry risk itself. Each product line is placed with the one partner that has appetite for it.",
+      what: "Southlake is the MGA — it doesn't carry risk itself. Each product line is placed with the one partner that has appetite for it.",
       why: "This is what \"a modular architecture that consumes data from connected reinsurers\" means concretely: real data segmented by reinsurer (PAS.PRODUCT_CARRIER), not one undifferentiated book.",
       pad: 0,
     }, []);

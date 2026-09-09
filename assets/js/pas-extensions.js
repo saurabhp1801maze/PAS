@@ -447,7 +447,7 @@
      follows (PAS.recordHeldDecision's emailTo path, etc.): a real, inspectable ledger row rather
      than an actual mail transport, which nothing in this static frontend has. */
   PAS.sendInvoiceToAccounts = function (policyId, docId, emailTo) {
-    var to = emailTo || "accounts@veridex.internal";
+    var to = emailTo || "accounts@southlake.internal";
     return PAS._patchPolicy(policyId, function (p) {
       var doc = (p.documents || []).find(function (d) { return d.id === docId; });
       var withDoc = Object.assign({}, p, {

@@ -32,7 +32,7 @@
         ["policy_id", "PK", "Business key such as POL-2026-00311. Never reused."],
         ["holder_party_id", "FK → parties", "The named insured."],
         ["producer_id", "FK → producers", "Broker or channel that placed it. Null for Direct."],
-        ["product_code", "enum", "Commercial Property, Comprehensive Auto, Home Owners, Marine Cargo, Group Health, Term Life."],
+        ["product_code", "enum", "Commercial Property, Comprehensive Auto, Home Owners, Marine Cargo."],
         ["current_status", "enum", "Referred / Bound / Active / Cancelled / Non-renewed / Expired."],
         ["current_term_id", "FK → policy_terms", "Denormalised pointer to the live term, for fast reads."],
         ["created_at", "timestamptz", ""],

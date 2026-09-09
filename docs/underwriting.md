@@ -94,11 +94,9 @@ line before a single claim is on file:
 
 | Product | Base |
 |---|---|
-| Term Life | 84 |
 | Home Owners | 80 |
 | Comprehensive Auto | 74 |
 | Commercial Property | 72 |
-| Group Health | 70 |
 | Marine Cargo | 68 |
 
 **Prior cancellations** are counted two ways and added together: whatever is disclosed on the

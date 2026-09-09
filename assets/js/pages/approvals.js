@@ -109,9 +109,15 @@
       var start = pageIndex * pageSize;
       var pageRows = rows.slice(start, start + pageSize);
       tableContainer.appendChild(ui.dataTable({
-        columns: [{ label: "Seq", what: "Position in the policy ledger." }, "Policy", "Insured", { label: "Type", what: "Which kind of transaction is held." }, "Requested by", { label: "SLA", what: "SLA = Service Level Agreement: the turnaround this request is committed to. Hours until it breaches that commitment (demo clock, not the real calendar)." }, { label: "Why it is held", what: "What was submitted, and by whom.", rule: "Material endorsements, fraud cancellations and authority referrals always hold." }, { label: "Effective", what: "Business date it would take effect." }, ""],
-        rows: pageRows.map(function (t) {
-          var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-muted)" } }, "#" + t.h.seq);
+        columns: [{ label: "#", what: "This request's priority rank in the list — most urgent (breached SLA, then soonest to breach) first." }, "Policy", "Insured", { label: "Type", what: "Which kind of transaction is held." }, "Requested by", { label: "SLA", what: "SLA = Service Level Agreement: the turnaround this request is committed to. Hours until it breaches that commitment (demo clock, not the real calendar)." }, { label: "Why it is held", what: "What was submitted, and by whom.", rule: "Material endorsements, fraud cancellations and authority referrals always hold." }, { label: "Effective", what: "Business date it would take effect." }, ""],
+        rows: pageRows.map(function (t, i) {
+          /* Rank in the sorted, paginated list — not the transaction's position in its own
+             policy's ledger (t.h.seq). This table spans many different policies, so ledger
+             position told the reviewer nothing about priority and, worse, looked like the same
+             row repeated ("#4") whenever several unrelated policies happened to be at their own
+             4th transaction. A running rank reflects the actual urgency order this list is
+             already sorted by. */
+          var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-muted)" } }, "#" + (start + i + 1));
           var idSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-ink-secondary)" } }, t.p.id);
           var detailSpan = ui.h("span", { style: { fontSize: "12px", color: "var(--color-ink-secondary)", whiteSpace: "normal", display: "inline-block", maxWidth: "300px" } }, t.h.detail);
           var sla = slaOf(t);

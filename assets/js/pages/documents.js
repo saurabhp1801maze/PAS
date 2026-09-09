@@ -7,7 +7,7 @@
     var policies = PAS.getScopedPolicies();
     var docs = policies.reduce(function (acc, p) { (p.documents || []).forEach(function (d) { acc.push({ p: p, d: d }); }); return acc; }, []);
     var q = "", typeF = "All";
-    var TYPES = ["All", "Schedule", "Certificate", "Notice"];
+    var TYPES = ["All", "Schedule", "Certificate", "Notice", "Evidence"];
 
     var page = ui.h("div", {});
     page.appendChild(ui.pageHeader({
@@ -20,6 +20,7 @@
       { label: "Schedules", value: docs.filter(function (x) { return x.d.type === "Schedule"; }).length, tip: "Policy schedules issued." },
       { label: "Certificates", value: docs.filter(function (x) { return x.d.type === "Certificate"; }).length, tip: "Certificates of insurance." },
       { label: "Notices", value: docs.filter(function (x) { return x.d.type === "Notice"; }).length, tip: "Cancellation and renewal notices." },
+      { label: "Evidence", value: docs.filter(function (x) { return x.d.type === "Evidence"; }).length, tip: "Supporting documents received from the insured or broker for an open endorsement, renewal or reinstatement request." },
     ]));
 
     var toolbar = ui.h("div", { class: "register-toolbar" });

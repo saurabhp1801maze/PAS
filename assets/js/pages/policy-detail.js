@@ -117,7 +117,7 @@
   /* Three paid parties, not four: Broker (retail commission), MGA facility (the override —
      everything left after the broker's cut), and Carrier (what's left of premium once commission
      is carved out; this app calls the same field "Reinsurer" on the entity-book pages). No
-     separate "Veridex platform margin" line — Veridex's revenue is a portfolio-level P&L question
+     separate "Southlake platform margin" line — Southlake's revenue is a portfolio-level P&L question
      (PAS.bookFinancials' netCommission, what the Dashboard reports), not a party on any one
      transaction, so it doesn't belong in a per-policy "who gets paid" view. */
   function distributionSection(policy) {
@@ -158,7 +158,7 @@
     body.appendChild(ui.h("div", { class: "faint-note", style: { marginTop: "10px" } },
       "Gross commission " + money(gross) + " (" + pct(rate) + " of premium, this product's rate) splits " +
       Math.round(PAS.BROKER_COMMISSION_SHARE * 100) + "/" + Math.round((1 - PAS.BROKER_COMMISSION_SHARE) * 100) +
-      " broker/MGA. That MGA figure is the same 45%-of-commission bucket the portfolio Dashboard and the MGA pages report as Veridex's own net revenue (PAS.bookFinancials' netCommission) — recharacterized here as the named MGA facility's override, since that's the party actually paid in a real distribution chain. The two views disagree on whose money this is; the MGA list/detail pages still show $0 commission for MGA facilities. Reconciling that needs a decision on whether this is Veridex's margin or an MGA override, not just a label change on this one page."));
+      " broker/MGA. That MGA figure is the same 45%-of-commission bucket the portfolio Dashboard and the MGA pages report as Southlake's own net revenue (PAS.bookFinancials' netCommission) — recharacterized here as the named MGA facility's override, since that's the party actually paid in a real distribution chain. The two views disagree on whose money this is; the MGA list/detail pages still show $0 commission for MGA facilities. Reconciling that needs a decision on whether this is Southlake's margin or an MGA override, not just a label change on this one page."));
 
     return section("distribution", "Where the premium goes", money(policy.premium) + " written premium, split by who is actually paid on it", panel);
   }
@@ -398,7 +398,7 @@
       headRow.appendChild(invBtn);
     }
     var table = ui.dataTable({
-      columns: ["Document", { label: "Type", what: "Schedule, certificate, invoice or notice." }, { label: "Version", what: "Incremented each regeneration.", why: "Lets you prove what the customer held on any date." }, "Generated", { label: "Delivery", what: "PAS document delivery status." }, { label: "Txn", what: "Ledger row that triggered generation." }, ""],
+      columns: ["Document", { label: "Type", what: "Schedule, certificate, invoice, notice or evidence." }, { label: "Version", what: "Incremented each regeneration.", why: "Lets you prove what the customer held on any date." }, "Generated", { label: "Delivery", what: "PAS document delivery status — or, for evidence received from the insured/broker, when it arrived." }, { label: "Txn", what: "Ledger row that triggered generation, or that this evidence supports." }, ""],
       rows: (policy.documents || []).map(function (d) {
         var nameSpan = ui.h("span", { style: { display: "inline-flex", alignItems: "center", gap: "7px", fontWeight: "600" } }, [PAS.icon("file-text", { size: 13, color: "var(--color-link)" }), document.createTextNode(d.name)]);
         var actions = ui.h("span", { style: { display: "inline-flex", gap: "6px" } });
@@ -423,10 +423,17 @@
           viewDocBtn.addEventListener("click", function (e) { e.stopPropagation(); location.href = "policy-document.html?policy=" + encodeURIComponent(policy.id) + "&doc=" + encodeURIComponent(d.id); });
           actions.appendChild(viewDocBtn);
         }
-        var delBtn = ui.h("button", { class: "btn small" }, d.type === "Invoice" ? "Mark sent" : "Mark delivered");
-        delBtn.addEventListener("click", function (e) { e.stopPropagation(); PAS.markDocumentDelivered(policy.id, d.id); rerender(); });
-        actions.appendChild(delBtn);
-        return [nameSpan, d.type, ui.pill("gray", "v" + d.version), PAS.fmtDate(d.generatedAt), ui.pill(d.deliveryStatus === "Delivered" ? "green" : "amber", d.deliveryStatus || "Generated"), d.transactionId ? d.transactionId.slice(0, 12) : "—", actions];
+        /* "Received" means this arrived FROM the insured/broker as evidence for a request (a
+           driver's license, a signed renewal declaration, proof of payment) — there is nothing
+           for PAS to deliver onward, so the outbound "Mark delivered"/"Mark sent" action doesn't
+           apply to it, unlike every other document type here which PAS itself generates and sends. */
+        if (d.deliveryStatus !== "Received") {
+          var delBtn = ui.h("button", { class: "btn small" }, d.type === "Invoice" ? "Mark sent" : "Mark delivered");
+          delBtn.addEventListener("click", function (e) { e.stopPropagation(); PAS.markDocumentDelivered(policy.id, d.id); rerender(); });
+          actions.appendChild(delBtn);
+        }
+        var deliveryTone = (d.deliveryStatus === "Delivered" || d.deliveryStatus === "Received") ? "green" : "amber";
+        return [nameSpan, d.type, ui.pill("gray", "v" + d.version), PAS.fmtDate(d.generatedAt), ui.pill(deliveryTone, d.deliveryStatus || "Generated"), d.transactionId ? d.transactionId.slice(0, 12) : "—", actions];
       }),
       emptyText: "No documents yet. Issuing the policy generates the schedule and certificate.",
     });

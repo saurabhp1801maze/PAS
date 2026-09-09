@@ -75,7 +75,7 @@
       }, [
         { label: "Annual premium", value: PAS.moneyShort(f.writtenPremium), tone: "gray", tip: "Total written premium across on-risk records in this view." },
         { label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue", tip: "Premium recognized for coverage actually provided so far." },
-        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Veridex revenue after paying the broker's share — not the premium itself." },
+        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Southlake revenue after paying the broker's share — not the premium itself." },
         { label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red", tip: "Paid claims plus reserves across " + f.claimCount + " claim" + (f.claimCount === 1 ? "" : "s") + "." },
         { label: "Loss ratio", value: pct(f.lossRatio), tone: lossToneFor(f.lossRatio), tip: "Incurred claims ÷ earned premium (not written) — the standard actuarial basis." },
         { label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedToneFor(f.combinedRatio), tip: "Loss ratio plus acquisition expense ratio. Below 100% indicates a carrier underwriting profit before other operating costs." },

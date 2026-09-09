@@ -146,7 +146,7 @@
       tenantId: PAS.TENANT,
       aggregateType: "policy",
       aggregateId: "POL-2026-02233",
-      producer: "veridex-policy",
+      producer: "southlake-policy",
       consumers: PAS.CONSUMERS.policyCancelled,
       data: { txnId: "TXN-4K2P9", status: "completed", premiumMethod: "Short-Rate", refundAmount: 6385 },
     }));

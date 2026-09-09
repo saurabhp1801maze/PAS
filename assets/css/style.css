@@ -1,7 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 /* ================= DESIGN TOKENS =================
-   VeriDex Global UI/UX Framework v3.0 — authoritative token block (README_UI_FRAMEWORK_FINAL.md
+   Southlake Global UI/UX Framework v3.0 — authoritative token block (README_UI_FRAMEWORK_FINAL.md
    §3), extended with a small number of additional tokens the framework doesn't define but this
    app genuinely needs (--color-panel-alt, --color-shell-text, --outcome-*-bg, --shadow): each of
    those derives its value from an official token or a documented, spec-consistent choice rather

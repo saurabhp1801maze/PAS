@@ -278,9 +278,20 @@
       return "from " + customFrom + " to " + customTo;
     }
 
+    /* Referenced by the click handler below, assigned once the five multiSelect widgets exist
+       further down this function — safe because the handler only runs on click, well after the
+       whole page has finished building, even though this button itself is created first so it can
+       sit in the page header's top-right corner. */
+    var resetFiltersBtn = ui.h("button", { class: "btn", type: "button" }, [PAS.icon("x-circle", { size: 13 }), document.createTextNode(" Reset filters")]);
+    resetFiltersBtn.addEventListener("click", function () {
+      lobFilter = []; stateFilter = []; brokerFilter = []; mgaFilter = []; carrierFilter = [];
+      lobMS.setSelected([]); stateMS.setSelected([]); brokerMS.setSelected([]); mgaMS.setSelected([]); carrierMS.setSelected([]);
+      buildAll();
+    });
     page.appendChild(ui.pageHeader({
       icon: "layout-dashboard", tone: "indigo", title: "Portfolio Dashboard",
       sub: "Portfolio performance and operational workload by line of business, state, broker, MGA and reinsurer",
+      right: resetFiltersBtn,
     }));
 
     /* One wrapping row, every filter a same-shaped group (label above control) — the pattern
@@ -292,27 +303,27 @@
 
     var lobGroup = ui.h("div", {});
     lobGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Line of business"));
-    lobGroup.appendChild(ui.multiSelect({ options: lobOptions, selected: lobFilter, allLabel: "All lines", onChange: function (sel) { lobFilter = sel; buildAll(); } }));
+    var lobMS = lobGroup.appendChild(ui.multiSelect({ options: lobOptions, selected: lobFilter, allLabel: "All lines", onChange: function (sel) { lobFilter = sel; buildAll(); } }));
     filterBlock.appendChild(lobGroup);
 
     var stateGroup = ui.h("div", {});
     stateGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "State"));
-    stateGroup.appendChild(ui.multiSelect({ options: stateOptions, selected: stateFilter, allLabel: "All states", onChange: function (sel) { stateFilter = sel; buildAll(); } }));
+    var stateMS = stateGroup.appendChild(ui.multiSelect({ options: stateOptions, selected: stateFilter, allLabel: "All states", onChange: function (sel) { stateFilter = sel; buildAll(); } }));
     filterBlock.appendChild(stateGroup);
 
     var brokerGroup = ui.h("div", {});
     brokerGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Broker"));
-    brokerGroup.appendChild(ui.multiSelect({ options: brokerOptions, selected: brokerFilter, allLabel: "All brokers", onChange: function (sel) { brokerFilter = sel; buildAll(); } }));
+    var brokerMS = brokerGroup.appendChild(ui.multiSelect({ options: brokerOptions, selected: brokerFilter, allLabel: "All brokers", onChange: function (sel) { brokerFilter = sel; buildAll(); } }));
     filterBlock.appendChild(brokerGroup);
 
     var mgaGroup = ui.h("div", {});
     mgaGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "MGA"));
-    mgaGroup.appendChild(ui.multiSelect({ options: mgaOptions, selected: mgaFilter, allLabel: "All MGAs", onChange: function (sel) { mgaFilter = sel; buildAll(); } }));
+    var mgaMS = mgaGroup.appendChild(ui.multiSelect({ options: mgaOptions, selected: mgaFilter, allLabel: "All MGAs", onChange: function (sel) { mgaFilter = sel; buildAll(); } }));
     filterBlock.appendChild(mgaGroup);
 
     var carrierGroup = ui.h("div", {});
     carrierGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Reinsurer"));
-    carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All reinsurers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
+    var carrierMS = carrierGroup.appendChild(ui.multiSelect({ options: carrierOptions, selected: carrierFilter, allLabel: "All reinsurers", onChange: function (sel) { carrierFilter = sel; buildAll(); } }));
     filterBlock.appendChild(carrierGroup);
 
     var toggleRow = ui.h("div", { class: "period-toggle-row" });
@@ -369,7 +380,7 @@
     /* The panel that answers "which is loss, where profit, and how many claims is that actually
        resting on" in one place. This used to be two separate panels — this table (premium/ratios)
        up here, and a "Top claim segments" bar chart further down under Lifetime claims performance
-       — so reading "Group Health is at 89% loss ratio" and "backed by 14 claims" meant scrolling
+       — so reading "Comprehensive Auto is at 118% loss ratio" and "backed by 14 claims" meant scrolling
        between them and manually matching the segment name by eye. The claim count now sits right
        next to the incurred-claims dollar figure it explains, both on the same row as the premium
        and ratios they're computed from — one table, no cross-referencing. Ranked worst-first by
@@ -679,7 +690,11 @@
        final page position is set now rather than wherever its construction happens to sit in the
        source. */
     var queuePanelSlot = ui.h("div", { style: { marginTop: "26px" } });
-    page.appendChild(queuePanelSlot);
+    /* "Open work queues" temporarily removed from the dashboard — commented out, not deleted, so
+       it can be restored by uncommenting this one line. The panel is still built and populated
+       below (queuePanel/buildQueues) into this detached slot; it just never gets attached to the
+       page, so nothing renders. */
+    // page.appendChild(queuePanelSlot);
 
     /* ---- Top performers: one panel, switchable dimension and switchable ranking basis ----
        This was three fixed side-by-side cards (brokers / MGAs / insurers). One panel with a
@@ -1060,7 +1075,7 @@
         {
           label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green",
           delta: valueDelta(f.netCommission, previousF && previousF.netCommission), deltaTone: "gray", deltaTitle: comparisonTitle,
-          tip: "Veridex revenue after paying the broker's share.",
+          tip: "Southlake revenue after paying the broker's share.",
         },
         {
           label: "Incurred claims", value: PAS.moneyShort(f.incurred), tone: "red",
@@ -1155,7 +1170,7 @@
           { key: "lossRatio", label: "Loss ratio", what: "Incurred ÷ earned premium.", sortValue: function (s) { return s.f.lossRatio; }, cell: function (s) { return ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)); } },
           { key: "expenseRatio", label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium.", sortValue: function (s) { return s.f.expenseRatio; }, cell: function (s) { return pct(s.f.expenseRatio); } },
           { key: "combinedRatio", label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs.", sortValue: function (s) { return s.f.combinedRatio; }, cell: function (s) { return ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)); } },
-          { key: "netCommission", label: "Net commission", what: "Veridex's own revenue for this segment — gross commission earned less the producing broker's share. Not shown anywhere else broken out by segment.", sortValue: function (s) { return s.f.netCommission; }, cell: function (s) { return PAS.moneyShort(s.f.netCommission); } },
+          { key: "netCommission", label: "Net commission", what: "Southlake's own revenue for this segment — gross commission earned less the producing broker's share. Not shown anywhere else broken out by segment.", sortValue: function (s) { return s.f.netCommission; }, cell: function (s) { return PAS.moneyShort(s.f.netCommission); } },
         ],
         rows: segments,
         wrapCells: true,
@@ -1295,6 +1310,7 @@
     function buildAll() {
       renderToggle(); buildFinancials(); buildKpis(); buildChart(); buildSnapshotPanels(); buildQueues(); buildClaims(); buildTopEntities();
       updateStatus.textContent = "Dashboard updated for " + periodNoteText() + filterNote() + ".";
+      resetFiltersBtn.disabled = !(lobFilter.length || stateFilter.length || brokerFilter.length || mgaFilter.length || carrierFilter.length);
     }
     buildAll();
   }

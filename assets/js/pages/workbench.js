@@ -32,35 +32,35 @@
       { label: "Policies", value: policies.length, tip: "Aggregates in this ledger." },
     ]));
 
+    /* Type ran up to 18 chip bubbles wide (every internal transaction kind, not just the four a
+       scoped role can raise) — a dropdown holds that list without wrapping the filter bar onto
+       several lines the way the chip row did. Status stays consistent with it as a dropdown too,
+       even though its own list is short, rather than mixing two different filter controls in the
+       same row. */
     var filterBlock = ui.h("div", { class: "filter-block" });
-    var typeChipsWrap = ui.h("div", {});
-    typeChipsWrap.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Type"));
-    var typeChipRow = ui.h("div", { class: "chip-row" });
-    typeChipsWrap.appendChild(typeChipRow);
-    var statusChipsWrap = ui.h("div", {});
-    statusChipsWrap.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Status"));
-    var statusChipRow = ui.h("div", { class: "chip-row" });
-    statusChipsWrap.appendChild(statusChipRow);
-    filterBlock.appendChild(typeChipsWrap);
-    filterBlock.appendChild(statusChipsWrap);
+    var typeGroup = ui.h("div", {});
+    typeGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Type"));
+    var typeSelect = ui.h("select", { class: "register-select", title: "Type" });
+    TYPES.forEach(function (m) { typeSelect.appendChild(ui.h("option", { value: m }, m === "All" ? "All types" : m)); });
+    typeSelect.addEventListener("change", function () { typeF = typeSelect.value; pageIndex = 0; buildTable(); });
+    typeGroup.appendChild(typeSelect);
+    var statusGroup = ui.h("div", {});
+    statusGroup.appendChild(ui.h("div", { class: "label-11 mb-9" }, "Status"));
+    var statusSelect = ui.h("select", { class: "register-select", title: "Status" });
+    STATUSES.forEach(function (m) { statusSelect.appendChild(ui.h("option", { value: m }, m === "All" ? "All statuses" : m)); });
+    statusSelect.addEventListener("change", function () { statusF = statusSelect.value; pageIndex = 0; buildTable(); });
+    statusGroup.appendChild(statusSelect);
+    filterBlock.appendChild(typeGroup);
+    filterBlock.appendChild(statusGroup);
     page.appendChild(filterBlock);
 
     var tableContainer = ui.h("div", {});
     page.appendChild(tableContainer);
 
-    function renderChips(container, list, active, onPick) {
-      container.innerHTML = "";
-      list.forEach(function (m) {
-        var chip = ui.h("button", { class: "chip" + (active === m ? " active" : "") }, m);
-        chip.addEventListener("click", function () { onPick(m); });
-        container.appendChild(chip);
-      });
-    }
-
     var pageSize = 25, pageIndex = 0;
     function buildTable() {
-      renderChips(typeChipRow, TYPES, typeF, function (m) { typeF = m; pageIndex = 0; buildTable(); });
-      renderChips(statusChipRow, STATUSES, statusF, function (m) { statusF = m; pageIndex = 0; buildTable(); });
+      typeSelect.value = typeF;
+      statusSelect.value = statusF;
 
       var rows = all.filter(function (t) { return (typeF === "All" || t.h.type === typeF) && (statusF === "All" || (t.h.status || "Completed") === statusF); });
       var total = rows.length;
@@ -74,13 +74,16 @@
         columns: [{ label: "Seq", what: "Monotonic order within the policy." }, "Policy", { label: "Type", what: "Kind of change." },
           { label: "Status", what: "Draft → Pending → Completed, or Rejected / Reversed.", rule: "Completed rows are never edited — corrections are new reversal rows." },
           { label: "Effective", what: "Business date the change applies from." },
-          { label: "Recorded", what: "System date it was entered.", why: "Storing both makes the ledger bitemporal and as-of queryable." },
-          "By", { label: "Action", what: "Reverse appends a compensating transaction.", rule: "The ledger is append-only — nothing is deleted." }],
+          { label: "Recorded At", what: "System date and time it was entered.", why: "Storing both makes the ledger bitemporal and as-of queryable." },
+          "User By", { label: "Action", what: "Reverse appends a compensating transaction.", rule: "The ledger is append-only — nothing is deleted." }],
         rows: pageRows.map(function (t) {
           var seqSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11.5px", color: "var(--color-muted)" } }, "#" + t.h.seq);
           var policyBtn = ui.h("button", { class: "btn ghost-link", style: { fontFamily: "var(--mono)", fontSize: "11.5px" } }, t.p.id);
           policyBtn.addEventListener("click", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(t.p.id); });
-          var recordedSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11px", color: "var(--color-muted)" } }, (t.h.recordedAt || "").slice(0, 10));
+          /* recordedAt is a full ISO timestamp; PAS.fmtDate only accepts a plain YYYY-MM-DD (it
+             appends its own "T00:00:00"), so the date portion has to be sliced off before it goes
+             in — PAS.fmtTime parses the full ISO string directly and needs no such slicing. */
+          var recordedSpan = ui.h("span", { style: { fontFamily: "var(--mono)", fontSize: "11px", color: "var(--color-muted)" } }, t.h.recordedAt ? PAS.fmtDate(t.h.recordedAt.slice(0, 10)) + ", " + PAS.fmtTime(t.h.recordedAt) : "—");
           var actionCell;
           if ((t.h.status || "Completed") === "Completed") {
             var revBtn = ui.h("button", { class: "btn small", style: { color: "var(--outcome-load)" } }, "Reverse");

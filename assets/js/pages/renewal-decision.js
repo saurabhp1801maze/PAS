@@ -96,9 +96,7 @@
 
     page.appendChild(ui.decisionLayout(left, right, [
       ui.confirmable(p.id, h.id, "Approve", { label: "Approve — renew into term " + (p.termNumber + 1), tone: "primary", icon: "refresh-cw", onRun: function (c) { return decide(true, c); } }),
-      ui.confirmable(p.id, h.id, "Decline", { label: "Decline — non-renew", tone: "red", icon: "ban", onRun: function (c) { return decide(false, c); } }),
-      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate") }),
-      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", showCategory: true, onRun: hold("Request More Information") }),
+      ui.confirmable(p.id, h.id, "Escalate/Request more info", { label: "Escalate/Request more info", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate/Request more info") }),
     ]));
 
     root.appendChild(ui.screen("renewal-desk", page));

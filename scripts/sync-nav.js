@@ -28,12 +28,12 @@ function navItemHtml(pageKey, label, icon, href, active) {
 function sidebarHtml(activeNavKey) {
   var out = ['    <nav class="sidebar" id="sidebar" role="navigation" aria-label="Primary">'];
   out.push('  <div class="sidebar-brand">');
-  /* The vD monogram mark (framework §2/§23) — a lettermark, not a Phosphor icon glyph, so it's
+  /* The S monogram mark (framework §2/§23) — a lettermark, not a Phosphor icon glyph, so it's
      inlined directly rather than routed through PAS.iconHtml/ICONS. Matches assets/favicon.svg's
-     "vD" letterform so the shell mark and the browser-tab mark are the same brand asset. */
-  out.push('    <div class="sidebar-brand-mark" aria-hidden="true">vD</div>');
+     "S" letterform so the shell mark and the browser-tab mark are the same brand asset. */
+  out.push('    <div class="sidebar-brand-mark" aria-hidden="true">S</div>');
   out.push('    <div class="sidebar-brand-text">');
-  out.push('      <div class="sidebar-brand-name">VeriDex PAS</div>');
+  out.push('      <div class="sidebar-brand-name">Southlake PAS</div>');
   out.push('      <div class="sidebar-brand-sub">Policy administration</div>');
   out.push("    </div>");
   out.push("  </div>");

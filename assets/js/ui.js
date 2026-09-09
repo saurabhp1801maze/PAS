@@ -778,7 +778,7 @@
     return label;
   }
   /* A checkbox-dropdown: a button showing a summary ("All", one label, or "N selected") that
-     opens a panel of checkboxRow options with All/None actions. `opts.selected` is an array —
+     opens a panel of checkboxRow options with All/Clear actions. `opts.selected` is an array —
      empty means "All" (no restriction), matching the button's own label logic, so an untouched
      filter and an explicitly-cleared one behave identically. */
   function multiSelect(opts) {
@@ -804,7 +804,7 @@
       panelEl = h("div", { class: "multiselect-panel" });
       var actions = h("div", { class: "multiselect-actions" });
       var allBtn = h("button", { type: "button", class: "btn ghost-link" }, "All");
-      var noneBtn = h("button", { type: "button", class: "btn ghost-link" }, "None");
+      var noneBtn = h("button", { type: "button", class: "btn ghost-link" }, "Clear");
       function pickAll(e) { e.stopPropagation(); opts.selected = opts.options.map(optValue); updateBtn(); opts.onChange(opts.selected.slice()); closePanel(); openPanel(); }
       function pickNone(e) { e.stopPropagation(); opts.selected = []; updateBtn(); opts.onChange(opts.selected.slice()); closePanel(); openPanel(); }
       allBtn.addEventListener("click", pickAll);
@@ -830,6 +830,10 @@
     }
     btn.addEventListener("click", function (e) { e.stopPropagation(); if (panelEl) closePanel(); else openPanel(); });
     updateBtn();
+    /* External sync only — no onChange call. A caller driving several of these at once (e.g. a
+       page-level "Reset filters" button) wants to update every widget's own display and then fire
+       its own single rebuild, not one rebuild per widget. */
+    wrap.setSelected = function (v) { opts.selected = v; if (panelEl) { closePanel(); openPanel(); } updateBtn(); };
     return wrap;
   }
 
@@ -1126,13 +1130,13 @@
     rows.slice().reverse().forEach(function (a) {
       var tone = a.action === "Decline" ? "red"
         : (a.action === "Approve" || a.action === "Issue") ? "green"
-        : a.action === "Escalate" ? "amber"
+        : (a.action === "Escalate" || a.action === "Escalate/Request more info") ? "amber"
         : a.action === "Request More Information" ? "blue"
         : a.action === "Request" ? "violet"
         : "indigo";
       var iconName = a.action === "Decline" ? "ban"
         : (a.action === "Approve" || a.action === "Issue") ? "check-circle-2"
-        : a.action === "Escalate" ? "arrow-up-right"
+        : (a.action === "Escalate" || a.action === "Escalate/Request more info") ? "arrow-up-right"
         : a.action === "Request More Information" ? "corner-up-left"
         : a.action === "Request" ? "inbox"
         : "edit-3";

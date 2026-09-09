@@ -195,7 +195,7 @@ producers ┼──► policies ──1:N──► policy_terms ──1:1──�
 | `policy_id` | PK, e.g. `POL-2026-00311` | Business key, never reused |
 | `holder_party_id` | FK → `parties` | Named insured |
 | `producer_id` | FK → `producers` | Broker/channel that placed it, nullable for Direct |
-| `product_code` | enum | Commercial Property, Comprehensive Auto, Home Owners, Marine Cargo, Group Health, Term Life |
+| `product_code` | enum | Commercial Property, Comprehensive Auto, Home Owners, Marine Cargo |
 | `current_status` | enum | Referred / Bound / Active / Cancelled / Non-renewed / Expired |
 | `current_term_id` | FK → `policy_terms` | Denormalized pointer to the live term, for fast reads |
 | `created_at` | timestamptz | |

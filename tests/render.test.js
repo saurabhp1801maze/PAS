@@ -822,7 +822,7 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
 })();
 
 /* Carrier role (MOM 2026-08-26, item 1): "New Business Trend should represent the carrier's
-   business performance, not Veridex's overall business" — and the carrier view should surface
+   business performance, not Southlake's overall business" — and the carrier view should surface
    both the MGA and Broker layers underneath it, not just one. */
 console.log("\n  Carrier role dashboard: genuinely scoped to its own paper, sees both MGA and Broker layers");
 (function () {
@@ -849,7 +849,7 @@ console.log("\n  Carrier role dashboard: genuinely scoped to its own paper, sees
   var carrierKpiValues = carrierDom.querySelectorAll(".kpi-value");
   var carrierPremiumShown = Array.prototype.some.call(carrierKpiValues, function (el) { return el.textContent === PAS3.moneyShort(meridianPremium); });
   if (!carrierPremiumShown) { fails++; console.log("  FAIL  Carrier dashboard's In-force premium KPI does not match " + PAS3.moneyShort(meridianPremium) + ", the real figure scoped to Meridian Assurance Co.'s own book"); }
-  else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS3.moneyShort(meridianPremium) + ") is genuinely scoped to its own paper — this is what makes \"New business issued\" below it the carrier's own trend, not Veridex's whole book");
+  else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS3.moneyShort(meridianPremium) + ") is genuinely scoped to its own paper — this is what makes \"New business issued\" below it the carrier's own trend, not Southlake's whole book");
 
   var carrierShown = (renderDom("registry", "", "Carrier").textContent.match(/Showing (\d+) of/) || [])[1];
   if (Number(carrierShown) !== meridianPolicies.length) { fails++; console.log("  FAIL  Policy Register's own count shows " + carrierShown + " for Carrier, expected exactly " + meridianPolicies.length); }
@@ -1094,7 +1094,7 @@ console.log("\n  coverage-wise breakdown: line items reconcile exactly to the po
   else console.log("  PASS  all " + withTemplate + " policies with a coverage template reconcile exactly (line items sum to the policy's own premium, $0 off, every time)");
 
   var detailTxt = renderText("policy-detail", "?policy=POL-2026-02233&tab=cover");
-  ["Coverage breakdown", "Base sum assured", "Accidental death rider"].forEach(function (needle) {
+  ["Coverage breakdown", "Own damage", "Third-party liability"].forEach(function (needle) {
     if (detailTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  policy-detail cover tab missing "' + needle + '"'); }
   });
   console.log("  PASS  policy-detail's Cover tab renders the real per-policy coverage breakdown");

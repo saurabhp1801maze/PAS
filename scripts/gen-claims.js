@@ -78,7 +78,7 @@ function earnedFraction(p) {
 
 /* targetLR is the loss ratio this line is MEANT to run at, and freq x meanSeverity reproduces it
    (see the header). The spread between lines is the point: Comprehensive Auto is deliberately
-   unprofitable, Marine Cargo and Term Life are deliberately strong, so the dashboard's
+   unprofitable, Marine Cargo is deliberately strong, so the dashboard's
    "which is loss, where profit" panel has a real answer rather than noise.
    sevMin/sevMax are multiples of ANNUAL premium; their midpoint is meanSeverity.
 
@@ -93,8 +93,6 @@ var MODEL = {
   "Home Owners":         { targetLR: 0.62, freq: 0.45, spread: 0.45, types: ["Water damage", "Fire", "Wind damage", "Theft"] },
   "Commercial Property": { targetLR: 0.52, freq: 0.35, spread: 0.45, types: ["Fire", "Water damage", "Machinery breakdown", "Storm damage"] },
   "Marine Cargo":        { targetLR: 0.38, freq: 0.30, spread: 0.45, types: ["Cargo damage", "Theft in transit", "Water intrusion"] },
-  "Group Health":        { targetLR: 0.70, freq: 0.60, spread: 0.45, types: ["Inpatient treatment", "Surgical procedure", "Chronic condition management"] },
-  "Term Life":           { targetLR: 0.30, freq: 0.35, spread: 0.45, types: ["Death benefit"] },
 };
 
 /* Ironwood Steel Works is the one hand-pinned record. Its ledger already carries a cancellation
@@ -172,7 +170,7 @@ exposed.forEach(function (p) {
 /* ---------------- reconciliation report ---------------- */
 var COMMISSION_RATES = {
   "Commercial Property": 0.15, "Comprehensive Auto": 0.12, "Marine Cargo": 0.15,
-  "Group Health": 0.10, "Home Owners": 0.18, "Term Life": 0.20,
+  "Home Owners": 0.18,
 };
 function fmt(n) { return Math.round(n).toLocaleString("en-US"); }
 

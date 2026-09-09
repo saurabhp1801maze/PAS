@@ -127,9 +127,7 @@
 
     page.appendChild(ui.decisionLayout(left, right, [
       ui.confirmable(p.id, h.id, "Approve", { label: "Approve & apply", tone: "green", icon: "check-circle-2", onRun: function (c) { return act(true, c); } }),
-      ui.confirmable(p.id, h.id, "Decline", { label: "Decline", tone: "red", icon: "ban", onRun: function (c) { return act(false, c); } }),
-      ui.confirmable(p.id, h.id, "Escalate", { label: "Escalate", icon: "arrow-up-right", showEmail: true, showCategory: true, emailPlaceholder: "underwriting.supervisor@veridex.com", onRun: hold("Escalate") }),
-      ui.confirmable(p.id, h.id, "Request More Information", { label: "Request more information", icon: "corner-up-left", showEmail: true, showCategory: true, emailPlaceholder: "broker@example.com", onRun: hold("Request More Information") }),
+      ui.confirmable(p.id, h.id, "Escalate/Request more info", { label: "Escalate/Request more info", icon: "arrow-up-right", showEmail: true, showCategory: true, emailPlaceholder: "recipient@example.com", onRun: hold("Escalate/Request more info") }),
     ]));
 
     root.appendChild(ui.screen("endorsement-desk", page));

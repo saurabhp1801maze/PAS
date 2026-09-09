@@ -242,9 +242,7 @@
             disabledReason: approveDisabledReason,
             typedConfirm: p.id,
           }),
-          ui.confirmable(p.id, txnId, "Decline", { label: "Decline request", icon: "ban", onRun: function (c) { return decide(false, c); } }),
-          ui.confirmable(p.id, txnId, "Escalate", { label: "Escalate", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate") }),
-          ui.confirmable(p.id, txnId, "Request More Information", { label: "Request more information", icon: "corner-up-left", showCategory: true, onRun: hold("Request More Information") }),
+          ui.confirmable(p.id, txnId, "Escalate/Request more info", { label: "Escalate/Request more info", icon: "arrow-up-right", showCategory: true, onRun: hold("Escalate/Request more info") }),
         ].filter(Boolean);
 
       layoutContainer.innerHTML = "";

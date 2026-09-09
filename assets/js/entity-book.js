@@ -184,7 +184,7 @@
           { label: "Incurred claims", value: PAS.moneyShort(fAll.incurred), tone: "red", tip: "Paid claims plus reserves across " + fAll.claimCount + " claim" + (fAll.claimCount === 1 ? "" : "s") + "." },
           { label: "Loss ratio", value: pct(fAll.lossRatio), tone: lossTone(fAll.lossRatio), tip: "Incurred claims ÷ earned premium, across every " + opts.singularLower + "'s on-risk business — same earned basis as the dashboard." },
           { label: "Combined ratio", value: pct(fAll.combinedRatio), tone: combinedTone(fAll.combinedRatio), tip: "Loss ratio plus acquisition expense ratio. Below 100% indicates a carrier underwriting profit before other operating costs." },
-          { label: "Net commission", value: PAS.moneyShort(fAll.netCommission), tone: "green", tip: "Veridex revenue after paying the broker's share — not the premium itself." },
+          { label: "Net commission", value: PAS.moneyShort(fAll.netCommission), tone: "green", tip: "Southlake revenue after paying the broker's share — not the premium itself." },
         ];
         if (opts.showCommission) finKpis.push({ label: "Commission paid", value: PAS.moneyShort(fAll.brokerCommission), tone: "green", tip: "Total " + opts.singularLower + " share of commission earned across the whole book" + filterSuffix + "." });
         if (opts.showCession) {
@@ -392,7 +392,7 @@
       }
       finKpis.push(
         { label: "Combined ratio", value: pct(f.combinedRatio), tone: combinedTone(f.combinedRatio), tip: pct(f.lossRatio) + " loss ratio + " + pct(f.expenseRatio) + " acquisition cost." },
-        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Veridex revenue after paying the broker's share — not the premium itself." }
+        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Southlake revenue after paying the broker's share — not the premium itself." }
       );
       if (opts.showCession) {
         finKpis.push({

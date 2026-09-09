@@ -7,7 +7,7 @@
       typeMap: PAS.BROKER_TYPE,
       icon: "users", tone: "amber",
       title: "Brokers", titleUpper: "Brokers", titleLower: "brokers", singularLower: "broker", article: "a",
-      sub: "Every broker and individual producer placing business with Veridex",
+      sub: "Every broker and individual producer placing business with Southlake",
       what: "Distribution partners — agencies and individual producers alike.",
       why: "Where the book's business actually comes from, and how much each one carries.",
       showFinancials: true,

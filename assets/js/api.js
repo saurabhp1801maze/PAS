@@ -68,7 +68,7 @@
         var ev = null;
         if (et) {
           var consumers = PAS.CONSUMERS[et] || ["Billing"];
-          ev = { eventId: PAS.uid("EVT").toLowerCase(), flowId: flowId, eventType: et, eventVersion: 1, occurredAt: new Date().toISOString(), tenantId: PAS.TENANT, aggregateType: "policy", aggregateId: meta.policyId || "—", producer: "veridex-policy", consumers: consumers, data: responseBody };
+          ev = { eventId: PAS.uid("EVT").toLowerCase(), flowId: flowId, eventType: et, eventVersion: 1, occurredAt: new Date().toISOString(), tenantId: PAS.TENANT, aggregateType: "policy", aggregateId: meta.policyId || "—", producer: "southlake-policy", consumers: consumers, data: responseBody };
           var s2 = loadState();
           s2.events = [ev].concat(s2.events).slice(0, 200);
           saveState(s2);

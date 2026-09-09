@@ -1,8 +1,8 @@
-# VeriDex PAS — Policy Administration Module (Prototype)
+# Southlake PAS — Policy Administration Module (Prototype)
 
-**VeriDex PAS** is a working prototype of the **Policy Administration** module inside a larger insurance ERP. Its job is to **own and administer the policy record** through its lifecycle — issue, change, renew, cancel, reinstate, transfer — and keep a complete, auditable history of every policy transaction.
+**Southlake PAS** is a working prototype of the **Policy Administration** module inside a larger insurance ERP. Its job is to **own and administer the policy record** through its lifecycle — issue, change, renew, cancel, reinstate, transfer — and keep a complete, auditable history of every policy transaction.
 
-PAS does **not** rate risks, underwrite submissions, bill premiums, or adjust claims. Those are separate ERP modules. PAS **receives decisions** from them, **updates the policy of record**, and **notifies** downstream systems when something changes. The UI itself follows the VeriDex platform design framework (design tokens, Phosphor iconography, shared shell/nav across every page).
+PAS does **not** rate risks, underwrite submissions, bill premiums, or adjust claims. Those are separate ERP modules. PAS **receives decisions** from them, **updates the policy of record**, and **notifies** downstream systems when something changes. The UI itself follows the Southlake platform design framework (design tokens, Phosphor iconography, shared shell/nav across every page).
 
 ---
 

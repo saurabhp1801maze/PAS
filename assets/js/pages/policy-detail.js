@@ -117,7 +117,7 @@
   /* Three paid parties, not four: Broker (retail commission), MGA facility (the override —
      everything left after the broker's cut), and Carrier (what's left of premium once commission
      is carved out; this app calls the same field "Reinsurer" on the entity-book pages). No
-     separate "Southlake platform margin" line — Southlake's revenue is a portfolio-level P&L question
+     separate "Vikram & Sons platform margin" line — Vikram & Sons's revenue is a portfolio-level P&L question
      (PAS.bookFinancials' netCommission, what the Dashboard reports), not a party on any one
      transaction, so it doesn't belong in a per-policy "who gets paid" view. */
   function distributionSection(policy) {
@@ -158,7 +158,7 @@
     body.appendChild(ui.h("div", { class: "faint-note", style: { marginTop: "10px" } },
       "Gross commission " + money(gross) + " (" + pct(rate) + " of premium, this product's rate) splits " +
       Math.round(PAS.BROKER_COMMISSION_SHARE * 100) + "/" + Math.round((1 - PAS.BROKER_COMMISSION_SHARE) * 100) +
-      " broker/MGA. That MGA figure is the same 45%-of-commission bucket the portfolio Dashboard and the MGA pages report as Southlake's own net revenue (PAS.bookFinancials' netCommission) — recharacterized here as the named MGA facility's override, since that's the party actually paid in a real distribution chain. The two views disagree on whose money this is; the MGA list/detail pages still show $0 commission for MGA facilities. Reconciling that needs a decision on whether this is Southlake's margin or an MGA override, not just a label change on this one page."));
+      " broker/MGA. That MGA figure is the same 45%-of-commission bucket the portfolio Dashboard and the MGA pages report as Vikram & Sons's own net revenue (PAS.bookFinancials' netCommission) — recharacterized here as the named MGA facility's override, since that's the party actually paid in a real distribution chain. The two views disagree on whose money this is; the MGA list/detail pages still show $0 commission for MGA facilities. Reconciling that needs a decision on whether this is Vikram & Sons's margin or an MGA override, not just a label change on this one page."));
 
     return section("distribution", "Where the premium goes", money(policy.premium) + " written premium, split by who is actually paid on it", panel);
   }

@@ -451,7 +451,7 @@
      Every component is declared here so the desk can show the operator the whole arithmetic. */
   var PRODUCT_BASE = {
     "Commercial Property": 72, "Comprehensive Auto": 74, "Home Owners": 80,
-    "Marine Cargo": 68,
+    "Marine Cargo": 68, "Commercial Auto": 74,
   };
   var RISK_WEIGHTS = {
     atFaultClaim: -11, otherClaim: -4, claimFreeYear: 4, claimFreeCap: 20,
@@ -870,18 +870,19 @@ var CLAIMS_BY_ID = {
   PAS.CLAIMS_BY_ID = CLAIMS_BY_ID;
 
   /* ---------- connected carriers: a real multi-carrier data model ----------
-     Southlake is the MGA; it doesn't carry risk itself, it places business with the carrier
+     Vikram & Sons is the MGA; it doesn't carry risk itself, it places business with the carrier
      partner that has appetite for that line — the mechanism a real "modular architecture that
      consumes data/services from connected carriers" would be built on. Each product line is
      placed with exactly one partner (a real MGA's paper is split by appetite, not at random),
      so `p.carrier` is a genuine second dimension to segment the book by — this is what makes the
      Carrier role's dashboard actually scope to "my own book" instead of the whole portfolio. */
   var PRODUCT_CARRIER = {
-    "Commercial Property": "Meridian Assurance Co.", "Marine Cargo": "Meridian Assurance Co.",
-    "Comprehensive Auto": "Apex General Insurance", "Home Owners": "Apex General Insurance",
+    "Commercial Property": "Vikram & Sons", "Marine Cargo": "Vikram & Sons",
+    "Comprehensive Auto": "Vikram & Sons", "Home Owners": "Vikram & Sons",
+    "Commercial Auto": "Vikram & Sons",
   };
   PAS.PRODUCT_CARRIER = PRODUCT_CARRIER;
-  PAS.CARRIERS = ["Meridian Assurance Co.", "Apex General Insurance"];
+  PAS.CARRIERS = ["Vikram & Sons"];
 
   /* ---------- brokers: individuals and agencies are both real producers ----------
      A producer of record is either a licensed individual or an agency/brokerage — the same
@@ -890,10 +891,7 @@ var CLAIMS_BY_ID = {
      (no broker of record placed the business), so it gets its own type rather than being
      mislabeled Individual or Organization. */
   PAS.BROKERS = [
-    { name: "Apex Insurance Brokers", type: "Organization" },
-    { name: "Meridian Risk Partners", type: "Organization" },
-    { name: "Diane Kowalski", type: "Individual" },
-    { name: "Trevor Osei", type: "Individual" },
+    { name: "Arora & Sons", type: "Organization" },
     { name: "Direct", type: "Direct" },
   ];
   var BROKER_TYPE = {};
@@ -903,47 +901,15 @@ var CLAIMS_BY_ID = {
   /* ---------- MGA facilities: a third, genuinely independent dimension ----------
      Broker (`producer`) is who placed the business; Carrier is whose paper it's written on.
      MGA is the wholesale facility with the binding authority in between — distinct from both.
-     Real wholesale distribution has both agency-style facilities and individual MGAs holding
-     their own binding authority, so `PAS.MGAS` carries a type the same way `PAS.BROKERS` does.
-     Assignment is by the risk's own state region for the agency facilities (a real facility's
-     appetite is usually regional) with a deterministic slice of policies (~18%, by a stable hash
-     of the policy id so it's reproducible without a giant static map) routed to one of the two
-     individual MGAs instead — a genuine mix, not just the region lookup relabeled. Every state
-     in the seed book falls into exactly one region below; unmapped states fall back to the first
-     facility rather than throwing. */
-  var STATE_REGION = {
-    Maine: "Northeast", Massachusetts: "Northeast", "New Jersey": "Northeast", "New York": "Northeast",
-    Pennsylvania: "Northeast", Vermont: "Northeast", Connecticut: "Northeast", "New Hampshire": "Northeast", "Rhode Island": "Northeast",
-    Illinois: "Midwest", Indiana: "Midwest", Michigan: "Midwest", Minnesota: "Midwest", Missouri: "Midwest",
-    Ohio: "Midwest", Wisconsin: "Midwest", Iowa: "Midwest", Kansas: "Midwest", Nebraska: "Midwest", "North Dakota": "Midwest", "South Dakota": "Midwest",
-    Alabama: "South", Florida: "South", Georgia: "South", Kentucky: "South", Louisiana: "South",
-    "North Carolina": "South", "South Carolina": "South", Tennessee: "South", Texas: "South", Virginia: "South",
-    Arkansas: "South", Mississippi: "South", Oklahoma: "South", "West Virginia": "South", Delaware: "South", Maryland: "South",
-    Arizona: "West", California: "West", Colorado: "West", Nevada: "West", Oregon: "West", Utah: "West", Washington: "West",
-    Idaho: "West", Montana: "West", Wyoming: "West", "New Mexico": "West", Alaska: "West", Hawaii: "West",
-  };
-  var REGION_MGA = {
-    Northeast: "Cornerstone MGA Partners", Midwest: "Heartland Underwriting Agency",
-    South: "Palmetto Risk Managers", West: "Summit Peak MGA Group",
-  };
-  var INDIVIDUAL_MGAS = ["Foster Langley", "Renata Solis"];
+     Every policy in this book is placed through the same single MGA facility. */
   PAS.MGAS = [
-    { name: "Cornerstone MGA Partners", type: "Organization" },
-    { name: "Heartland Underwriting Agency", type: "Organization" },
-    { name: "Palmetto Risk Managers", type: "Organization" },
-    { name: "Summit Peak MGA Group", type: "Organization" },
-    { name: "Foster Langley", type: "Individual" },
-    { name: "Renata Solis", type: "Individual" },
+    { name: "Vikas & Co", type: "Organization" },
   ];
   var MGA_TYPE = {};
   PAS.MGAS.forEach(function (m) { MGA_TYPE[m.name] = m.type; });
   PAS.MGA_TYPE = MGA_TYPE;
   function hash32(s) { var h = 0; for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0; return Math.abs(h); }
-  function mgaForPolicy(p) {
-    var h = hash32(p.id);
-    if (h % 100 < 18) return INDIVIDUAL_MGAS[h % INDIVIDUAL_MGAS.length];
-    return REGION_MGA[STATE_REGION[p.state]] || PAS.MGAS[0].name;
-  }
+  function mgaForPolicy(p) { return PAS.MGAS[0].name; }
   PAS.mgaForPolicy = mgaForPolicy;
 
   /* ---------- configurable terms & conditions, per product ----------
@@ -1099,7 +1065,7 @@ var CLAIMS_BY_ID = {
   }
 
   /* ---- Commission: an MGA's actual revenue ----
-     Southlake is an MGA. It does NOT own the premium — that belongs to the carrier whose paper the
+     Vikram & Sons is an MGA. It does NOT own the premium — that belongs to the carrier whose paper the
      risk is written on. The MGA's revenue is the COMMISSION it earns for placing and servicing
      the business, so reporting premium as "revenue" would overstate what this business actually
      earns by roughly 7x. Rates vary by line: personal lines pay more than large commercial,
@@ -1624,6 +1590,7 @@ var CLAIMS_BY_ID = {
     var list = fetchSeedRecords();
     list.forEach(function (p) {
       p.risk = RISK_PROFILE[p.id] || {}; p.claims = (CLAIMS_BY_ID[p.id] || []).map(scaleClaim); p.carrier = PRODUCT_CARRIER[p.product] || PAS.CARRIERS[0]; p.mga = mgaForPolicy(p);
+      if (p.producer !== "Direct") p.producer = "Arora & Sons";
       if (!p.documents || !p.documents.length) {
         var docShape = STATUS_DOC[p.status] || ["Policy schedule", "Schedule"];
         p.documents = [{ id: uid("DOC"), name: docShape[0], version: 1, generatedAt: p.submittedOn || p.effectiveDate, type: docShape[1] }];
@@ -1902,7 +1869,7 @@ var CLAIMS_BY_ID = {
 
   var DEFAULT_ROLES = {
     "Super Admin": {
-      label: "Super Admin", icon: "shield-check", tone: "violet", identity: "A. Bennett",
+      label: "Super Admin", icon: "shield-check", tone: "violet", identity: "Vikram",
       scope: "all", canDecide: true, canRequest: true, canManageUsers: true, canManageRoles: true,
       visibleNav: "*", isSystem: true,
       desc: "Full operational access — every desk, every policy, every decision — plus role, permission and user management.",
@@ -1914,22 +1881,22 @@ var CLAIMS_BY_ID = {
       desc: "The same full access as Super Admin by default — a separate role so it can be scoped down later without touching Super Admin itself.",
     },
     Broker: {
-      label: "Broker", icon: "users", tone: "amber", identity: "Apex Insurance Brokers",
+      label: "Broker", icon: "users", tone: "amber", identity: "Arora & Sons",
       scope: "producer", canDecide: false, canRequest: true, canManageUsers: false, canManageRoles: false,
       visibleNav: BROKER_NAV, isSystem: true,
       desc: "The business this producer placed, and nothing else. Can raise a request (a cancellation, an endorsement); cannot decide one.",
     },
     MGA: {
-      label: "MGA", icon: "building-2", tone: "green", identity: "Cornerstone MGA Partners",
+      label: "MGA", icon: "building-2", tone: "green", identity: "Vikas & Co",
       scope: "mga", canDecide: false, canRequest: false, canManageUsers: false, canManageRoles: false,
       visibleNav: MGA_NAV, isSystem: true,
       desc: "The business placed through this MGA, and nothing else. Read-only, and genuinely scoped to its own book — an MGA sees its own business; decisions stay with an admin.",
     },
     Carrier: {
-      label: "Carrier", icon: "shield-check", tone: "blue", identity: "Meridian Assurance Co.",
+      label: "Carrier", icon: "shield-check", tone: "blue", identity: "Vikram & Sons",
       scope: "carrier", canDecide: false, canRequest: false, canManageUsers: false, canManageRoles: false,
       visibleNav: MGA_NAV, isSystem: true,
-      desc: "The business written on this carrier's own paper, and nothing else — its new business trend, loss activity and reserves, not Southlake's whole book. Read-only, with visibility into both the MGA and Broker layers underneath it.",
+      desc: "The business written on this carrier's own paper, and nothing else — its new business trend, loss activity and reserves, not Vikram & Sons's whole book. Read-only, with visibility into both the MGA and Broker layers underneath it.",
     },
   };
 

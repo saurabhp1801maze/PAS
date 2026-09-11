@@ -33,7 +33,7 @@ function sidebarHtml(activeNavKey) {
      "S" letterform so the shell mark and the browser-tab mark are the same brand asset. */
   out.push('    <div class="sidebar-brand-mark" aria-hidden="true">S</div>');
   out.push('    <div class="sidebar-brand-text">');
-  out.push('      <div class="sidebar-brand-name">Southlake PAS</div>');
+  out.push('      <div class="sidebar-brand-name">Vikram &amp; Sons PAS</div>');
   out.push('      <div class="sidebar-brand-sub">Policy administration</div>');
   out.push("    </div>");
   out.push("  </div>");

@@ -201,7 +201,7 @@ console.log("\n  content spot-checks");
   ["domain-model", ["Rewrite (Transfer)", "Transfer desk", "Reissue", "Missing", "Request, then decide", "Warns only", "User & role directory", "No real authentication exists"]],
   ["data-model", ["policy_terms", "domain_events", "reverses_transaction_id", "decideRenewal overwrites"]],
   ["api-reference", ["Idempotency-Key", "policyCancelled", "412", "at-least-once"]],
-  ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected reinsurers", "Meridian Assurance Co.", "Composable modules"]],
+  ["architecture", ["At-least-once", "Camunda 8", "outbox", "Not yet", "Connected reinsurers", "Vikram & Sons", "Composable modules"]],
   ["underwriting", ["Referred on", "Authority", "Score"]],
   ["dashboard", ["Total policies", "Active policies", "Renewed", "Expiring in period", "Endorsement requests", "Reinstated", "Cancelled", "Pending approvals", "Bound — awaiting issuance", "Monthly", "Yearly", "New business issued", "Cancellation requests"]],
   ["cancellation", ["Auto-cancelled (non-payment)", "DNOC pending", "Types of cancellation", "Pro-Rata", "Short-Rate", "Total refunded to date"]],
@@ -687,7 +687,7 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
   console.log("  PASS  no role stored defaults to the Super Admin operational dashboard");
 
   var mgaTxt = renderText("dashboard", "", "MGA");
-  ["Dashboard", "In-force premium", "Premium by state", "Premium by broker", "In-force premium by product", "New business issued", "Claims and reserves", "Loss ratio", "Cornerstone MGA Partners"].forEach(function (needle) {
+  ["Dashboard", "In-force premium", "Premium by state", "Premium by broker", "In-force premium by product", "New business issued", "Claims and reserves", "Loss ratio", "Vikas & Co"].forEach(function (needle) {
     if (mgaTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  MGA dashboard missing "' + needle + '"'); }
   });
   /* Conversion rate and Requests pending are gone entirely (not present anywhere on this
@@ -700,14 +700,14 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
   ["Renewal pipeline", "Cancellation requests", "Endorsement requests"].forEach(function (banned) {
     if (mgaTxt.indexOf(banned) !== -1) { fails++; console.log('  FAIL  MGA dashboard leaked operational panel "' + banned + '"'); }
   });
-  console.log("  PASS  MGA dashboard: portfolio KPIs, state/broker/LOB breakdowns, honest Claims & reserves gap, no operational panels, framed around its own book (Cornerstone MGA Partners)");
+  console.log("  PASS  MGA dashboard: portfolio KPIs, state/broker/LOB breakdowns, honest Claims & reserves gap, no operational panels, framed around its own book (Vikas & Co)");
 
   /* Broker now shares the exact same dashboard shape as MGA (renderScopedDashboard) — same KPI
      row, same panel layout — with only the second breakdown panel's dimension swapped (MGA
      facility instead of broker, since "premium by broker" on a broker's own dashboard would
      always be one bar, themselves). */
   var brokerTxt = renderText("dashboard", "", "Broker");
-  ["Apex Insurance Brokers", "Premium by MGA", "Premium by state", "In-force premium by product", "New business issued", "Claims and reserves", "Loss ratio"].forEach(function (needle) {
+  ["Arora & Sons", "Premium by MGA", "Premium by state", "In-force premium by product", "New business issued", "Claims and reserves", "Loss ratio"].forEach(function (needle) {
     if (brokerTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Broker dashboard missing "' + needle + '"'); }
   });
   if (brokerTxt.indexOf("Premium by broker") !== -1) { fails++; console.log('  FAIL  Broker dashboard shows "Premium by broker" — would always be a single bar (themselves), should show "Premium by MGA" instead'); }
@@ -725,33 +725,33 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS2 = stub.PAS;
   var allPolicies = PAS2.getPolicies();
-  var apexCount = allPolicies.filter(function (p) { return p.producer === "Apex Insurance Brokers"; }).length;
+  var apexCount = allPolicies.filter(function (p) { return p.producer === "Arora & Sons"; }).length;
   /* Real scoping on the dashboard's own KPI row too, not just the Policy Register (checked
-     separately below) — Broker's In-force premium/Active policies must match Apex's own real
-     figures, not the whole book's. */
-  var apexActive = allPolicies.filter(function (p) { return p.producer === "Apex Insurance Brokers" && p.status === "Active"; });
+     separately below) — Broker's In-force premium/Active policies must match Arora & Sons' own
+     real figures, not the whole book's. */
+  var apexActive = allPolicies.filter(function (p) { return p.producer === "Arora & Sons" && p.status === "Active"; });
   var apexPremium = apexActive.reduce(function (s, p) { return s + p.premium; }, 0);
   var brokerDom = renderDom("dashboard", "", "Broker");
   var brokerKpiValues = brokerDom.querySelectorAll(".kpi-value");
   var brokerActiveShown = Array.prototype.some.call(brokerKpiValues, function (el) { return el.textContent === String(apexActive.length); });
   var brokerPremiumShown = Array.prototype.some.call(brokerKpiValues, function (el) { return el.textContent === PAS2.moneyShort(apexPremium); });
-  if (!brokerActiveShown || !brokerPremiumShown) { fails++; console.log("  FAIL  Broker dashboard's KPIs don't match Apex's real figures (" + apexActive.length + " active, " + PAS2.moneyShort(apexPremium) + " in-force premium)"); }
-  else console.log("  PASS  Broker dashboard's KPIs (" + apexActive.length + " active, " + PAS2.moneyShort(apexPremium) + ") match Apex Insurance Brokers' real scoped figures — not the full " + apexCount + "-of-" + allPolicies.length + " book");
+  if (!brokerActiveShown || !brokerPremiumShown) { fails++; console.log("  FAIL  Broker dashboard's KPIs don't match Arora & Sons' real figures (" + apexActive.length + " active, " + PAS2.moneyShort(apexPremium) + " in-force premium)"); }
+  else console.log("  PASS  Broker dashboard's KPIs (" + apexActive.length + " active, " + PAS2.moneyShort(apexPremium) + ") match Arora & Sons' real scoped figures — not the full " + apexCount + "-of-" + allPolicies.length + " book");
 
   /* MGA is now genuinely scoped to its own book (PAS.scopePolicies, scope:"mga"), not a
-     portfolio-wide view — its headline KPI must match the real Cornerstone-only figure, and that
-     figure must be a genuine subset (not the whole book, not empty). */
+     portfolio-wide view. There's only one MGA facility (Vikas & Co) in this book, so its scoped
+     figure is correctly the whole book — the KPI just needs to match that real total. */
   var activePolicies = allPolicies.filter(function (p) { return p.status === "Active"; });
   var realInForcePremium = activePolicies.reduce(function (s, p) { return s + p.premium; }, 0);
-  var cornerstonePolicies = allPolicies.filter(function (p) { return p.mga === "Cornerstone MGA Partners"; });
+  var cornerstonePolicies = allPolicies.filter(function (p) { return p.mga === "Vikas & Co"; });
   var cornerstonePremium = cornerstonePolicies.filter(function (p) { return p.status === "Active"; }).reduce(function (s, p) { return s + p.premium; }, 0);
-  if (cornerstonePolicies.length === allPolicies.length || cornerstonePolicies.length === 0) { fails++; console.log("  FAIL  MGA scoping isn't real — Cornerstone MGA Partners shows " + cornerstonePolicies.length + " of " + allPolicies.length + " policies, expected a genuine subset"); }
-  else console.log("  PASS  Cornerstone MGA Partners is genuinely scoped to " + cornerstonePolicies.length + " of " + allPolicies.length + " policies");
+  if (cornerstonePolicies.length !== allPolicies.length) { fails++; console.log("  FAIL  Vikas & Co should be every policy's MGA (only one facility exists) but shows " + cornerstonePolicies.length + " of " + allPolicies.length); }
+  else console.log("  PASS  Vikas & Co is the MGA on all " + cornerstonePolicies.length + " policies");
   var mgaDom = renderDom("dashboard", "", "MGA");
   var mgaKpiValues = mgaDom.querySelectorAll(".kpi-value");
   var mgaPremiumShown = Array.prototype.some.call(mgaKpiValues, function (el) { return el.textContent === PAS2.moneyShort(cornerstonePremium); });
-  if (!mgaPremiumShown) { fails++; console.log("  FAIL  MGA dashboard's In-force premium KPI does not match " + PAS2.moneyShort(cornerstonePremium) + ", the real figure scoped to Cornerstone MGA Partners' own book"); }
-  else console.log("  PASS  MGA dashboard's In-force premium (" + PAS2.moneyShort(cornerstonePremium) + ") is scoped to its own book, genuinely different from the whole-portfolio total " + PAS2.moneyShort(realInForcePremium));
+  if (!mgaPremiumShown) { fails++; console.log("  FAIL  MGA dashboard's In-force premium KPI does not match " + PAS2.moneyShort(cornerstonePremium) + ", the real figure scoped to Vikas & Co's own book"); }
+  else console.log("  PASS  MGA dashboard's In-force premium (" + PAS2.moneyShort(cornerstonePremium) + ") matches its own book's real total " + PAS2.moneyShort(realInForcePremium));
 
   /* Role scoping isn't just a dashboard cosmetic — PAS.getScopedPolicies() feeds the Policy
      Register and every desk list page too, so a Broker/MGA never sees another role's business in
@@ -771,10 +771,10 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
 
   /* Entity directories (Brokers/MGA/Carriers/Customers) are scoped too — a role only sees the
      partners genuinely associated with its own book, not the full directory. A Broker's own book
-     is all producer="Apex Insurance Brokers" by definition, so the Brokers page collapses to
+     is all producer="Arora & Sons" by definition, so the Brokers page collapses to
      exactly one row (themselves); the MGA/Carrier/Customer pages show only the distinct partners
-     that actually appear among Apex's own policies. */
-  var apexPolicies = allPolicies.filter(function (p) { return p.producer === "Apex Insurance Brokers"; });
+     that actually appear among Arora & Sons' own policies. */
+  var apexPolicies = allPolicies.filter(function (p) { return p.producer === "Arora & Sons"; });
   var apexMgaCount = new Set(apexPolicies.map(function (p) { return p.mga; })).size;
   var apexCarrierCount = new Set(apexPolicies.map(function (p) { return p.carrier; })).size;
   var apexHolderCount = new Set(apexPolicies.map(function (p) { return p.holder; })).size;
@@ -784,25 +784,25 @@ console.log("\n  role-based dashboards (default = Super Admin, no role stored)")
   else console.log("  PASS  Brokers directory collapses to exactly 1 row (themselves) when viewed as Broker — not the full partner directory");
 
   var brokerMgasRows = renderDom("mgas", "", "Broker").querySelectorAll("tr").length - 1;
-  if (brokerMgasRows !== apexMgaCount || brokerMgasRows === 0) { fails++; console.log("  FAIL  MGA directory shows " + brokerMgasRows + " rows for Broker, expected exactly " + apexMgaCount + " (the MGA facilities genuinely present in Apex's own book)"); }
-  else console.log("  PASS  MGA directory shows exactly the " + apexMgaCount + " MGA facilities genuinely associated with Apex's own book");
+  if (brokerMgasRows !== apexMgaCount || brokerMgasRows === 0) { fails++; console.log("  FAIL  MGA directory shows " + brokerMgasRows + " rows for Broker, expected exactly " + apexMgaCount + " (the MGA facilities genuinely present in Arora & Sons' own book)"); }
+  else console.log("  PASS  MGA directory shows exactly the " + apexMgaCount + " MGA facilities genuinely associated with Arora & Sons' own book");
 
   var brokerCarriersRows = renderDom("carriers", "", "Broker").querySelectorAll("tr").length - 1;
   if (brokerCarriersRows !== apexCarrierCount || brokerCarriersRows === 0) { fails++; console.log("  FAIL  Carriers directory shows " + brokerCarriersRows + " rows for Broker, expected exactly " + apexCarrierCount); }
-  else console.log("  PASS  Carriers directory shows exactly the " + apexCarrierCount + " carriers genuinely associated with Apex's own book");
+  else console.log("  PASS  Carriers directory shows exactly the " + apexCarrierCount + " carriers genuinely associated with Arora & Sons' own book");
 
-  /* The Customers directory is paginated (25/page) too, and Apex's own book comfortably exceeds
-     that — so read the real scoped total from the pager's own "Showing X–Y of Z" meta, rather than
-     counting DOM rows capped at one page. Unlike the Register's noteEl, the pager meta renders
-     unconditionally (it's not gated on a search/filter being active). */
+  /* The Customers directory is paginated (25/page) too, and Arora & Sons' own book comfortably
+     exceeds that — so read the real scoped total from the pager's own "Showing X–Y of Z" meta,
+     rather than counting DOM rows capped at one page. Unlike the Register's noteEl, the pager
+     meta renders unconditionally (it's not gated on a search/filter being active). */
   var brokerCustomersPagerMeta = renderDom("customers", "", "Broker").querySelector(".table-pager-meta");
   var brokerCustomersShown = brokerCustomersPagerMeta && (brokerCustomersPagerMeta.textContent.match(/of (\d+)/) || [])[1];
   if (Number(brokerCustomersShown) !== apexHolderCount) { fails++; console.log("  FAIL  Customers directory's pager shows " + brokerCustomersShown + " for Broker, expected exactly " + apexHolderCount); }
-  else console.log("  PASS  Customers directory shows exactly the " + apexHolderCount + " customers genuinely associated with Apex's own book — not every customer in the full 1087-policy book");
+  else console.log("  PASS  Customers directory shows exactly the " + apexHolderCount + " customers genuinely associated with Arora & Sons' own book — not every customer in the full 1087-policy book");
 })();
 
 /* Carrier role (MOM 2026-08-26, item 1): "New Business Trend should represent the carrier's
-   business performance, not Southlake's overall business" — and the carrier view should surface
+   business performance, not Vikram & Sons's overall business" — and the carrier view should surface
    both the MGA and Broker layers underneath it, not just one. */
 console.log("\n  Carrier role dashboard: genuinely scoped to its own paper, sees both MGA and Broker layers");
 (function () {
@@ -814,13 +814,13 @@ console.log("\n  Carrier role dashboard: genuinely scoped to its own paper, sees
   vm.runInContext(fs.readFileSync("assets/js/store.js", "utf8"), stub);
   var PAS3 = stub.PAS;
   var allPolicies = PAS3.getPolicies();
-  var meridianPolicies = allPolicies.filter(function (p) { return p.carrier === "Meridian Assurance Co."; });
+  var meridianPolicies = allPolicies.filter(function (p) { return p.carrier === "Vikram & Sons"; });
   var meridianPremium = meridianPolicies.filter(function (p) { return p.status === "Active"; }).reduce(function (s, p) { return s + p.premium; }, 0);
-  if (meridianPolicies.length === allPolicies.length || meridianPolicies.length === 0) { fails++; console.log("  FAIL  Carrier scoping isn't real — Meridian Assurance Co. shows " + meridianPolicies.length + " of " + allPolicies.length + " policies, expected a genuine subset"); }
-  else console.log("  PASS  Meridian Assurance Co. is genuinely scoped to " + meridianPolicies.length + " of " + allPolicies.length + " policies");
+  if (meridianPolicies.length !== allPolicies.length) { fails++; console.log("  FAIL  Vikram & Sons should be every policy's carrier (only one carrier exists) but shows " + meridianPolicies.length + " of " + allPolicies.length); }
+  else console.log("  PASS  Vikram & Sons is the carrier on all " + meridianPolicies.length + " policies");
 
   var carrierTxt = renderText("dashboard", "", "Carrier");
-  ["Meridian Assurance Co.", "Premium by MGA", "Premium by broker", "Premium by state", "New business issued", "Claims and reserves", "Loss ratio"].forEach(function (needle) {
+  ["Vikram & Sons", "Premium by MGA", "Premium by broker", "Premium by state", "New business issued", "Claims and reserves", "Loss ratio"].forEach(function (needle) {
     if (carrierTxt.indexOf(needle) === -1) { fails++; console.log('  FAIL  Carrier dashboard missing "' + needle + '"'); }
   });
   console.log("  PASS  Carrier dashboard shows its own identity, and — unlike MGA/Broker, which only get one — both the Broker and MGA breakdown panels");
@@ -828,8 +828,8 @@ console.log("\n  Carrier role dashboard: genuinely scoped to its own paper, sees
   var carrierDom = renderDom("dashboard", "", "Carrier");
   var carrierKpiValues = carrierDom.querySelectorAll(".kpi-value");
   var carrierPremiumShown = Array.prototype.some.call(carrierKpiValues, function (el) { return el.textContent === PAS3.moneyShort(meridianPremium); });
-  if (!carrierPremiumShown) { fails++; console.log("  FAIL  Carrier dashboard's In-force premium KPI does not match " + PAS3.moneyShort(meridianPremium) + ", the real figure scoped to Meridian Assurance Co.'s own book"); }
-  else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS3.moneyShort(meridianPremium) + ") is genuinely scoped to its own paper — this is what makes \"New business issued\" below it the carrier's own trend, not Southlake's whole book");
+  if (!carrierPremiumShown) { fails++; console.log("  FAIL  Carrier dashboard's In-force premium KPI does not match " + PAS3.moneyShort(meridianPremium) + ", the real figure scoped to Vikram & Sons' own book"); }
+  else console.log("  PASS  Carrier dashboard's In-force premium (" + PAS3.moneyShort(meridianPremium) + ") matches its own book's real total — this is what makes \"New business issued\" below it the carrier's own trend");
 
   var carrierShown = (renderDom("registry", "", "Carrier").textContent.match(/Showing (\d+) of/) || [])[1];
   if (Number(carrierShown) !== meridianPolicies.length) { fails++; console.log("  FAIL  Policy Register's own count shows " + carrierShown + " for Carrier, expected exactly " + meridianPolicies.length); }
@@ -875,12 +875,12 @@ console.log("\n  claims & reserves: real data, internally consistent with the ex
   if (totalClaims === 0) { fails++; console.log("  FAIL  no claims exist anywhere in the active book"); }
   else console.log("  PASS  " + totalClaims + " real claims on file across the active book, $" + totalReserves.toLocaleString("en-US") + " in open reserves");
 
-  /* MGA is scoped to its own book (Cornerstone MGA Partners), so the loss ratio shown in its
+  /* MGA is scoped to its own book (Vikas & Co), so the loss ratio shown in its
      Claims & reserves panel must be computed over that same subset — restricted to ON-RISK
      policies and divided by EARNED premium, exactly as PAS.bookFinancials does for the full
      operational dashboard. A Broker or MGA must never be shown a loss ratio derived differently
      from the one an admin sees over the same policies. */
-  var cornerstoneOnRisk = PAS5.onRiskPolicies(book5.filter(function (p) { return p.mga === "Cornerstone MGA Partners"; }));
+  var cornerstoneOnRisk = PAS5.onRiskPolicies(book5.filter(function (p) { return p.mga === "Vikas & Co"; }));
   var cornerstoneFin = PAS5.bookFinancials(cornerstoneOnRisk);
   var mgaDom2 = renderDom("dashboard", "", "MGA");
   var mgaTxt2 = mgaDom2.textContent.replace(/\s+/g, " ");

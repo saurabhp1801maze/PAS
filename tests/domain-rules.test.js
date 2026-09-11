@@ -194,13 +194,13 @@ var note = PAS.recordHeldDecision(kar.id, pendCx.id, "Escalate", "Need senior re
 var stillPend = note.history.find(function (h) { return h.id === pendCx.id; });
 check("escalate leaves the held cancellation pending", stillPend.status === "Pending");
 check("escalate stamps user + action + comment on the held row",
-  stillPend.meta.lastDecision.user === "A. Bennett" &&
+  stillPend.meta.lastDecision.user === "Vikram" &&
   stillPend.meta.lastDecision.action === "Escalate" &&
   /senior review/.test(stillPend.meta.lastDecision.comment));
 check("trail helper returns the escalate comment", PAS.decisionTrailFor(note, pendCx.id).some(function (a) { return a.action === "Escalate" && /senior review/.test(a.comment); }));
 var decided = PAS.decideCancellation(kar.id, pendCx.id, false, PAS.todayISO(), PAS.cancelQuote(kar, pendCx.meta.reason, pendCx.meta.initiatedBy, PAS.todayISO()), PAS.makeAudit("Decline", "Notice period not satisfied — decline and re-serve."));
 var rejected = decided.history.find(function (h) { return h.id === pendCx.id; });
-check("decline records the confirming actor, not a placeholder", rejected.approvedBy === "A. Bennett");
+check("decline records the confirming actor, not a placeholder", rejected.approvedBy === "Vikram");
 check("decline comment is on the ledger row", /re-serve/.test(rejected.detail));
 check("decision history keeps escalate then decline", rejected.meta.decisionHistory.length === 2 && rejected.meta.decisionHistory[1].action === "Decline");
 

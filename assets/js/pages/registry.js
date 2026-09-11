@@ -75,7 +75,7 @@
       }, [
         { label: "Annual premium", value: PAS.moneyShort(f.writtenPremium), tone: "gray", tip: "Total written premium across on-risk records in this view." },
         { label: "Earned premium", value: PAS.moneyShort(f.earnedPremium), tone: "blue", tip: "Premium recognized for coverage actually provided so far." },
-        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Southlake paid commission (MGA + Broker) - Southlake received commission (Reinsurers)." },
+        { label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green", tip: "Vikram & Sons paid commission (MGA + Broker) - Vikram & Sons received commission (Reinsurers)." },
         { label: "Incurred claims", value: PAS.moneyShort(f.paid), tone: "red", tip: "Claims actually paid out so far, across " + f.claimCount + " claim" + (f.claimCount === 1 ? "" : "s") + " — reserved amounts for open claims are shown separately, in Reserved claims." },
         { label: "Reserved claims", value: PAS.moneyShort(f.reserved), tone: "amber", tip: "Set aside for " + f.openClaimCount + " open claim" + (f.openClaimCount === 1 ? "" : "s") + " not yet paid out. Reserved + Incurred (paid) = total incurred claims, the figure Loss ratio is actually computed from." },
         { label: "Loss ratio", value: pct(f.lossRatio), tone: lossToneFor(f.lossRatio), tip: "Incurred claims ÷ earned premium (not written) — the standard actuarial basis." },

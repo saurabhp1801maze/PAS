@@ -1075,7 +1075,7 @@
         {
           label: "Net commission", value: PAS.moneyShort(f.netCommission), tone: "green",
           delta: valueDelta(f.netCommission, previousF && previousF.netCommission), deltaTone: "gray", deltaTitle: comparisonTitle,
-          tip: "Southlake paid commission (MGA + Broker) - Southlake received commission (Reinsurers).",
+          tip: "Vikram & Sons paid commission (MGA + Broker) - Vikram & Sons received commission (Reinsurers).",
         },
         {
           label: "Incurred claims", value: PAS.moneyShort(f.paid), tone: "red",
@@ -1175,7 +1175,7 @@
           { key: "lossRatio", label: "Loss ratio", what: "Incurred ÷ earned premium.", sortValue: function (s) { return s.f.lossRatio; }, cell: function (s) { return ui.pill(lossToneFor(s.f.lossRatio), pct(s.f.lossRatio)); } },
           { key: "expenseRatio", label: "Acquisition expense ratio", what: "Commission paid by the carrier divided by earned premium.", sortValue: function (s) { return s.f.expenseRatio; }, cell: function (s) { return pct(s.f.expenseRatio); } },
           { key: "combinedRatio", label: "Indicative combined ratio", what: "Loss ratio plus acquisition expense ratio.", rule: "Below 100% indicates a carrier underwriting profit before other operating costs.", sortValue: function (s) { return s.f.combinedRatio; }, cell: function (s) { return ui.pill(combinedToneFor(s.f.combinedRatio), pct(s.f.combinedRatio)); } },
-          { key: "netCommission", label: "Net commission", what: "Southlake paid commission (MGA + Broker) - Southlake received commission (Reinsurers).", sortValue: function (s) { return s.f.netCommission; }, cell: function (s) { return PAS.moneyShort(s.f.netCommission); } },
+          { key: "netCommission", label: "Net commission", what: "Vikram & Sons paid commission (MGA + Broker) - Vikram & Sons received commission (Reinsurers).", sortValue: function (s) { return s.f.netCommission; }, cell: function (s) { return PAS.moneyShort(s.f.netCommission); } },
         ],
         rows: segments,
         wrapCells: true,

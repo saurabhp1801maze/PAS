@@ -1201,6 +1201,10 @@ console.log("\n  import quote: issuedQuoteMeta (parties, issuedBy, drivers) is f
       issuedBy: "Priya Nair, System Administrator",
       parties: { carrier: "Vikram & Sons", mga: "Vikas & Co", broker: "Arora & Sons", customer: "Ayushi" },
       product: "Commercial Auto / Trucking",
+      /* Fields this page has never been told about explicitly — the schema is not fixed, a real
+         rating engine adds fields like this over time. Must still show up automatically rather than
+         silently vanishing just because nobody hand-coded them yet. */
+      fleetSizeMinimum: 2, radiusOfOperation: "450 miles (Interstate)",
       drivers: [
         { name: "Driver One", age: 24, sex: "M", dob: "05/14/2002", dlNumber: "TX-DL-88214093", licenseState: "TX", licenseClass: "Class A", experience: "3 Years", status: "Pending Verification" },
         { name: "Driver Two", age: 25.5, sex: "F", dob: "03/10/2001", dlNumber: "TX-DL-77035581", licenseState: "TX", licenseClass: "Class A", experience: "5 Years", status: "Pending Verification" },
@@ -1248,6 +1252,12 @@ console.log("\n  import quote: issuedQuoteMeta (parties, issuedBy, drivers) is f
   ["QT-TRK-2026-89412-v2.0", "Not Yet Bound", "Awaiting Bind"].forEach(function (needle) {
     if (coverTxt.indexOf(needle) === -1) { fails++; console.log("  FAIL  Cover tab's source quote details missing \"" + needle + "\""); }
   });
+  /* The generic fallback: fields never explicitly coded for (fleetSizeMinimum, radiusOfOperation)
+     still render automatically, in a sentence-cased label matching every hand-written one nearby
+     ("Quote number", "Bind date") — not raw camelCase, not Title Case. */
+  if (coverTxt.indexOf("Fleet size minimum") === -1 || coverTxt.indexOf("Radius of operation") === -1 || coverTxt.indexOf("450 miles (Interstate)") === -1) {
+    fails++; console.log("  FAIL  Cover tab does not auto-surface unrecognized issuedQuoteMeta fields (fleetSizeMinimum/radiusOfOperation) — a new rating-engine field would silently vanish. Nearby: " + JSON.stringify(coverTxt.slice(coverTxt.indexOf("Program"), coverTxt.indexOf("Program") + 300)));
+  } else console.log("  PASS  Cover tab auto-surfaces fields it was never explicitly coded for (Fleet size minimum: 2, Radius of operation: 450 miles (Interstate)), correctly sentence-cased");
   console.log("  PASS  Cover tab shows the source quote's own quote number and bind/policy status text");
 
   var tabLabels = renderTab("cover") && env._pageContent.querySelectorAll(".tab-btn").map(function (b) { return b.textContent; });

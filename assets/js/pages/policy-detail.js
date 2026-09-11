@@ -205,6 +205,23 @@
       if (iqm.bindStatus) qmWrap.appendChild(ui.kv({ k: "Bind status (source system)", v: iqm.bindStatus, why: "As reported by the rating engine at export time — separate from this record's own Status above, which PAS sets on import." }));
       if (iqm.policyStatus) qmWrap.appendChild(ui.kv({ k: "Policy status (source system)", v: iqm.policyStatus, why: "As reported by the rating engine at export time — separate from this record's own Status above, which PAS sets on import." }));
       if (iqm.product) qmWrap.appendChild(ui.kv({ k: "Program", v: iqm.product, what: "The rating engine's own product/program name — may be more specific than the LOB above." }));
+      /* issuedQuoteMeta isn't a fixed schema — a rating engine can (and does) add fields this page
+         has never seen before (e.g. fleetSizeMinimum, radiusOfOperation — the underwriting.refers
+         reasons' own trigger values). Rather than hand-coding every field name as it shows up and
+         silently dropping whatever hasn't been coded yet, anything not already rendered above (or
+         handled elsewhere — parties/drivers/issuedBy) is shown automatically below. */
+      var IQM_HANDLED_KEYS = { quoteNumber: 1, quoteDate: 1, bindDate: 1, bindStatus: 1, policyStatus: 1, product: 1, parties: 1, drivers: 1, issuedBy: 1 };
+      var extraKeys = Object.keys(iqm).filter(function (k) { return !IQM_HANDLED_KEYS[k] && iqm[k] != null && iqm[k] !== ""; });
+      if (extraKeys.length) {
+        extraKeys.forEach(function (k) {
+          var label = k.replace(/([A-Z])/g, " $1").toLowerCase().replace(/^./, function (c) { return c.toUpperCase(); }).trim();
+          var val = iqm[k];
+          var display = Array.isArray(val)
+            ? val.map(function (v) { return typeof v === "object" && v ? JSON.stringify(v) : String(v); }).join(", ")
+            : (typeof val === "object" ? JSON.stringify(val) : String(val));
+          qmWrap.appendChild(ui.kv({ k: label, v: display, why: "Reported by the rating engine — not a field this page specifically knows about, shown automatically." }));
+        });
+      }
       cb.appendChild(qmWrap);
     }
     var breakdown = PAS.coverageBreakdown(policy);

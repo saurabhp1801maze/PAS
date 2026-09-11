@@ -1222,13 +1222,17 @@ var CLAIMS_BY_ID = {
 
   /* Who actually underwrote a policy — read from its own most recent completed Underwriting
      decision, never from `producer` (that is the broker who introduced the risk, a different
-     party entirely). Shared so the dashboard's "Top underwriters" ranking and policy-detail's
-     "Underwritten by" field can never disagree about who decided a given policy. */
+     party entirely). Shared so every screen that names who accepted the risk (policy-detail's
+     "Underwritten by", the renewal pipeline's owner column, requestedByCell) can never disagree.
+     A quote-imported policy has no separate underwriting step at all — the quote itself already
+     carries who issued/accepted it (issuedQuoteMeta.issuedBy) — so that's the fallback rather than
+     null/"Unassigned" for a fact the record genuinely has. */
   PAS.underwriterOf = function (policy) {
     var uw = (policy.history || [])
       .filter(function (h) { return h.type === "Underwriting" && h.status === "Completed"; })
       .sort(function (a, b) { return b.seq - a.seq; })[0];
-    return uw ? uw.user : null;
+    if (uw) return uw.user;
+    return (policy.quote && policy.quote.issuedQuoteMeta && policy.quote.issuedQuoteMeta.issuedBy) || null;
   };
   /* ---------- coverage-wise breakdown ----------
      Every product's premium is split across the layers of cover it's actually built from — real

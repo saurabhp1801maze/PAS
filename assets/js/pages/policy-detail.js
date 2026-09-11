@@ -232,17 +232,16 @@
       pb.appendChild(ui.kv({ k: "Certificate holder " + (i + 1), v: n }));
     });
     pb.appendChild(ui.kv({ k: "Producer", v: policy.producer, what: "Broker or channel that placed the risk — the initiator, not the decision-maker." }));
-    /* Underwritten by: who accepted the risk. Normally read from this policy's own completed
-       Underwriting decision. A quote-imported policy skips that workflow entirely — there is no
-       separate underwriting step, the quote itself already carries who issued/accepted it — so for
-       those records this falls back to the source quote's own issuedQuoteMeta.issuedBy rather than
-       showing an empty dash for a fact the record actually has. */
+    /* Underwritten by: who accepted the risk — PAS.underwriterOf, the one shared source every
+       screen that names this reads from (also the renewal pipeline's owner column, requestedByCell
+       on Pending Approvals). Normally a real completed Underwriting decision; for a quote-imported
+       policy (no separate underwriting step at all) it's the source quote's own issuedBy. */
     var uwDecision = policy.history.filter(function (h) { return h.type === "Underwriting" && h.status === "Completed"; }).sort(function (a, b) { return b.seq - a.seq; })[0];
-    var iqmIssuedBy = policy.quote && policy.quote.issuedQuoteMeta && policy.quote.issuedQuoteMeta.issuedBy;
+    var uwName = PAS.underwriterOf(policy);
     pb.appendChild(ui.kv({
-      k: "Underwritten by", v: uwDecision ? uwDecision.user : (iqmIssuedBy || "—"),
+      k: "Underwritten by", v: uwName || "—",
       what: uwDecision ? "Who actually approved or declined this risk — read from that decision's own audit trail, not the initiator."
-        : iqmIssuedBy ? "No separate underwriting decision on this record — it was issued directly from an imported quote, so this is who/what issued it, per the source rating engine."
+        : uwName ? "No separate underwriting decision on this record — it was issued directly from an imported quote, so this is who/what issued it, per the source rating engine."
         : "No completed underwriting decision on file yet.",
       why: "Producer is who asked; this is who accepted the risk and is accountable for it.",
     }));

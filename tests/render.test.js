@@ -1261,6 +1261,57 @@ console.log("\n  import quote: issuedQuoteMeta (parties, issuedBy, drivers) is f
   console.log("  PASS  Drivers tab shows the real imported roster (name, DL number, status) for both drivers, not a synthetic one");
 })();
 
+/* Invoice: Accounting needs more than the bare coverage/fee/tax lines the old payload had — who to
+   pay and how much (remittance, same split as policy-detail's "Where the premium goes"), reconciled
+   subtotals, and reference fields back to the source quote. Both the downloaded JSON
+   (PAS.invoicePayload) and the rendered invoice page must carry it, and the two must never
+   disagree since the page now reads its new panels from the same payload function. */
+console.log("\n  invoice: PAS.invoicePayload and the rendered page carry remittance + reference details for Accounting");
+(function () {
+  var env = buildEnv("invoice", "", "Super Admin");
+  vm.createContext(env);
+  CORE.forEach(function (f) { vm.runInContext(fs.readFileSync(f, "utf8"), env, { filename: f }); });
+  var PIV = env.PAS;
+
+  var rawQuote = {
+    quote: { lob: "Commercial Trucking", state: "TX", ratingVersion: "v2026.03", coveragePremium: 31294, finalPremium: 34866, discounts: [], surcharges: [], fees: [{ name: "Policy Fee", valueType: "Fixed", unit: 150, qty: 1, amt: 150, chargeType: "Per Policy" }], taxPct: 0.0485, tax: 1419 },
+    coverages: [{ name: "Auto Liability", subtotal: 9413 }],
+    eligibility: { declines: [], refers: [], notEvaluable: [] },
+    adapter: { fieldsMapped: 1, warnings: [] },
+    issuedQuoteMeta: {
+      quoteNumber: "QT-TRK-2026-89412-v2.0", quoteDate: "2026-09-11",
+      issuedBy: "Priya Nair, System Administrator",
+      parties: { carrier: "Vikram & Sons", mga: "Vikas & Co", broker: "Arora & Sons", customer: "Ayushi" },
+      drivers: [],
+    },
+  };
+  var policy = PIV.importQuote(rawQuote, { holder: "Ayushi", producer: "Arora & Sons", effectiveDate: PIV.todayISO(), state: "TX", carrier: "Vikram & Sons", mga: "Vikas & Co", sumInsured: PIV.money(31294) });
+  PIV.generateQuoteDocuments(policy.id);
+  policy = PIV.getPolicy(policy.id);
+  var invDoc = policy.documents.filter(function (d) { return d.type === "Invoice"; })[0];
+  var payload = PIV.invoicePayload(policy, invDoc);
+
+  var expectedRate = PIV.commissionRateOf(policy);
+  var expectedGross = policy.premium * expectedRate;
+  var expectedBroker = expectedGross * PIV.BROKER_COMMISSION_SHARE;
+  if (payload.carrier !== "Vikram & Sons" || payload.mga !== "Vikas & Co" || payload.underwrittenBy !== "Priya Nair, System Administrator" || payload.quoteNumber !== "QT-TRK-2026-89412-v2.0") {
+    fails++; console.log("  FAIL  invoicePayload missing/wrong carrier, MGA, underwrittenBy or quoteNumber — got " + JSON.stringify({ carrier: payload.carrier, mga: payload.mga, underwrittenBy: payload.underwrittenBy, quoteNumber: payload.quoteNumber }));
+  } else console.log("  PASS  invoicePayload carries the real carrier, MGA, underwrittenBy (falls back to issuedBy) and quoteNumber");
+  if (!payload.remittance || Math.round(payload.remittance.grossCommission) !== Math.round(expectedGross) || Math.round(payload.remittance.brokerCommission) !== Math.round(expectedBroker)) {
+    fails++; console.log("  FAIL  invoicePayload.remittance does not match PAS.commissionRateOf/BROKER_COMMISSION_SHARE — same computation policy-detail's distribution tab uses"); }
+  else console.log("  PASS  invoicePayload.remittance (gross " + PIV.money(payload.remittance.grossCommission) + ", broker " + PIV.money(payload.remittance.brokerCommission) + ") matches the real commission formula — never a second, independently-drifting number");
+  if (payload.dueDate !== PIV.addDays(invDoc.generatedAt, 30) || payload.paymentTerms !== "Net 30") { fails++; console.log("  FAIL  invoicePayload.dueDate/paymentTerms wrong"); }
+  else console.log("  PASS  invoicePayload states a real, computed due date (Net 30 from invoice date)");
+
+  env.location.search = "?policy=" + policy.id + "&doc=" + invDoc.id;
+  vm.runInContext(fs.readFileSync("assets/js/pages/invoice.js", "utf8"), env, { filename: "invoice.js" });
+  var pageTxt = env._pageContent.textContent.replace(/\s+/g, " ");
+  ["Due date", "Reference", "Quote number", "QT-TRK-2026-89412-v2.0", "Priya Nair, System Administrator", "Remittance", "Vikram & Sons", "Vikas & Co"].forEach(function (needle) {
+    if (pageTxt.indexOf(needle) === -1) { fails++; console.log("  FAIL  rendered invoice page missing \"" + needle + "\""); }
+  });
+  console.log("  PASS  the rendered invoice page shows Due date, Reference (quote number, underwriter, carrier, MGA) and Remittance panels — not just the JSON export");
+})();
+
 console.log("\n  cancellation type override: on-rule overrides apply cleanly, off-rule overrides apply flagged");
 (function () {
   var stub = {

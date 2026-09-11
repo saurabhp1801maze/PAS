@@ -27,6 +27,10 @@
       return;
     }
     var q = policy.quote.quote || {};
+    /* Everything Accounting-specific (remittance split, reference/audit fields, due date) is read
+       from PAS.invoicePayload rather than re-derived here, so this page and the downloaded JSON
+       can never disagree about who gets paid or what the reconciled totals are. */
+    var inv = PAS.invoicePayload(policy, doc);
 
     var page = ui.h("div", {});
     page.appendChild(ui.backLink("Back to policy", function () { location.href = "policy-detail.html?policy=" + encodeURIComponent(policy.id) + "&tab=documents"; }));
@@ -38,10 +42,13 @@
 
     page.appendChild(ui.kpiRow([
       { label: "Invoice date", value: PAS.fmtDate(doc.generatedAt) },
+      { label: "Due date", value: PAS.fmtDate(inv.dueDate), tip: inv.paymentTerms + " from the invoice date — a stated convention, not billed data this prototype has anywhere else to read." },
       { label: "Policy term", value: PAS.fmtDate(policy.effectiveDate) + " → " + PAS.fmtDate(policy.expirationDate) },
       { label: "Total premium", value: money(q.finalPremium), tone: "blue" },
       { label: "Status", value: doc.deliveryStatus === "Delivered" ? "Sent to accounts" : "Not yet sent", tone: doc.deliveryStatus === "Delivered" ? "green" : "amber" },
     ]));
+
+    var panelRow = ui.h("div", { class: "mt-13", style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "13px" } });
 
     var billTo = ui.panel({ title: "Bill to" }, []);
     var bb = billTo.querySelector(".panel-body");
@@ -49,7 +56,36 @@
     bb.appendChild(ui.kv({ k: "Producer", v: policy.producer || "—" }));
     bb.appendChild(ui.kv({ k: "State", v: policy.state || "—" }));
     bb.appendChild(ui.kv({ k: "Line of business", v: q.lob || policy.product }));
-    page.appendChild(billTo);
+    panelRow.appendChild(billTo);
+
+    /* Reference/audit trail — lets Accounting trace this invoice back to the exact source quote
+       and the record of who accepted the risk, without a separate lookup on the policy record. */
+    var reference = ui.panel({ title: "Reference", what: "Audit trail back to the source quote and underwriting record." }, []);
+    var rb = reference.querySelector(".panel-body");
+    rb.appendChild(ui.kv({ k: "Policy ID", v: policy.id, mono: true }));
+    rb.appendChild(ui.kv({ k: "Term number", v: inv.termNumber }));
+    rb.appendChild(ui.kv({ k: "Quote number", v: inv.quoteNumber || "—", mono: !!inv.quoteNumber }));
+    rb.appendChild(ui.kv({ k: "Rating version", v: inv.ratingVersion || "—" }));
+    rb.appendChild(ui.kv({ k: "Underwritten by", v: inv.underwrittenBy || "—" }));
+    rb.appendChild(ui.kv({ k: "Carrier", v: inv.carrier || "—" }));
+    rb.appendChild(ui.kv({ k: "MGA", v: inv.mga || "—" }));
+    panelRow.appendChild(reference);
+    page.appendChild(panelRow);
+
+    /* Remittance — who actually gets paid out of the collected premium, and how much. Same
+       computation as policy-detail's "Where the premium goes" tab (PAS.commissionRateOf +
+       PAS.BROKER_COMMISSION_SHARE via PAS.invoicePayload), so the two can never disagree. */
+    var remit = ui.panel({ title: "Remittance", what: "How the collected premium is disbursed — same split as the policy's own Where the premium goes tab.", pad: 0 }, []);
+    remit.querySelector(".panel-body").appendChild(ui.dataTable({
+      columns: ["Party", "Detail", "Amount"],
+      rows: [
+        [ui.h("strong", {}, "Gross commission"), Math.round(inv.remittance.commissionRate * 1000) / 10 + "% of premium", money(inv.remittance.grossCommission)],
+        ["Broker — " + (policy.producer || "—"), policy.producer && policy.producer !== "Direct" ? "Retail commission" : "Direct business — no broker to pay", money(inv.remittance.brokerCommission)],
+        ["MGA — " + (policy.mga || "—"), "Facility override", money(inv.remittance.mgaCommission)],
+        ["Carrier — " + (policy.carrier || "—"), "Net of commission", money(inv.remittance.carrierNet)],
+      ],
+    }));
+    page.appendChild(remit);
 
     var rows = [];
     (policy.quote.coverages || []).forEach(function (c) {
@@ -62,11 +98,11 @@
     (q.surcharges || []).forEach(function (s) {
       rows.push([s.name, s.why || "", money(s.amt)]);
     });
-    var beforeFees = (q.coveragePremium || 0) + (q.discounts || []).reduce(function (s, d) { return s + (d.amt || 0); }, 0) + (q.surcharges || []).reduce(function (s, x) { return s + (x.amt || 0); }, 0);
-    rows.push([ui.h("strong", {}, "Premium before fees"), "", ui.h("strong", {}, money(beforeFees))]);
+    rows.push([ui.h("strong", {}, "Premium before fees"), "", ui.h("strong", {}, money(inv.premiumBeforeFees))]);
     (q.fees || []).forEach(function (f) {
       rows.push([f.name, feeDetail(f), money(f.amt)]);
     });
+    if ((q.fees || []).length > 1) rows.push([ui.h("strong", {}, "Total fees"), "", ui.h("strong", {}, money(inv.totalFees))]);
     /* Not every payload carries taxPct/countyRate (percentages) alongside the tax amounts — some
        instead spell the rate into a richer itemized_taxes name/amount list. Prefer that when it's
        there; otherwise reconstruct from the flatter fields, but key off the amount being present

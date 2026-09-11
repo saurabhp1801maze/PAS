@@ -466,16 +466,48 @@
   /* The wire shape for GET /api/v1/policies/{id}/invoices/{docId} — this is both the simulated
      API response (shown in the policy detail's "API & event lifecycle" panel) and, verbatim, the
      file the Download button saves: the prototype mimics the Billing module receiving this exact
-     JSON over the API, rather than inventing a separate export format. */
+     JSON over the API, rather than inventing a separate export format.
+     Everything below is what Accounting actually needs to process the invoice without going back
+     to the policy record separately: who to pay and how much (remittance — the same broker/MGA
+     commission split policy-detail's "Where the premium goes" tab computes, PAS.commissionRateOf +
+     PAS.BROKER_COMMISSION_SHARE, so the two can never disagree), reconciled subtotals so the line
+     items can be footed without re-deriving them by hand, and reference fields (quote number,
+     rating version, underwriter of record, term number) for audit trail back to the source quote. */
   PAS.invoicePayload = function (policy, doc) {
     var q = (policy.quote && policy.quote.quote) || {};
+    var iqm = (policy.quote && policy.quote.issuedQuoteMeta) || null;
     var coverages = (policy.quote && policy.quote.coverages) || [];
+
+    var premiumBeforeFees = (q.coveragePremium || 0)
+      + (q.discounts || []).reduce(function (s, d) { return s + (d.amt || 0); }, 0)
+      + (q.surcharges || []).reduce(function (s, x) { return s + (x.amt || 0); }, 0);
+    var totalFees = (q.fees || []).reduce(function (s, f) { return s + (f.amt || 0); }, 0);
+    var totalTax = (q.tax || 0) + (q.countyTax || 0);
+
+    var rate = PAS.commissionRateOf(policy);
+    var direct = PAS.isDirect(policy);
+    var grossCommission = policy.premium * rate;
+    var brokerCommission = direct ? 0 : grossCommission * PAS.BROKER_COMMISSION_SHARE;
+    var mgaCommission = grossCommission - brokerCommission;
+
     return {
       invoiceNumber: doc.invoiceNumber || doc.name,
       invoiceDate: doc.generatedAt,
+      /* Net 30 from invoice date — a stated convention (like the binder's +30-day expiry
+         elsewhere), not read off any payload; no real payment-terms field exists anywhere in this
+         data model to read instead. */
+      dueDate: addDays(doc.generatedAt, 30),
+      paymentTerms: "Net 30",
+      currency: "USD",
       policyId: policy.id,
+      quoteNumber: (iqm && iqm.quoteNumber) || null,
+      ratingVersion: q.ratingVersion || null,
+      termNumber: policy.termNumber,
       namedInsured: policy.holder,
       producer: policy.producer,
+      underwrittenBy: PAS.underwriterOf(policy),
+      carrier: policy.carrier || null,
+      mga: policy.mga || null,
       state: policy.state,
       lineOfBusiness: q.lob || policy.product,
       policyTerm: { effectiveDate: policy.effectiveDate, expirationDate: policy.expirationDate },
@@ -483,10 +515,23 @@
       coveragePremium: q.coveragePremium,
       discounts: q.discounts || [],
       surcharges: q.surcharges || [],
+      premiumBeforeFees: Math.round(premiumBeforeFees),
       fees: q.fees || [],
+      totalFees: Math.round(totalFees),
       tax: { pct: q.taxPct, amount: q.tax },
       countyTax: q.countyName ? { name: q.countyName, rate: q.countyRate, amount: q.countyTax } : null,
+      totalTax: Math.round(totalTax),
       totalPremium: q.finalPremium,
+      /* Who actually gets paid, and how much — not just the gross figures above. Same computation
+         policy-detail's distribution tab uses, so accounting's disbursement can never drift from
+         what the app itself shows as "where the premium goes". */
+      remittance: {
+        commissionRate: rate,
+        grossCommission: Math.round(grossCommission),
+        brokerCommission: Math.round(brokerCommission),
+        mgaCommission: Math.round(mgaCommission),
+        carrierNet: Math.round(policy.premium - grossCommission),
+      },
       deliveryStatus: doc.deliveryStatus,
       deliveredAt: doc.deliveredAt || null,
     };

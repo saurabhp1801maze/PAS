@@ -51,8 +51,8 @@
     page.appendChild(ui.pageHeader({
       icon: "arrow-down-left", tone: "blue", title: "Import quote",
       sub: "Turn a rating-engine quote payload into a policy",
-      what: "Paste the JSON a rating engine produces (coverage factors, discounts, surcharges, fees, tax, eligibility) and PAS creates a policy from it.",
-      why: "The quote itself never carries who the insured is or who placed it — those two fields are the only things you supply by hand.",
+      what: "Paste the JSON a rating engine produces (coverage factors, discounts, surcharges, fees, tax, eligibility, and — when present — an issuedQuoteMeta block naming the insured, broker, carrier and MGA) and PAS creates a policy from it.",
+      why: "Named insured, producer, carrier and MGA are pre-filled whenever the quote names them (issuedQuoteMeta.parties, when present); anything the quote doesn't carry, or that needs correcting, you fill in or edit by hand below.",
     }));
 
     var panel = ui.panel({ title: "Quote payload", what: "Simulates POST /api/v1/inbound/quote" }, []);
@@ -75,22 +75,26 @@
     var stateInput = ui.h("input", { class: "field-input", type: "text" });
     var carrierSelect = ui.h("select", { class: "field-input" });
     PAS.CARRIERS.forEach(function (c) { carrierSelect.appendChild(ui.h("option", { value: c }, c)); });
+    var mgaInput = ui.h("input", { class: "field-input", type: "text" });
 
-    /* effDateInput and producerInput always carry a value (today's date; "Direct"), so — unlike the
-       empty text inputs — "is it still empty" can't tell us whether the quote should be allowed to
-       fill them. Track an explicit touch instead, same reasoning either way: never clobber
-       something the user set. */
+    /* effDateInput, producerInput and carrierSelect always carry a value (today's date; "Direct";
+       the first carrier), so — unlike the empty text inputs — "is it still empty" can't tell us
+       whether the quote should be allowed to fill them. Track an explicit touch instead, same
+       reasoning either way: never clobber something the user set. */
     var effDateTouched = false;
     effDateInput.addEventListener("input", function () { effDateTouched = true; });
     var producerTouched = false;
     producerInput.addEventListener("input", function () { producerTouched = true; });
+    var carrierTouched = false;
+    carrierSelect.addEventListener("change", function () { carrierTouched = true; });
 
     var formRow = ui.h("div", { class: "mt-13", style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "13px" } });
     formRow.appendChild(ui.field({ label: "Named insured", hint: "Pre-filled when the quote names an insured; otherwise enter it by hand." }, holderInput));
     formRow.appendChild(ui.field({ label: "Producer", hint: "Pre-filled from the quote's broker/agency when present." }, producerInput));
     formRow.appendChild(ui.field({ label: "Effective date", hint: "Pre-filled from the quote if it specifies one; otherwise defaults to today." }, effDateInput));
     formRow.appendChild(ui.field({ label: "State", hint: "Pre-filled from the quote; edit if it needs to match your state-naming convention." }, stateInput));
-    formRow.appendChild(ui.field({ label: "Carrier" }, carrierSelect));
+    formRow.appendChild(ui.field({ label: "Carrier", hint: "Pre-selected when the quote names a carrier PAS already knows." }, carrierSelect));
+    formRow.appendChild(ui.field({ label: "MGA", hint: "Pre-filled from the quote's MGA/wholesale facility when present; otherwise enter it by hand." }, mgaInput));
     pb.appendChild(formRow);
 
     var createBtn = ui.h("button", { class: "btn tone-primary mt-13" }, [PAS.icon("arrow-down-left", { size: 13 }), document.createTextNode(" Generate policy")]);
@@ -117,8 +121,17 @@
       }
       if (q.state && !stateInput.value) stateInput.value = q.state;
 
+      /* issuedQuoteMeta.parties — when present, this is the richest, most authoritative source for
+         who's who on this quote (a real rating-engine export names customer/broker/carrier/mga
+         explicitly, rather than this function having to guess at field names), so it's checked
+         first in every candidate list below, ahead of the older loose guesses that exist for
+         payload shapes that don't carry it. */
+      var iqm = parsed.issuedQuoteMeta || {};
+      var iqmParties = iqm.parties || {};
+
       var insuredInfo = parsed.insured_information || {};
       var namedInsured = firstString([
+        iqmParties.customer,
         parsed.namedInsured, parsed.insuredName, parsed.insured, parsed.applicant, parsed.policyHolder, parsed.holder,
         insuredInfo.entity_name, insuredInfo.dba,
         q.namedInsured, q.insuredName, q.insured, q.applicant, q.policyHolder, q.holder,
@@ -131,17 +144,38 @@
       if (effDate && !effDateTouched) effDateInput.value = String(effDate).slice(0, 10);
 
       var broker = parsed.producing_broker || {};
-      var producerName = firstString([broker.agency_name, broker.producer_name, parsed.producer, q.producer]);
+      var producerName = firstString([iqmParties.broker, broker.agency_name, broker.producer_name, parsed.producer, q.producer]);
       if (producerName && !producerTouched) producerInput.value = producerName;
+
+      var mgaName = firstString([iqmParties.mga, parsed.mga, q.mga]);
+      if (mgaName && !mgaInput.value) mgaInput.value = mgaName;
+
+      var carrierName = firstString([iqmParties.carrier, parsed.carrier, q.carrier]);
+      if (carrierName && !carrierTouched) {
+        var matchOpt = Array.prototype.slice.call(carrierSelect.options).filter(function (o) { return o.value === carrierName; })[0];
+        if (matchOpt) carrierSelect.value = carrierName;
+        /* No matching <option> — leave the dropdown on its default rather than silently ignoring a
+           real carrier name the quote actually gave us; the preview below still surfaces it. */
+      }
 
       var kvWrap = ui.h("div", {});
       kvWrap.appendChild(ui.kv({ k: "Line of business", v: q.lob || "—" }));
       kvWrap.appendChild(ui.kv({ k: "State", v: q.state || "—" }));
       kvWrap.appendChild(ui.kv({ k: "Rating version", v: q.ratingVersion || "—" }));
       kvWrap.appendChild(ui.kv({ k: "Final premium", v: PAS.money(q.finalPremium) }));
+      if (iqm.quoteNumber) kvWrap.appendChild(ui.kv({ k: "Quote number", v: iqm.quoteNumber, mono: true }));
+      if (iqm.issuedBy) kvWrap.appendChild(ui.kv({ k: "Issued by (source quote)", v: iqm.issuedBy, why: "Will show as \"Underwritten by\" on the created policy — an imported quote has no separate underwriting step, so this is who accepted the risk." }));
+      if (carrierName && !Array.prototype.slice.call(carrierSelect.options).some(function (o) { return o.value === carrierName; })) {
+        previewBox.appendChild(ui.callout("warn", "Quote names carrier \"" + carrierName + "\", which PAS doesn't have as an option — pick the closest match above; the real name is still preserved on the imported quote record."));
+      }
       previewBox.appendChild(kvWrap);
       var refers = parsed.eligibility && parsed.eligibility.refers;
       if (refers && refers.length) previewBox.appendChild(ui.callout("warn", "Refers on this quote: " + refers.join(", ") + "."));
+      if (iqm.bindStatus || iqm.policyStatus) {
+        previewBox.appendChild(ui.callout("info", "Source system status — " +
+          [iqm.bindStatus, iqm.policyStatus].filter(Boolean).join(" · ") +
+          ". PAS will still activate this policy immediately on import, regardless of this upstream status text."));
+      }
     }
     textarea.addEventListener("input", reparse);
 
@@ -168,6 +202,7 @@
       var extra = {
         holder: holderInput.value.trim(), producer: producerInput.value.trim() || "Direct",
         effectiveDate: effDateInput.value || PAS.todayISO(), state: stateInput.value.trim(), carrier: carrierSelect.value,
+        mga: mgaInput.value.trim() || null,
         /* The quote payload has no separate "sum insured" field — coveragePremium (the rated
            premium for the coverage layer) is what this demo treats as the sum assured. */
         sumInsured: q.coveragePremium != null ? PAS.money(q.coveragePremium) : "—",

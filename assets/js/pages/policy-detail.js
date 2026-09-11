@@ -55,6 +55,13 @@
     page.appendChild(overviewKpis);
 
     var fleet = PAS.vehicleFleetFor(policy);
+    /* A quote-imported policy's real driver roster (issuedQuoteMeta.drivers — name/DOB/DL number/
+       license class/experience/verification status) is a genuinely different, richer shape than
+       the synthetic hash-generated fleet above, and most imported LOBs (e.g. Commercial Trucking)
+       don't match vehicleFleetFor's "Comprehensive Auto" gate anyway. Kept as its own tab rather
+       than forced into vehicleCard's make/model/VIN shape, which has no real data to show here. */
+    var importedDrivers = policy.quote && policy.quote.issuedQuoteMeta && Array.isArray(policy.quote.issuedQuoteMeta.drivers) && policy.quote.issuedQuoteMeta.drivers.length
+      ? policy.quote.issuedQuoteMeta.drivers : null;
 
     var tabDefs = [
       ["cover", "Cover"],
@@ -63,6 +70,7 @@
       ["distribution", "Where the premium goes"],
     ];
     if (fleet) tabDefs.push(["vehicles", fleet.isFleet ? "Vehicles & drivers" : "Vehicle & drivers"]);
+    if (importedDrivers) tabDefs.push(["drivers", "Drivers"]);
     tabDefs.push(
       ["claims", "Claims & risk"],
       ["activity", "Activity & decisions"],
@@ -79,6 +87,7 @@
       documents: function (p) { return documentsSection(p, render); },
     };
     if (fleet) sectionFns.vehicles = function () { return vehiclesSection(fleet); };
+    if (importedDrivers) sectionFns.drivers = function () { return driversSection(importedDrivers); };
     var activeTab = sectionFns[tab] ? tab : "cover";
 
     var tabsRow = ui.h("div", { class: "tabs pd-tabs", role: "tablist" });
@@ -180,6 +189,24 @@
     if (policy.quote && policy.quote.eligibility && (policy.quote.eligibility.refers || []).length) {
       cb.appendChild(ui.callout("warn", "Refers on the imported quote, not yet cleared: " + policy.quote.eligibility.refers.join(", ") + "."));
     }
+    /* Everything below is the source rating-engine quote's own reported metadata — read straight
+       off policy.quote.issuedQuoteMeta (never copied onto the policy record itself, so it always
+       reflects exactly what was imported). Its bind/policy status text describes the UPSTREAM
+       system's state at export time, which is deliberately NOT the same thing as this record's own
+       `status` field above (PAS activates an imported quote immediately on import) — labelled as
+       such so the two are never mistaken for one another. */
+    var iqm = policy.quote && policy.quote.issuedQuoteMeta;
+    if (iqm) {
+      var qmWrap = ui.h("div", { class: "mt-13" });
+      qmWrap.appendChild(ui.tipLabel({ text: "Source quote details", what: "Metadata reported by the rating engine that produced this quote — not fields on the policy record itself.", className: "label-11 block mb-9" }));
+      if (iqm.quoteNumber) qmWrap.appendChild(ui.kv({ k: "Quote number", v: iqm.quoteNumber, mono: true }));
+      if (iqm.quoteDate) qmWrap.appendChild(ui.kv({ k: "Quote date", v: PAS.fmtDate(iqm.quoteDate) }));
+      if (iqm.bindDate) qmWrap.appendChild(ui.kv({ k: "Bind date", v: PAS.fmtDate(iqm.bindDate) }));
+      if (iqm.bindStatus) qmWrap.appendChild(ui.kv({ k: "Bind status (source system)", v: iqm.bindStatus, why: "As reported by the rating engine at export time — separate from this record's own Status above, which PAS sets on import." }));
+      if (iqm.policyStatus) qmWrap.appendChild(ui.kv({ k: "Policy status (source system)", v: iqm.policyStatus, why: "As reported by the rating engine at export time — separate from this record's own Status above, which PAS sets on import." }));
+      if (iqm.product) qmWrap.appendChild(ui.kv({ k: "Program", v: iqm.product, what: "The rating engine's own product/program name — may be more specific than the LOB above." }));
+      cb.appendChild(qmWrap);
+    }
     var breakdown = PAS.coverageBreakdown(policy);
     if (breakdown.length) {
       var covWrap = ui.h("div", { class: "mt-13" });
@@ -205,10 +232,18 @@
       pb.appendChild(ui.kv({ k: "Certificate holder " + (i + 1), v: n }));
     });
     pb.appendChild(ui.kv({ k: "Producer", v: policy.producer, what: "Broker or channel that placed the risk — the initiator, not the decision-maker." }));
+    /* Underwritten by: who accepted the risk. Normally read from this policy's own completed
+       Underwriting decision. A quote-imported policy skips that workflow entirely — there is no
+       separate underwriting step, the quote itself already carries who issued/accepted it — so for
+       those records this falls back to the source quote's own issuedQuoteMeta.issuedBy rather than
+       showing an empty dash for a fact the record actually has. */
     var uwDecision = policy.history.filter(function (h) { return h.type === "Underwriting" && h.status === "Completed"; }).sort(function (a, b) { return b.seq - a.seq; })[0];
+    var iqmIssuedBy = policy.quote && policy.quote.issuedQuoteMeta && policy.quote.issuedQuoteMeta.issuedBy;
     pb.appendChild(ui.kv({
-      k: "Underwritten by", v: uwDecision ? uwDecision.user : "—",
-      what: uwDecision ? "Who actually approved or declined this risk — read from that decision's own audit trail, not the initiator." : "No completed underwriting decision on file yet.",
+      k: "Underwritten by", v: uwDecision ? uwDecision.user : (iqmIssuedBy || "—"),
+      what: uwDecision ? "Who actually approved or declined this risk — read from that decision's own audit trail, not the initiator."
+        : iqmIssuedBy ? "No separate underwriting decision on this record — it was issued directly from an imported quote, so this is who/what issued it, per the source rating engine."
+        : "No completed underwriting decision on file yet.",
       why: "Producer is who asked; this is who accepted the risk and is accountable for it.",
     }));
     pb.appendChild(ui.kv({ k: "MGA", v: policy.mga || "—", what: "Wholesale facility holding binding authority on this risk." }));
@@ -264,6 +299,25 @@
     var grid = ui.h("div", { class: "veh-grid" }, fleet.vehicles.map(vehicleCard));
     var sub = fleet.vehicles.length > 1 ? "Every unit on this policy, with the driver(s) assigned to it" : "This vehicle, with every driver who operates it";
     return section("vehicles", fleet.isFleet ? "Vehicles & drivers" : "Vehicle & drivers", sub, grid);
+  }
+
+  /* Real driver data straight from the imported quote — its own shape (age, DOB, DL number,
+     verification status), never forced into the synthetic fleet's make/model/VIN card layout,
+     which has nothing real to show for these fields anyway. */
+  function driversSection(drivers) {
+    var table = ui.dataTable({
+      columns: ["Name", "Age", "Sex", "DOB", "License #", "License state", "License class", "Experience", "Status"],
+      rows: drivers.map(function (d) {
+        return [
+          d.name || "—", d.age != null ? String(d.age) : "—", d.sex || "—",
+          d.dob || "—", d.dlNumber || "—", d.licenseState || "—", d.licenseClass || "—",
+          d.experience || "—",
+          d.status ? ui.pill(/pending/i.test(d.status) ? "amber" : /verified|confirmed/i.test(d.status) ? "green" : "gray", d.status) : "—",
+        ];
+      }),
+      emptyText: "No drivers on the imported quote.",
+    });
+    return section("drivers", "Drivers", "As reported on the imported rating-engine quote, not the synthetic fleet model", table);
   }
 
   /* ================= claims & risk ================= */

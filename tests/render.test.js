@@ -1176,6 +1176,91 @@ console.log("\n  i18n: PAS.t() is a real seam — adding a locale genuinely chan
    per user request): a decision-maker can override the derived type freely, including into a
    combination the normal domain rule wouldn't derive on its own — that's now a flagged exception
    (overrideOutsideRule), not a refusal. isValidCancelType still exists to compute the flag. */
+/* Import quote: a real issuedQuoteMeta-bearing payload (user-provided, matching this book's real
+   Carrier/MGA/Broker naming) must be fully consumed and correctly displayed — not just parsed.
+   Named insured/Producer/Carrier/MGA pre-fill from issuedQuoteMeta.parties, "Issued by" is a real
+   field genuinely distinct from "Underwritten by" (the exact confusion reported: "issued by is
+   same as underwritten by"), and the real driver roster renders on its own Drivers tab rather than
+   being forced into the synthetic vehicle-fleet model or dropped on the floor. */
+console.log("\n  import quote: issuedQuoteMeta (parties, issuedBy, drivers) is fully consumed and correctly displayed");
+(function () {
+  var env = buildEnv("policy-detail", "", "Super Admin");
+  vm.createContext(env);
+  CORE.forEach(function (f) { vm.runInContext(fs.readFileSync(f, "utf8"), env, { filename: f }); });
+  var PI = env.PAS;
+
+  var rawQuote = {
+    quote: { lob: "Commercial Trucking", state: "TX", ratingVersion: "v2026.03", coveragePremium: 31294, finalPremium: 34866, discounts: [], surcharges: [], fees: [], taxPct: 0.0485, tax: 1419 },
+    coverages: [{ name: "Auto Liability", subtotal: 9413, factors: [] }],
+    eligibility: { declines: [], refers: ["Fleet Size Minimum"], notEvaluable: [] },
+    adapter: { fieldsMapped: 23, warnings: [] },
+    issuedQuoteMeta: {
+      quoteNumber: "QT-TRK-2026-89412-v2.0", quoteDate: "2026-09-11", bindDate: null,
+      bindStatus: "Not Yet Bound — Pending Broker/Customer Acceptance",
+      policyStatus: "Awaiting Bind & Accounting Payment Confirmation Before PAS Can Issue the Policy",
+      issuedBy: "Priya Nair, System Administrator",
+      parties: { carrier: "Vikram & Sons", mga: "Vikas & Co", broker: "Arora & Sons", customer: "Ayushi" },
+      product: "Commercial Auto / Trucking",
+      drivers: [
+        { name: "Driver One", age: 24, sex: "M", dob: "05/14/2002", dlNumber: "TX-DL-88214093", licenseState: "TX", licenseClass: "Class A", experience: "3 Years", status: "Pending Verification" },
+        { name: "Driver Two", age: 25.5, sex: "F", dob: "03/10/2001", dlNumber: "TX-DL-77035581", licenseState: "TX", licenseClass: "Class A", experience: "5 Years", status: "Pending Verification" },
+      ],
+    },
+  };
+  /* extra mirrors exactly what import-quote.js's own reparse()/click handler now derive from
+     issuedQuoteMeta.parties — not hand-picked to make the test pass. */
+  var iqmParties = rawQuote.issuedQuoteMeta.parties;
+  var extra = {
+    holder: iqmParties.customer, producer: iqmParties.broker, effectiveDate: PI.todayISO(),
+    state: rawQuote.quote.state, carrier: iqmParties.carrier, mga: iqmParties.mga,
+    sumInsured: PI.money(rawQuote.quote.coveragePremium),
+  };
+  var policy = PI.importQuote(rawQuote, extra);
+
+  if (policy.holder !== "Ayushi" || policy.producer !== "Arora & Sons" || policy.carrier !== "Vikram & Sons" || policy.mga !== "Vikas & Co") {
+    fails++; console.log("  FAIL  imported policy's own fields don't match the quote's real parties — holder=" + policy.holder + " producer=" + policy.producer + " carrier=" + policy.carrier + " mga=" + policy.mga);
+  } else console.log("  PASS  policy.holder/producer/carrier/mga all genuinely match issuedQuoteMeta.parties (Ayushi / Arora & Sons / Vikram & Sons / Vikas & Co)");
+
+  function renderTab(tab) {
+    env.location.search = "?policy=" + policy.id + "&tab=" + tab;
+    env.document.getElementById("page-content").childNodes = [];
+    vm.runInContext(fs.readFileSync("assets/js/pages/policy-detail.js", "utf8"), env, { filename: "policy-detail.js" });
+    return env._pageContent.textContent.replace(/\s+/g, " ");
+  }
+
+  var partiesTxt = renderTab("parties");
+  ["Ayushi", "Arora & Sons", "Vikram & Sons", "Vikas & Co", "Priya Nair, System Administrator"].forEach(function (needle) {
+    if (partiesTxt.indexOf(needle) === -1) { fails++; console.log("  FAIL  Parties tab missing \"" + needle + "\""); }
+  });
+  console.log("  PASS  Parties tab shows the real customer, broker, carrier, MGA, and the issuing name — all read straight from the imported quote");
+  /* One field, not two: an imported quote has no separate underwriting step, so "Underwritten by"
+     itself falls back to the source quote's issuedBy — there is deliberately no second "Issued by"
+     field duplicating the same fact under a different label. */
+  var uwIdx = partiesTxt.indexOf("Underwritten by");
+  if (uwIdx === -1) { fails++; console.log("  FAIL  Parties tab missing the Underwritten by field entirely"); }
+  else if (partiesTxt.slice(uwIdx, uwIdx + 300).indexOf("Priya Nair, System Administrator") === -1) {
+    fails++; console.log("  FAIL  Underwritten by does not show the imported quote's issuedBy name (Priya Nair, System Administrator) — an imported policy has no other underwriting record to show. Nearby text: " + JSON.stringify(partiesTxt.slice(uwIdx, uwIdx + 300)));
+  } else console.log("  PASS  Underwritten by genuinely falls back to the imported quote's issuedBy (Priya Nair, System Administrator) — one real field, not a second duplicate one");
+  if (partiesTxt.indexOf("Issued by") !== -1) { fails++; console.log("  FAIL  a separate \"Issued by\" field still exists on the Parties tab — this should be one field (Underwritten by), not two"); }
+  else console.log("  PASS  no separate \"Issued by\" field exists — collapsed into Underwritten by as intended");
+
+  var coverTxt = renderTab("cover");
+  ["QT-TRK-2026-89412-v2.0", "Not Yet Bound", "Awaiting Bind"].forEach(function (needle) {
+    if (coverTxt.indexOf(needle) === -1) { fails++; console.log("  FAIL  Cover tab's source quote details missing \"" + needle + "\""); }
+  });
+  console.log("  PASS  Cover tab shows the source quote's own quote number and bind/policy status text");
+
+  var tabLabels = renderTab("cover") && env._pageContent.querySelectorAll(".tab-btn").map(function (b) { return b.textContent; });
+  if (tabLabels.indexOf("Drivers") === -1) { fails++; console.log("  FAIL  no \"Drivers\" tab offered for a policy with real imported driver data"); }
+  else console.log("  PASS  a real \"Drivers\" tab is offered (distinct from the synthetic \"Vehicles & drivers\" tab)");
+
+  var driversTxt = renderTab("drivers");
+  ["Driver One", "TX-DL-88214093", "Driver Two", "TX-DL-77035581", "Pending Verification"].forEach(function (needle) {
+    if (driversTxt.indexOf(needle) === -1) { fails++; console.log("  FAIL  Drivers tab missing \"" + needle + "\""); }
+  });
+  console.log("  PASS  Drivers tab shows the real imported roster (name, DL number, status) for both drivers, not a synthetic one");
+})();
+
 console.log("\n  cancellation type override: on-rule overrides apply cleanly, off-rule overrides apply flagged");
 (function () {
   var stub = {

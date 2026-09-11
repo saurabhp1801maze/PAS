@@ -182,15 +182,6 @@
     cb.appendChild(ui.kv({ k: "Term number", v: policy.termNumber, what: "How many times this policy has renewed." }));
     cb.appendChild(ui.kv({ k: "State", v: policy.state || "—", what: "Jurisdiction this risk is written in." }));
     cb.appendChild(ui.kv({ k: "Submitted", v: (policy.submittedOn || policy.effectiveDate) ? PAS.fmtDate(policy.submittedOn || policy.effectiveDate) : "—", what: "When this record first entered the book.", why: policy.submittedOn ? "" : "Not separately recorded for this record — falls back to its effective date." }));
-    /* Historical, not a live blocking state: this is what the source quote flagged to underwriting
-       at QUOTE TIME. It never gets "cleared" — PAS.importQuote activates the policy immediately
-       regardless of it — so keeping the old "not yet cleared" warning phrasing read as an
-       outstanding problem on an already-Active policy, forever. Framed as a quote-time fact
-       (info tone, explicit "at quote time" + the current-status caveat), the same way the Source
-       quote details block below separates the source system's own status from this record's. */
-    if (policy.quote && policy.quote.eligibility && (policy.quote.eligibility.refers || []).length) {
-      cb.appendChild(ui.callout("info", "This quote referred to underwriting at quote time for: " + policy.quote.eligibility.refers.join(", ") + ". Informational only — PAS activated this policy immediately on import regardless of this flag."));
-    }
     /* Everything below is the source rating-engine quote's own reported metadata — read straight
        off policy.quote.issuedQuoteMeta (never copied onto the policy record itself, so it always
        reflects exactly what was imported). Its bind/policy status text describes the UPSTREAM
